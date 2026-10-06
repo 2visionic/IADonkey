@@ -3459,7 +3459,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                             dayCompletionRatio < 0.25
                               ? '#ef4444'
                               : dayCompletionRatio < 0.65
-                              ? '#f97316'
+                              ? devColor
                               : '#10b981';
 
                           return (
@@ -3969,7 +3969,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                           weekCompletionRatio < 0.25
                             ? '#ef4444'
                             : weekCompletionRatio < 0.65
-                            ? '#f97316'
+                            ? devColor
                             : '#10b981';
 
                         return (
