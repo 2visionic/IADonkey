@@ -2922,7 +2922,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
         {IS_DEV && (
           <span
-            className="ml-0.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30 select-none shrink-0 self-center shadow-sm"
+            className="ml-0.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase bg-amber-500/15 text-amber-300 select-none shrink-0 self-center shadow-xs"
             title={`IADonkey [DEV] v${DISPLAY_APP_VERSION}`}
           >
             DEV
@@ -4089,7 +4089,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 {IS_DEV && (
-                  <span className="rounded-full px-2 py-0.5 bg-amber-500/10 text-amber-300 font-mono text-[10px] border border-amber-500/20">
+                  <span className="rounded-full px-2 py-0.5 bg-amber-500/15 text-amber-300 font-mono text-[10px]">
                     v{DISPLAY_APP_VERSION}
                   </span>
                 )}

@@ -1559,14 +1559,16 @@ export class WindowManager {
     align-items: center;
     padding: 3px 10px;
     border-radius: 9999px;
-    background-color: rgba(99, 102, 241, 0.18);
-    color: #a5b4fc;
+    background-color: ${isDevMode ? 'rgba(245, 158, 11, 0.2)' : 'rgba(99, 102, 241, 0.18)'};
+    color: ${isDevMode ? '#fcd34d' : '#a5b4fc'};
     font-size: 11px;
     font-weight: 600;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     letter-spacing: 0.5px;
     white-space: nowrap;
     flex-shrink: 0;
+    border: none;
+    outline: none;
   }
   .spacer {
     flex: 1;

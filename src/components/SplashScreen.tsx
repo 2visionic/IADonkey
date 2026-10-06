@@ -25,7 +25,7 @@ export const SplashScreen: React.FC = () => {
             <span
               className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-mono tracking-wider whitespace-nowrap shrink-0 ${
                 IS_DEV
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  ? 'bg-amber-500/20 text-amber-300'
                   : 'bg-indigo-500/20 text-indigo-300'
               }`}
             >

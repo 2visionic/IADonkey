@@ -10605,7 +10605,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 Vývojářský test notifikací MagicPlan
                               </span>
                             </div>
-                            <span className="px-2 py-0.5 text-[10px] font-mono font-medium rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/20">
+                            <span className="px-2 py-0.5 text-[10px] font-mono font-medium rounded-full bg-amber-400/15 text-amber-300">
                               DEV MODE
                             </span>
                           </div>
