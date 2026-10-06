@@ -902,25 +902,35 @@ export class MagicPlanService {
             const candTaskDigits = candTaskId.replace(/\D/g, '');
             const candReqDigits = candReqId.replace(/\D/g, '');
 
-            // 1. Same task ID (e.g. T12345 or 12345)
-            if (normDigitsTask && candTaskDigits && normDigitsTask === candTaskDigits) {
-              existing = cand;
-              break;
+            // 1. Pokud má položka kód úkolu T: sloučit POUZE a VÝHRADNĚ při shodě čísla T!
+            if (normDigitsTask) {
+              if (candTaskDigits && normDigitsTask === candTaskDigits) {
+                existing = cand;
+                break;
+              }
+              // Položky s různými kódy T nikdy neslučovat ani podle R!
+              continue;
             }
-            // 2. Same requirement ID (e.g. R6789 or 6789)
-            if (normDigitsReq && candReqDigits && normDigitsReq === candReqDigits) {
-              existing = cand;
-              break;
-            }
-            // 3. Exact matching title if neither had a code
-            if (!normDigitsTask && !candTaskDigits && normTitle && cand.title && normalizeStr(cand.title) === normTitle) {
-              existing = cand;
-              break;
+
+            // 2. Pouze pokud ani položka ani kandidát NEMÁ kód úkolu T:
+            if (!normDigitsTask && !candTaskDigits) {
+              if (normDigitsReq && candReqDigits && normDigitsReq === candReqDigits) {
+                if (normTitle && cand.title && normalizeStr(cand.title) === normTitle) {
+                  existing = cand;
+                  break;
+                }
+              }
+              if (normTitle && cand.title && normalizeStr(cand.title) === normTitle) {
+                existing = cand;
+                break;
+              }
             }
           }
 
           if (!existing) {
-            const primaryKey = normTaskId || normReqId || normTitle || Math.random().toString();
+            const primaryKey = normDigitsTask
+              ? `task-${normDigitsTask}`
+              : (normDigitsReq ? `req-${normDigitsReq}-${normTitle}` : (normTitle || Math.random().toString()));
             userTasksMap.set(primaryKey, {
               reqId: item.reqId,
               taskId: item.taskId,
@@ -1011,33 +1021,32 @@ export class MagicPlanService {
           const tTaskDigits = (t.taskIdentifier || '').replace(/\D/g, '');
           const tReqDigits = (t.requirementId || '').replace(/\D/g, '');
 
-          // 1. Same task numeric identifier (T12345 vs 12345)
-          if (wTaskDigits && tTaskDigits && wTaskDigits === tTaskDigits) {
-            return true;
+          // 1. Pokud worklog obsahuje kód úkolu T (v naprosté většině případů):
+          if (wTaskDigits) {
+            // Pokud má úkol v plánu kód T: musí se čísla T shodovat!
+            if (tTaskDigits) {
+              return wTaskDigits === tTaskDigits;
+            }
+            // Pokud úkol v plánu nemá explicitní taskIdentifier, ale kód T je v titulku:
+            if (wTask.taskId && new RegExp(`\\b${wTask.taskId}\\b`, 'i').test(t.title || '')) {
+              return true;
+            }
+            // Jinak shoda NENÍ možná – nikdy nepárovat podle R, pokud jde o úkol T!
+            return false;
           }
-          // 2. Same requirement numeric identifier (R6789 vs 6789)
-          if (wReqDigits && tReqDigits && wReqDigits === tReqDigits) {
-            return true;
+
+          // 2. Pouze pokud worklog NEMÁ žádný kód T a ani úkol v plánu nemá žádný kód T:
+          if (!wTaskDigits && !tTaskDigits) {
+            if (wReqDigits && tReqDigits && wReqDigits === tReqDigits) {
+              if (wTask.title && t.title && normalizeStr(t.title) === normalizeStr(wTask.title)) {
+                return true;
+              }
+            }
+            if (wTask.title && t.title && normalizeStr(t.title) === normalizeStr(wTask.title)) {
+              return true;
+            }
           }
-          // 3. Exact case-insensitive taskIdentifier
-          if (wTask.taskId && t.taskIdentifier && t.taskIdentifier.toUpperCase() === wTask.taskId.toUpperCase()) {
-            return true;
-          }
-          // 4. Exact case-insensitive requirementId
-          if (wTask.reqId && t.requirementId && t.requirementId.toUpperCase() === wTask.reqId.toUpperCase()) {
-            return true;
-          }
-          // 5. Title matching
-          if (wTask.title && t.title && normalizeStr(t.title) === normalizeStr(wTask.title)) {
-            return true;
-          }
-          // 6. Title contains code
-          if (wTask.taskId && (t.title || '').toUpperCase().includes(wTask.taskId.toUpperCase())) {
-            return true;
-          }
-          if (wTask.reqId && (t.title || '').toUpperCase().includes(wTask.reqId.toUpperCase())) {
-            return true;
-          }
+
           return false;
         });
 
