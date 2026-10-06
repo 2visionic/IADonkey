@@ -771,8 +771,13 @@ export class MagicPlanService {
         const isService = /class=["'][^"']*service[^"']*["']/i.test(tr1);
         const isDev = /class=["'][^"']*dev[^"']*["']/i.test(tr1);
 
-        const rMatch = tr1.match(/mlog:\/\/(R\d+)/i) || tr1.match(/>(R\d+)<\/a>/i);
-        const reqId = rMatch ? rMatch[1] : '';
+        const rMatch =
+          tr1.match(/mlog:\/\/(R\d+)/i) ||
+          tr1.match(/>\s*(R\d+)\s*<\/a>/i) ||
+          tr1.match(/\b(R\d+)\b/i) ||
+          tr2.match(/mlog:\/\/(R\d+)/i) ||
+          tr2.match(/\b(R\d+)\b/i);
+        const reqId = rMatch ? rMatch[1].toUpperCase() : '';
 
         const strongMatch = tr1.match(/<strong[^>]*>([\s\S]*?)<\/strong>/i);
         const title = strongMatch ? decodeHtmlEntities(strongMatch[1].replace(/<[^>]+>/g, '')).trim() : '';
@@ -782,13 +787,26 @@ export class MagicPlanService {
 
         const tdMatches2 = tr2.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [];
         let hours = 0;
-        if (tdMatches2.length >= 2) {
+        for (const td of tdMatches2) {
+          const hMatch = td.match(/([\d,\.]+)\s*h(?:od)?\b/i);
+          if (hMatch) {
+            hours = parseFloat(hMatch[1].replace(',', '.')) || 0;
+            if (hours > 0) break;
+          }
+        }
+        if (hours === 0 && tdMatches2.length >= 2) {
           const hText = tdMatches2[1].replace(/<[^>]+>/g, '').replace('h', '').replace(',', '.').trim();
           hours = parseFloat(hText) || 0;
         }
 
-        const tMatch = tr2.match(/mlog:\/\/(T\d+)/i) || tr2.match(/\((T\d+)\)/i);
-        const taskId = tMatch ? tMatch[1] : '';
+        const tMatch =
+          tr2.match(/mlog:\/\/(T\d+)/i) ||
+          tr2.match(/\((T\d+)\)/i) ||
+          tr2.match(/\b(T\d+)\b/i) ||
+          tr1.match(/mlog:\/\/(T\d+)/i) ||
+          tr1.match(/\((T\d+)\)/i) ||
+          tr1.match(/\b(T\d+)\b/i);
+        const taskId = tMatch ? tMatch[1].toUpperCase() : '';
 
         userTasks.push({ reqId, taskId, title, project, isService, isDev, hours });
       }
@@ -818,10 +836,8 @@ export class MagicPlanService {
   ): Promise<Record<string, Record<string, number>>> {
     if (!worklogBaseUrl || combinedDays.length === 0) return {};
 
-    const todayIdx = combinedDays.findIndex((d) => d.isToday);
-    const targetDays = (todayIdx >= 0 && todayIdx < 5)
-      ? combinedDays.slice(0, todayIdx + 1)
-      : combinedDays.slice(0, 5);
+    // Always query all 5 days of the plan week so all worklogs in the week are aggregated
+    const targetDays = combinedDays.slice(0, 5);
 
     if (targetDays.length === 0) return {};
 
@@ -861,12 +877,51 @@ export class MagicPlanService {
         }
 
         for (const item of items) {
-          const taskKey = item.taskId || item.reqId || item.title;
-          if (!taskKey) continue;
+          const normTaskId = (item.taskId || '').trim().toUpperCase();
+          const normReqId = (item.reqId || '').trim().toUpperCase();
+          const normDigitsTask = normTaskId.replace(/\D/g, '');
+          const normDigitsReq = normReqId.replace(/\D/g, '');
+          const normTitle = item.title ? normalizeStr(item.title) : '';
 
-          const existing = userTasksMap.get(taskKey);
+          if (!normTaskId && !normReqId && !normTitle) continue;
+
+          // Find existing entry in userTasksMap that belongs to the same task / requirement
+          let existing: {
+            reqId: string;
+            taskId: string;
+            title: string;
+            project: string;
+            isService: boolean;
+            isDev: boolean;
+            totalRawHours: number;
+          } | undefined;
+
+          for (const cand of userTasksMap.values()) {
+            const candTaskId = (cand.taskId || '').toUpperCase();
+            const candReqId = (cand.reqId || '').toUpperCase();
+            const candTaskDigits = candTaskId.replace(/\D/g, '');
+            const candReqDigits = candReqId.replace(/\D/g, '');
+
+            // 1. Same task ID (e.g. T12345 or 12345)
+            if (normDigitsTask && candTaskDigits && normDigitsTask === candTaskDigits) {
+              existing = cand;
+              break;
+            }
+            // 2. Same requirement ID (e.g. R6789 or 6789)
+            if (normDigitsReq && candReqDigits && normDigitsReq === candReqDigits) {
+              existing = cand;
+              break;
+            }
+            // 3. Exact matching title if neither had a code
+            if (!normDigitsTask && !candTaskDigits && normTitle && cand.title && normalizeStr(cand.title) === normTitle) {
+              existing = cand;
+              break;
+            }
+          }
+
           if (!existing) {
-            userTasksMap.set(taskKey, {
+            const primaryKey = normTaskId || normReqId || normTitle || Math.random().toString();
+            userTasksMap.set(primaryKey, {
               reqId: item.reqId,
               taskId: item.taskId,
               title: item.title,
@@ -882,6 +937,7 @@ export class MagicPlanService {
             if (!existing.title && item.title) existing.title = item.title;
             if (!existing.project && item.project) existing.project = item.project;
             if (item.isService) existing.isService = true;
+            if (item.isDev) existing.isDev = true;
           }
         }
       }
@@ -938,8 +994,10 @@ export class MagicPlanService {
 
       for (const [, wTask] of taskMap.entries()) {
         const roundedHours = Math.max(0.5, Math.round(wTask.totalRawHours * 2) / 2);
+        const wTaskDigits = (wTask.taskId || '').replace(/\D/g, '');
+        const wReqDigits = (wTask.reqId || '').replace(/\D/g, '');
 
-        const existingTask = allMyTasks.find((t) => {
+        const matchingTasks = allMyTasks.filter((t) => {
           if (matchedPerson) {
             const isUserMatch =
               t.userId === matchedPerson.id ||
@@ -950,38 +1008,61 @@ export class MagicPlanService {
             if (!matchesPersonName(t.userName, wUser)) return false;
           }
 
+          const tTaskDigits = (t.taskIdentifier || '').replace(/\D/g, '');
+          const tReqDigits = (t.requirementId || '').replace(/\D/g, '');
+
+          // 1. Same task numeric identifier (T12345 vs 12345)
+          if (wTaskDigits && tTaskDigits && wTaskDigits === tTaskDigits) {
+            return true;
+          }
+          // 2. Same requirement numeric identifier (R6789 vs 6789)
+          if (wReqDigits && tReqDigits && wReqDigits === tReqDigits) {
+            return true;
+          }
+          // 3. Exact case-insensitive taskIdentifier
           if (wTask.taskId && t.taskIdentifier && t.taskIdentifier.toUpperCase() === wTask.taskId.toUpperCase()) {
             return true;
           }
+          // 4. Exact case-insensitive requirementId
           if (wTask.reqId && t.requirementId && t.requirementId.toUpperCase() === wTask.reqId.toUpperCase()) {
             return true;
           }
+          // 5. Title matching
           if (wTask.title && t.title && normalizeStr(t.title) === normalizeStr(wTask.title)) {
+            return true;
+          }
+          // 6. Title contains code
+          if (wTask.taskId && (t.title || '').toUpperCase().includes(wTask.taskId.toUpperCase())) {
+            return true;
+          }
+          if (wTask.reqId && (t.title || '').toUpperCase().includes(wTask.reqId.toUpperCase())) {
             return true;
           }
           return false;
         });
 
-        if (existingTask) {
-          const isTaskSolvedInPlan = Boolean(existingTask.isCompleted || existingTask.isSolved);
-          if (isTaskSolvedInPlan) {
-            existingTask.isCompleted = true;
-            existingTask.isSolved = true;
-            if (!existingTask.estimatedHours) {
-              existingTask.estimatedHours = existingTask.totalHours;
+        if (matchingTasks.length > 0) {
+          for (const existingTask of matchingTasks) {
+            const isTaskSolvedInPlan = Boolean(existingTask.isCompleted || existingTask.isSolved);
+            if (isTaskSolvedInPlan) {
+              existingTask.isCompleted = true;
+              existingTask.isSolved = true;
+              if (!existingTask.estimatedHours) {
+                existingTask.estimatedHours = existingTask.totalHours;
+              }
+              existingTask.totalHours = roundedHours;
+              existingTask.worklogHours = roundedHours;
+            } else {
+              // U nevyřešeného požadavku počítáme reálný sloučený worklog bez zaokrouhlování
+              existingTask.worklogHours = Math.round(wTask.totalRawHours * 100) / 100;
             }
-            existingTask.totalHours = roundedHours;
-            existingTask.worklogHours = roundedHours;
-          } else {
-            // U nevyřešeného požadavku počítáme reálný worklog bez zaokrouhlování
-            existingTask.worklogHours = Math.round(wTask.totalRawHours * 100) / 100;
+            if (wTask.isService) existingTask.taskType = 'service';
+            else if (wTask.isDev) existingTask.taskType = 'dev';
+            if (!existingTask.project && wTask.project) existingTask.project = wTask.project;
+            if (!existingTask.title && wTask.title) existingTask.title = wTask.title;
+            if (!existingTask.requirementId && wTask.reqId) existingTask.requirementId = wTask.reqId;
+            if (!existingTask.taskIdentifier && wTask.taskId) existingTask.taskIdentifier = wTask.taskId;
           }
-          if (wTask.isService) existingTask.taskType = 'service';
-          else if (wTask.isDev) existingTask.taskType = 'dev';
-          if (!existingTask.project && wTask.project) existingTask.project = wTask.project;
-          if (!existingTask.title && wTask.title) existingTask.title = wTask.title;
-          if (!existingTask.requirementId && wTask.reqId) existingTask.requirementId = wTask.reqId;
-          if (!existingTask.taskIdentifier && wTask.taskId) existingTask.taskIdentifier = wTask.taskId;
         } else {
           const code = wTask.taskId || wTask.reqId || '';
           let taskUrl = '';
@@ -1354,7 +1435,11 @@ export class MagicPlanService {
       const taskId = (taskIdMatch ? taskIdMatch[1] : (guidMatch ? guidMatch[1] : '')) || `task-${Math.random()}`;
 
       const identMatch = attrs.match(/data-task-identifier="([^"]*)"/i);
-      const taskIdentifier = identMatch ? identMatch[1] : '';
+      let taskIdentifier = identMatch ? identMatch[1] : '';
+      if (!taskIdentifier) {
+        const tMatch = rawTitle.match(/\b(T\d+)\b/i) || innerContent.match(/\b(T\d+)\b/i);
+        if (tMatch) taskIdentifier = tMatch[1];
+      }
 
       // Extract hours from all possible sources (data attributes, inner hours span, title)
       const attrHoursMatch =
@@ -1581,9 +1666,12 @@ export class MagicPlanService {
     const map = new Map<string, PlanTaskItem>();
 
     for (const t of tasks) {
-      const existing = map.get(t.taskId);
+      const key = t.taskIdentifier
+        ? `ident-${t.taskIdentifier.toUpperCase()}`
+        : t.taskId;
+      const existing = map.get(key);
       if (!existing) {
-        map.set(t.taskId, { ...t, dates: [...t.dates] });
+        map.set(key, { ...t, dates: [...t.dates] });
       } else {
         // Keep highest totalHours if slice had partial
         if (t.totalHours > existing.totalHours) {
@@ -1591,6 +1679,9 @@ export class MagicPlanService {
         }
         if (t.estimatedHours && (!existing.estimatedHours || t.estimatedHours > existing.estimatedHours)) {
           existing.estimatedHours = t.estimatedHours;
+        }
+        if (t.worklogHours && (!existing.worklogHours || t.worklogHours > existing.worklogHours)) {
+          existing.worklogHours = t.worklogHours;
         }
         if (typeof t.topPx === 'number') {
           if (typeof existing.topPx !== 'number' || t.topPx < existing.topPx) {

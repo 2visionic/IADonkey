@@ -1460,7 +1460,9 @@ const calculateScheduleForTasks = (
       continue;
     }
 
-    const key = t.taskId || `${t.taskIdentifier || ''}-${t.requirementId || ''}-${t.title}`;
+    const key = t.taskIdentifier
+      ? `t-ident-${t.taskIdentifier.toUpperCase()}`
+      : (t.requirementId ? `t-req-${t.requirementId.toUpperCase()}` : (t.taskId || t.title));
     const existing = normalTasksMap.get(key);
     if (!existing) {
       normalTasksMap.set(key, {
