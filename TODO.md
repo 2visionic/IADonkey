@@ -56,9 +56,17 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
     - Implementace servisy pro volání `https://frog.magicware.cz/api/v1/sub-requirements` a načítání uživatelů (`/api/v1/users`).
     - Spotlight dialog pro příkaz `/task` (název, závažnost, zkratka řešitele např. MCH, projekt).
 
+- [ ] **6. UI: Tlačítko „Restartovat a spustit novou verzi“ nedělat full-width**
+  - Při stavu aktualizace, kdy aplikace nabízí restart do nové verze, upravit šířku tlačítka tak, aby nebylo roztažené na celou šířku (full-width), ale mělo kompaktní šířku / auto width s paddingem.
+
+- [ ] **7. Nápověda: Zahrnutí MagicPlanu do nápovědy chytrých funkcí**
+  - V nápovědě chytrých funkcí doplnit sekci / informace pro MagicPlan, pokud je v nastavení zapnutý.
+
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
 *(Žádné dokončené úkoly nečekají na revizi – všechny byly schváleny v checklistu)*
+
+
 
 
 
