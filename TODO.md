@@ -56,8 +56,7 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-- [x] **MagicPlan Nastavení: Barva extensionu (cyan) a přepínač propojení s TaskManagerem**
-  - V nastavení MagicPlanu sladěna barva ikony v prvním nadpisu do barvy extensionu (`text-cyan-400`) a přepínač propojení s TaskManagerem přepnut do stejného cyan odstínu (`peer-checked:bg-cyan-600`).
+*(Žádné dokončené úkoly nečekají na revizi – všechny byly schváleny a zkontrolovány)*
 
 
 
