@@ -7604,7 +7604,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
               <div>
                 <h3 className="font-semibold text-white flex items-center gap-2">
-                  <span className="material-symbols-outlined text-lg text-indigo-400">calendar_month</span>
+                  <span className="material-symbols-outlined text-lg text-cyan-400">calendar_month</span>
                   Interní plán práce (MagicPlan)
                 </h3>
                 <p className="text-[13px] text-gray-400 mt-1 leading-relaxed">
@@ -8116,7 +8116,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         }}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600" />
+                      <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-600" />
                     </label>
                   </div>
 

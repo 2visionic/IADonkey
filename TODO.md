@@ -54,12 +54,10 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
     - Implementace servisy pro volání `https://frog.magicware.cz/api/v1/sub-requirements` a načítání uživatelů (`/api/v1/users`).
     - Spotlight dialog pro příkaz `/task` (název, závažnost, zkratka řešitele např. MCH, projekt).
 
-- [ ] **6. MagicPlan Nastavení: Barva extensionu a přepínač propojení s TaskManagerem**
-  - **Popis**: V nastavení MagicPlanu zajistit přebírání barvy rozšíření (první nadpis a ikona v barvě extensionu) a doplnit přepínač pro propojení s rozšířením TaskManager.
-
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-*(Žádné dokončené úkoly nečekají na revizi – všechny byly schváleny a zkontrolovány)*
+- [x] **MagicPlan Nastavení: Barva extensionu (cyan) a přepínač propojení s TaskManagerem**
+  - V nastavení MagicPlanu sladěna barva ikony v prvním nadpisu do barvy extensionu (`text-cyan-400`) a přepínač propojení s TaskManagerem přepnut do stejného cyan odstínu (`peer-checked:bg-cyan-600`).
 
 
 
