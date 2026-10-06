@@ -300,6 +300,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     return () => document.removeEventListener('mousedown', handleDocClick);
   }, [openSimDropdown, openNotifDropdown]);
 
+  useEffect(() => {
+    const cleanup = window.electronAPI?.onInjectedHotkeyEvent?.((data) => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+        const ev = new KeyboardEvent(data.type, {
+          key: data.key,
+          code: data.code,
+          altKey: data.altKey,
+          ctrlKey: data.ctrlKey,
+          shiftKey: data.shiftKey,
+          metaKey: data.metaKey,
+          bubbles: true,
+          cancelable: true,
+        });
+        activeEl.dispatchEvent(ev);
+      }
+    });
+    return () => {
+      cleanup?.();
+    };
+  }, []);
+
   const firstGithubRepo = useMemo(() => {
     for (const it of items) {
       const res = getGitRepoData(it);
@@ -2359,6 +2381,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     else if (/^[a-z]$/i.test(keyName)) keyName = keyName.toUpperCase();
 
     pressedKeysRef.current.add(keyName);
+    if (e.altKey) pressedKeysRef.current.add('Alt');
+    if (e.ctrlKey) pressedKeysRef.current.add('Ctrl');
+    if (e.shiftKey) pressedKeysRef.current.add('Shift');
+    if (e.metaKey) pressedKeysRef.current.add('Super');
 
     // Sort order: Modifiers first, then normal keys
     const order = ['Ctrl', 'Alt', 'Shift', 'Super'];
@@ -2564,6 +2590,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     else if (/^[a-z]$/i.test(keyName)) keyName = keyName.toUpperCase();
 
     colorMasterPressedKeysRef.current.add(keyName);
+    if (e.altKey) colorMasterPressedKeysRef.current.add('Alt');
+    if (e.ctrlKey) colorMasterPressedKeysRef.current.add('Ctrl');
+    if (e.shiftKey) colorMasterPressedKeysRef.current.add('Shift');
+    if (e.metaKey) colorMasterPressedKeysRef.current.add('Super');
 
     // Sort order: Modifiers first, then normal keys
     const order = ['Ctrl', 'Alt', 'Shift', 'Super'];
@@ -2839,6 +2869,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     else if (/^[a-z]$/i.test(keyName)) keyName = keyName.toUpperCase();
 
     palettePressedKeysRef.current.add(keyName);
+    if (e.altKey) palettePressedKeysRef.current.add('Alt');
+    if (e.ctrlKey) palettePressedKeysRef.current.add('Ctrl');
+    if (e.shiftKey) palettePressedKeysRef.current.add('Shift');
+    if (e.metaKey) palettePressedKeysRef.current.add('Super');
 
     const order = ['Ctrl', 'Alt', 'Shift', 'Super'];
     const currentKeys = Array.from(palettePressedKeysRef.current);
@@ -3080,6 +3114,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     else if (/^[a-z]$/i.test(keyName)) keyName = keyName.toUpperCase();
 
     quickCapPressedKeysRef.current.add(keyName);
+    if (e.altKey) quickCapPressedKeysRef.current.add('Alt');
+    if (e.ctrlKey) quickCapPressedKeysRef.current.add('Ctrl');
+    if (e.shiftKey) quickCapPressedKeysRef.current.add('Shift');
+    if (e.metaKey) quickCapPressedKeysRef.current.add('Super');
 
     // Sort order: Modifiers first, then normal keys
     const order = ['Ctrl', 'Alt', 'Shift', 'Super'];
@@ -3355,6 +3393,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     else if (/^[a-z]$/i.test(keyName)) keyName = keyName.toUpperCase();
 
     screenRulerPressedKeysRef.current.add(keyName);
+    if (e.altKey) screenRulerPressedKeysRef.current.add('Alt');
+    if (e.ctrlKey) screenRulerPressedKeysRef.current.add('Ctrl');
+    if (e.shiftKey) screenRulerPressedKeysRef.current.add('Shift');
+    if (e.metaKey) screenRulerPressedKeysRef.current.add('Super');
 
     // Sort order: Modifiers first, then normal keys
     const order = ['Ctrl', 'Alt', 'Shift', 'Super'];
@@ -3666,6 +3708,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     else if (/^[a-z]$/i.test(keyName)) keyName = keyName.toUpperCase();
 
     easyClipPressedKeysRef.current.add(keyName);
+    if (e.altKey) easyClipPressedKeysRef.current.add('Alt');
+    if (e.ctrlKey) easyClipPressedKeysRef.current.add('Ctrl');
+    if (e.shiftKey) easyClipPressedKeysRef.current.add('Shift');
+    if (e.metaKey) easyClipPressedKeysRef.current.add('Super');
 
     // Sort order: Modifiers first, then normal keys
     const order = ['Ctrl', 'Alt', 'Shift', 'Super'];

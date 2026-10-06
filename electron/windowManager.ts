@@ -181,6 +181,12 @@ export class WindowManager {
       }
     });
 
+    this.mainWindow.webContents.on('before-input-event', (event, input) => {
+      if (input.alt && (input.key === ' ' || input.code === 'Space')) {
+        event.preventDefault();
+      }
+    });
+
     // Intercept close to hide instead of quit
     this.mainWindow.on('close', (event) => {
       if (!this.isQuitting) {
@@ -324,6 +330,33 @@ export class WindowManager {
     } catch {
       // Ignore
     }
+
+    this.settingsWindow.webContents.on('before-input-event', (event, input) => {
+      // Intercept Alt+Space or F10 to prevent Windows native system menu from activating
+      if (input.alt && (input.key === ' ' || input.code === 'Space')) {
+        event.preventDefault();
+        this.settingsWindow?.webContents.send('injected-hotkey-event', {
+          type: input.type === 'keyUp' ? 'keyup' : 'keydown',
+          key: ' ',
+          code: 'Space',
+          altKey: input.alt,
+          ctrlKey: input.control,
+          shiftKey: input.shift,
+          metaKey: input.meta,
+        });
+      } else if (input.key === 'F10') {
+        event.preventDefault();
+        this.settingsWindow?.webContents.send('injected-hotkey-event', {
+          type: input.type === 'keyUp' ? 'keyup' : 'keydown',
+          key: 'F10',
+          code: 'F10',
+          altKey: input.alt,
+          ctrlKey: input.control,
+          shiftKey: input.shift,
+          metaKey: input.meta,
+        });
+      }
+    });
 
     this.registerCrashHandlers(this.settingsWindow, 'Nastavení');
 

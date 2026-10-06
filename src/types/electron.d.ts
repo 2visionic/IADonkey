@@ -190,6 +190,7 @@ declare global {
         screenY: number;
       }) => Promise<{ snapZone: 'top' | 'left' | 'right' | null }>;
       endWindowDrag?: (data: { screenX: number; screenY: number }) => Promise<void>;
+      onInjectedHotkeyEvent?: (callback: (data: { type: string; key: string; code: string; altKey: boolean; ctrlKey: boolean; shiftKey: boolean; metaKey: boolean }) => void) => () => void;
 
       // Splash Screen API
       getSplashStatus?: () => Promise<{ percent: number; text: string }>;

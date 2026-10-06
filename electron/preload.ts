@@ -237,6 +237,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }): Promise<{ snapZone: 'top' | 'left' | 'right' | null }> => ipcRenderer.invoke('move-window-drag', data),
   endWindowDrag: (data: { screenX: number; screenY: number }): Promise<void> =>
     ipcRenderer.invoke('end-window-drag', data),
+  onInjectedHotkeyEvent: (callback: (data: { type: string; key: string; code: string; altKey: boolean; ctrlKey: boolean; shiftKey: boolean; metaKey: boolean }) => void) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('injected-hotkey-event', handler);
+    return () => ipcRenderer.removeListener('injected-hotkey-event', handler);
+  },
 
   // Splash Screen API
   getSplashStatus: (): Promise<{ percent: number; text: string }> => ipcRenderer.invoke('get-splash-status'),
