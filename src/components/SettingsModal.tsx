@@ -11376,6 +11376,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   )}
 
+                  {Boolean(formData.extensions?.magicplan) && (
+                    <div className="p-4 bg-white/[0.03] hover:bg-white/[0.05] rounded-2xl space-y-1.5 transition-colors">
+                      <div className="flex items-center gap-2 text-cyan-400 font-semibold">
+                        <span className="material-symbols-outlined text-base">calendar_month</span>
+                        MagicPlan – Plánovač a přehled úkolů
+                      </div>
+                      <p className="text-gray-400 text-xs leading-relaxed">
+                        Interaktivní přehled naplánovaných úkolů z centrálního plánu MagicWare. Zobrazuje vytížení dnů, čerpání hodin, přetížení kapacity, stav rozpracovanosti a automatické notifikace změn. Otevřete příkazem <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-[11px]">/plan</code>, <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-[11px]">/magicplan</code> nebo ikonou kalendáře ve Spotlightu.
+                      </p>
+                    </div>
+                  )}
+
                   {formData.extensions?.magicgate !== false && (!!formData.magicgate?.username?.trim() || !!formData.magicgate?.xmlPath?.trim()) && (
                     <div className="p-4 bg-white/[0.03] hover:bg-white/[0.05] rounded-2xl space-y-1.5 transition-colors">
                       <div className="flex items-center gap-2 text-amber-400 font-semibold">

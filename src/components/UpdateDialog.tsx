@@ -270,7 +270,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
             <button
               type="button"
               onClick={handleInstallAndRestart}
-              className="w-full flex items-center justify-center gap-1.5 px-6 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-full transition shadow-md cursor-pointer"
+              className="flex items-center gap-1.5 px-6 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-full transition shadow-md cursor-pointer"
             >
               <span className="material-symbols-outlined text-base">restart_alt</span>
               Restartovat a spustit novou verzi
