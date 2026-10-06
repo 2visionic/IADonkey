@@ -4816,6 +4816,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   const planClean = Math.round(planHours * 10) / 10;
   const actualClean = Math.round(actualHours * 10) / 10;
   const overburnDiff = Math.round((actualClean - planClean) * 10) / 10;
+  const isExtremeOverburn = planClean > 0 && Math.round((actualClean / planClean) * 100) > 200;
 
   return (
     <div
