@@ -77,7 +77,7 @@ const ColorPickerSection: React.FC<ColorPickerSectionProps> = ({
                 {currentPreset?.name || effectiveColor.toUpperCase()}
               </span>
               {currentPreset?.isDefault && (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/10 text-gray-300">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-gray-300">
                   Výchozí
                 </span>
               )}
@@ -9186,7 +9186,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     {currentPreset?.name || effectiveColor.toUpperCase()}
                                   </span>
                                   {currentPreset?.isDefault && (
-                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/10 text-gray-300">
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-gray-300">
                                       Výchozí
                                     </span>
                                   )}
