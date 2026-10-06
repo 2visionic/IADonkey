@@ -123,6 +123,7 @@ export interface MagicPlanSettings {
   showAllTasks?: boolean;
   compactDayView?: boolean;
   worklogUrl?: string;
+  showWorklogProgressBar?: boolean;
 }
 
 export interface PlanDayInfo {
@@ -173,6 +174,7 @@ export interface MagicPlanData {
   unassignedTasks: PlanTaskItem[];
   totalMyHours: number;
   availablePersons?: PlanPersonInfo[];
+  dailyUserWorklogs?: Record<string, Record<string, number>>;
   error?: string;
   isOffline?: boolean;
 }

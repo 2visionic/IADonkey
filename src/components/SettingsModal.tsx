@@ -7604,7 +7604,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
               <div>
                 <h3 className="font-semibold text-white flex items-center gap-2">
-                  <span className="material-symbols-outlined text-lg text-indigo-400">calendar_month</span>
+                  <span className="material-symbols-outlined text-lg text-cyan-400">calendar_month</span>
                   Interní plán práce (MagicPlan)
                 </h3>
                 <p className="text-[13px] text-gray-400 mt-1 leading-relaxed">
@@ -8015,6 +8015,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </label>
                   </div>
 
+                  {/* Progress bar odpracovaného času (worklog) */}
+                  <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.02] md:col-span-2">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-semibold text-white block">
+                        Indikátor odpracovaného času (worklog bar)
+                      </span>
+                      <span className="text-[11px] text-gray-400">
+                        Zobrazí tenký progress bar odpracovaného času pod úkoly uživatelů v denním i týdenním rozvrhu
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={formData.magicplan?.showWorklogProgressBar !== false}
+                        onChange={(e) => {
+                          const updated = {
+                            ...formData,
+                            magicplan: {
+                              ...formData.magicplan,
+                              showWorklogProgressBar: e.target.checked,
+                            },
+                          };
+                          setFormData(updated);
+                          handleSave(updated);
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-600" />
+                    </label>
+                  </div>
+
                   {/* Trvalé zobrazení všech úkolů (zobrazí se pouze pokud je moje osoba mezi sledovanými osobami) */}
                   {(() => {
                     const userList = (formData.magicplan?.userColumns && formData.magicplan.userColumns.length > 0)
@@ -8085,7 +8116,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         }}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600" />
+                      <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-600" />
                     </label>
                   </div>
 

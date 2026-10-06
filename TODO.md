@@ -42,18 +42,11 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
       - Odeslání přes interní API / Helpdesk (např. MLog API jako požadavek Rxxxx), GitHub Issues REST API, nebo centrální webhook (Slack/Teams/e-mail).
       - Ošetření offline stavu (uložení do fronty k odeslání po obnovení připojení).
 
-- [ ] **4. Integrace odpracovaných hodin v daném dni do MagicPlanu (společná analýza)**
-  - **Popis**: Společná analýza a návrh integrace reálně odpracovaných a vykázaných hodin za daný den přímo do okna a časové osy MagicPlanu.
-  - **Body k řešení**:
-    - **Zdroj dat**: Možnosti napojení na helpdesk MLog / výkazy práce (REST API, interní endpoint nebo přímé dotazování) pro zjištění reálně vykázaných hodin uživatele v daném dni.
-    - **Zobrazení v UI**: Přehledný indikátor celkového součtu odpracovaných hodin vs. plánovaná kapacita (např. v záhlaví navigace dne vedle data a časového rozmezí).
-    - **Vizuální párování**: Porovnání naplánovaných bloků na ose s reálně zapsanými výkazy (indikace splněno / rozpracováno / manko / přesčas).
-
-- [ ] **5. MagicPlan: Integrace zobrazení víkendů**
+- [ ] **4. MagicPlan: Integrace zobrazení víkendů**
   - **Popis**: Zobrazení víkendových dnů v plánu, defaultně indikovaných jako 8h volno.
   - **Požadavky**: Údaje o volnu/kapacitě přebírat dynamicky z dat plánu (ne hardcoded).
 
-- [ ] **6. Integrace MLog Frog API: Zakládání úkolů přes příkaz `/task` ve Spotlightu**
+- [ ] **5. Integrace MLog Frog API: Zakládání úkolů přes příkaz `/task` ve Spotlightu**
   - **Popis**: Využití nového moderního REST API serveru MLogu („Frog“ – Vladimír Tintěra) pro rychlé zakládání úkolů přímo ze Spotlight dialogu s následným otevřením přes `LinkOpenner`.
   - **Odkaz na analýzu**: [Technická analýza Frog MLog API](docs/frog-mlog-api-analyza.md)
   - **Klíčové kroky**:
