@@ -1738,10 +1738,12 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   const handleExecute = async (item: LauncherItem) => {
     if (!item) return;
 
+    const isCalculator = item.id === 'calculator-result' || item.icon === 'calculate';
+
     window.electronAPI?.logAction?.({
       type: 'action',
       title: `Vybrána položka: ${item.name}`,
-      details: `Akce: ${item.action || 'open'}, cíl: ${item.location || item.name}`,
+      details: `Akce: ${item.action || 'open'}, cíl: ${isCalculator ? item.name : (item.location || item.name)}`,
       status: 'info',
     });
 
@@ -1820,7 +1822,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
 
     if (item.action === 'copy' || item.action === 'paste') {
-      const toCopy = item.location || item.name;
+      const toCopy = isCalculator ? item.name : (item.location || item.name);
       const isSnippet = item.sourceId === 'snippet';
       if (isSnippet) {
         resetSpotlightState();
@@ -1902,7 +1904,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   const handleExecuteAction = async (parent: LauncherItem, actionItem: LauncherAction) => {
     const actionType = actionItem.action;
     const effectiveSettings = actionItem.settings || parent.settings;
-    const effectiveLocation = actionItem.location || parent.location || '';
+    const isCalculatorParent = parent.id === 'calculator-result' || parent.icon === 'calculate';
+    const effectiveLocation = actionItem.location || (isCalculatorParent ? parent.name : parent.location) || '';
 
     window.electronAPI?.logAction?.({
       type: 'action',
