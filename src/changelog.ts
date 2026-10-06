@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.4';
+export const CURRENT_APP_VERSION = '2.1.5';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,18 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.5',
+    date: '7. 10. 2026',
+    title: 'Spolehlivý Alt+Space interceptor, kopírování z kalkulačky, MagicPlan v nápovědě a ladicí nástroje',
+    highlights: [
+      'Klávesové zkratky – Spolehlivý Alt+Space interceptor: V nízkoúrovňovém jádru Electronu byl nasazen Win32 hook, který při nahrávání i stisku globální zkratky Alt+Space spolehlivě potlačuje systémové okenní menu Windows.',
+      'Spotlight – Kopírování výsledku z kalkulačky: Při výběru nebo kopírování výsledku kalkulačky ve Spotlightu se do schránky korektně ukládá vypočtená hodnota z názvu položky.',
+      'Nápověda – Karta MagicPlan v chytrých funkcích: Do nápovědy chytrých funkcí v Nastavení byla přidána nová karta s přehledem možností MagicPlanu (příkazy /plan, /magicplan, sledování úkolů a timeline).',
+      'Dialog aktualizace – Vyladění tlačítka restartu: Tlačítko „Restartovat a spustit novou verzi“ již není roztažené přes celou šířku dialogu a je elegantně zarovnáno vpravo.',
+      'Nastavení & Vývojář – Seřazení nástrojů a názvy barev: Zelené ikony a strukturované seřazení všech ladicích a servisních nástrojů vývojáře, zjednodušené názvy výchozích barev („Indigo“, „Fialová“) a plně zakulacený chip výběru barvy.',
+    ],
+  },
   {
     version: '2.1.4',
     date: '6. 10. 2026',

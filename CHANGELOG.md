@@ -4,6 +4,14 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.5] - 7. 10. 2026
+### Spolehlivý Alt+Space interceptor, kopírování z kalkulačky, MagicPlan v nápovědě a ladicí nástroje
+- **Klávesové zkratky – Spolehlivý Alt+Space interceptor**: V nízkoúrovňovém jádru Electronu byl nasazen Win32 hook, který při nahrávání i stisku globální zkratky Alt+Space spolehlivě potlačuje systémové okenní menu Windows.
+- **Spotlight – Kopírování výsledku z kalkulačky**: Při výběru nebo kopírování výsledku kalkulačky ve Spotlightu se do schránky korektně ukládá vypočtená hodnota z názvu položky.
+- **Nápověda – Karta MagicPlan v chytrých funkcích**: Do nápovědy chytrých funkcí v Nastavení byla přidána nová karta s přehledem možností MagicPlanu (příkazy /plan, /magicplan, sledování úkolů a timeline).
+- **Dialog aktualizace – Vyladění tlačítka restartu**: Tlačítko „Restartovat a spustit novou verzi“ již není roztažené přes celou šířku dialogu a je elegantně zarovnáno vpravo.
+- **Nastavení & Vývojář – Seřazení nástrojů a názvy barev**: Zelené ikony a strukturované seřazení všech ladicích a servisních nástrojů vývojáře, zjednodušené názvy výchozích barev („Indigo“, „Fialová“) a plně zakulacený chip výběru barvy.
+
 ## [2.1.4] - 6. 10. 2026
 ### MagicPlan ukazatele odpracovaného času, extrémní přesahy a rychlý náhled detailů
 - **MagicPlan – Ukazatel odpracovaného času (worklog bar)**: Jemný 4px zaoblený indikátor odpracovaných hodin per uživatel v denním (8h) i týdenním (40h) pohledu. Barevná indikace podle poměru k uplynulému času (červená pod 25 %, primární vybraná barva pod 65 %, zelená nad 65 %) a možnost vypnutí/zapnutí v Nastavení.

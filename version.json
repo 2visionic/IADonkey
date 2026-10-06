@@ -1,6 +1,6 @@
 {
-  "version": "2.1.4",
-  "releaseNotes": "• MagicPlan: Jemný 4px ukazatel odpracovaného času (worklog bar) v denním (8h) i týdenním (40h) přehledu s barevnou indikací (červená, primární téma, zelená) a možností vypnutí v Nastavení.\n• MagicPlan: Přepočet poměru přesahu (např. 2h/1h = 200 %) a výrazné červené zvýraznění u extrémních přesahů nad 200 %.\n• MagicPlan: Rychlý náhled detailů úkolu v denním přehledu při podržení myši nad 1,2 s.\n• Nastavení: Sjednocení barvy ikony a přepínače propojení s TaskManagerem do odstínu rozšíření MagicPlan (cyan).",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.4/IADonkey-Setup-2.1.4.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.4/IADonkey-2.1.4.zip"
+  "version": "2.1.5",
+  "releaseNotes": "• Klávesové zkratky: Spolehlivý Win32 interceptor pro globální zkratku Alt+Space potlačující okenní menu Windows.\n• Spotlight: Správné kopírování vypočteného výsledku z kalkulačky.\n• Nápověda: Doplnění karty MagicPlan do nápovědy chytrých funkcí v Nastavení.\n• Dialog aktualizace: Vyladění šířky tlačítka restartu (není roztažené na celou šířku).\n• Nastavení & Vývojář: Zelené ikony a strukturované seřazení ladicích nástrojů, zjednodušené názvy výchozích barev a zakulacený chip.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.5/IADonkey-Setup-2.1.5.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.5/IADonkey-2.1.5.zip"
 }

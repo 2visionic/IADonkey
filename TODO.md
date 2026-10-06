@@ -58,19 +58,7 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-- [x] **1. UI: Tlačítko „Restartovat a spustit novou verzi“ nedělat full-width**
-  - Při stavu aktualizace, kdy aplikace nabízí restart do nové verze, bylo tlačítko zbaveno `w-full` a je nyní zarovnané vpravo se standardním paddingem.
-
-- [x] **2. Nápověda: Zahrnutí MagicPlanu do nápovědy chytrých funkcí**
-  - V nápovědě chytrých funkcí v záložce Nápověda byla doplněna karta pro MagicPlan (přehled úkolů, příkazy `/plan`, `/magicplan`, ikona ve Spotlightu), pokud je rozšíření zapnuté.
-
-- [x] **3. UI: Zelené ikony pro simulaci verze a splash screenu + seřazení nástrojů vývojáře**
-  - V záložce Vývojář byly ikony pro simulaci nové verze a splash screenu změněny na zelenou (`text-emerald-400`).
-  - Všechny ladicí a servisní nástroje byly seřazeny: 1. DevTools, 2. Nová verze, Test instalace, Splash screen, 3. Ostatní diagnostika a simulátory oken, 4. Poslední Vygenerovat testovací crashlog.
-
-
-
-
+*(Žádné dokončené úkoly nečekají na revizi)*
 
 
 
