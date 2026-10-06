@@ -11565,6 +11565,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5 pt-1">
+                  {/* 1. DevTools */}
                   <button
                     type="button"
                     onClick={handleOpenDevTools}
@@ -11575,29 +11576,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span>Otevřít Chrome DevTools</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={handleSimulateCrash}
-                    disabled={isSimulatingCrash}
-                    className="w-full px-4 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-white rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                    title="Vyvolá simulovanou výjimku pro ověření vytvoření souboru v crashlog/"
-                  >
-                    <span className={`material-symbols-outlined text-base ${isSimulatingCrash ? 'animate-spin text-rose-400' : 'text-rose-400'}`}>
-                      {isSimulatingCrash ? 'sync' : 'report_problem'}
-                    </span>
-                    <span>{isSimulatingCrash ? 'Generuji...' : 'Vygenerovat testovací crashlog'}</span>
-                  </button>
-
+                  {/* 2. Nová verze, Test instalace, Splash screen */}
                   <button
                     type="button"
                     onClick={onSimulateUpdate}
                     className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer"
                     title="Vyvolá dialog nové verze se simulovaným průběhem stažení a tlačítkem restartu"
                   >
-                    <span className="material-symbols-outlined text-base text-indigo-400">system_update</span>
+                    <span className="material-symbols-outlined text-base text-emerald-400">system_update</span>
                     <span>Simulovat novou verzi (stažení)</span>
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => setShowInstallerPreview(true)}
+                    className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer"
+                    title="Otevře instalátor aplikace v testovacím režimu náhledu (bez zápisu do systému)"
+                  >
+                    <span className="material-symbols-outlined text-base text-emerald-400">install_desktop</span>
+                    <span>Test instalačního průvodce</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.electronAPI?.showSplashScreen?.();
+                    }}
+                    className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer"
+                    title="Vyvolá úvodní obrazovku (Splash screen) se simulací načítání"
+                  >
+                    <span className="material-symbols-outlined text-base text-emerald-400">rocket_launch</span>
+                    <span>Simulovat Splash screen</span>
+                  </button>
+
+                  {/* 3. Ostatní */}
                   <button
                     type="button"
                     onClick={loadDiagnostics}
@@ -11619,16 +11631,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   >
                     <span className="material-symbols-outlined text-base text-indigo-400">auto_awesome</span>
                     <span>Zobrazit Release notes</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowInstallerPreview(true)}
-                    className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer"
-                    title="Otevře instalátor aplikace v testovacím režimu náhledu (bez zápisu do systému)"
-                  >
-                    <span className="material-symbols-outlined text-base text-emerald-400">install_desktop</span>
-                    <span>Test instalačního průvodce</span>
                   </button>
 
                   {/* GitHub clone simulation dropdown */}
@@ -11881,18 +11883,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      window.electronAPI?.showSplashScreen?.();
-                    }}
-                    className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer"
-                    title="Vyvolá úvodní obrazovku (Splash screen) se simulací načítání"
-                  >
-                    <span className="material-symbols-outlined text-base text-indigo-400">rocket_launch</span>
-                    <span>Simulovat Splash screen</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
                       window.electronAPI?.openPowerWindow?.();
                     }}
                     className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer"
@@ -11900,6 +11890,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   >
                     <span className="material-symbols-outlined text-base text-indigo-400">power_settings_new</span>
                     <span>Simulovat Správu aplikace</span>
+                  </button>
+
+                  {/* 4. Poslední */}
+                  <button
+                    type="button"
+                    onClick={handleSimulateCrash}
+                    disabled={isSimulatingCrash}
+                    className="w-full px-4 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-white rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    title="Vyvolá simulovanou výjimku pro ověření vytvoření souboru v crashlog/"
+                  >
+                    <span className={`material-symbols-outlined text-base ${isSimulatingCrash ? 'animate-spin text-rose-400' : 'text-rose-400'}`}>
+                      {isSimulatingCrash ? 'sync' : 'report_problem'}
+                    </span>
+                    <span>{isSimulatingCrash ? 'Generuji...' : 'Vygenerovat testovací crashlog'}</span>
                   </button>
                 </div>
 
