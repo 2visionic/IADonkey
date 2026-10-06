@@ -184,6 +184,26 @@ export class WindowManager {
     this.mainWindow.webContents.on('before-input-event', (event, input) => {
       if (input.alt && (input.key === ' ' || input.code === 'Space')) {
         event.preventDefault();
+        this.mainWindow?.webContents.send('injected-hotkey-event', {
+          type: input.type === 'keyUp' ? 'keyup' : 'keydown',
+          key: 'Space',
+          code: 'Space',
+          altKey: input.alt,
+          ctrlKey: input.control,
+          shiftKey: input.shift,
+          metaKey: input.meta,
+        });
+      } else if (input.key === 'F10') {
+        event.preventDefault();
+        this.mainWindow?.webContents.send('injected-hotkey-event', {
+          type: input.type === 'keyUp' ? 'keyup' : 'keydown',
+          key: 'F10',
+          code: 'F10',
+          altKey: input.alt,
+          ctrlKey: input.control,
+          shiftKey: input.shift,
+          metaKey: input.meta,
+        });
       }
     });
 
@@ -337,7 +357,7 @@ export class WindowManager {
         event.preventDefault();
         this.settingsWindow?.webContents.send('injected-hotkey-event', {
           type: input.type === 'keyUp' ? 'keyup' : 'keydown',
-          key: ' ',
+          key: 'Space',
           code: 'Space',
           altKey: input.alt,
           ctrlKey: input.control,

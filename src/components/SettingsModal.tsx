@@ -300,27 +300,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     return () => document.removeEventListener('mousedown', handleDocClick);
   }, [openSimDropdown, openNotifDropdown]);
 
-  useEffect(() => {
-    const cleanup = window.electronAPI?.onInjectedHotkeyEvent?.((data) => {
-      const activeEl = document.activeElement as HTMLElement | null;
-      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
-        const ev = new KeyboardEvent(data.type, {
-          key: data.key,
-          code: data.code,
-          altKey: data.altKey,
-          ctrlKey: data.ctrlKey,
-          shiftKey: data.shiftKey,
-          metaKey: data.metaKey,
-          bubbles: true,
-          cancelable: true,
-        });
-        activeEl.dispatchEvent(ev);
-      }
-    });
-    return () => {
-      cleanup?.();
-    };
-  }, []);
+
 
   const firstGithubRepo = useMemo(() => {
     for (const it of items) {
@@ -389,6 +369,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [deviceFlowError, setDeviceFlowError] = useState<string | null>(null);
   const [userCodeCopied, setUserCodeCopied] = useState(false);
   const oauthPollingRef = useRef<NodeJS.Timeout | null>(null);
+  const activeRecordingToolRef = useRef<'main' | 'colorMaster' | 'palette' | 'quickCap' | 'screenRuler' | 'easyClip' | null>(null);
   const pressedKeysRef = useRef<Set<string>>(new Set());
   const maxComboRef = useRef<string[]>([]);
   const originalHotkeyRef = useRef<string>(config.hotkey || 'Ctrl+Alt+Space');
@@ -2317,6 +2298,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleHotkeyFocus = () => {
+    activeRecordingToolRef.current = 'main';
     setIsRecordingHotkey(true);
     setHotkeyError(null);
     originalHotkeyRef.current = formData.hotkey || 'Ctrl+Alt+Space';
@@ -2327,6 +2309,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleHotkeyBlur = () => {
+    if (activeRecordingToolRef.current === 'main') {
+      activeRecordingToolRef.current = null;
+    }
     setIsRecordingHotkey(false);
     pressedKeysRef.current.clear();
     maxComboRef.current = [];
@@ -2501,6 +2486,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleColorMasterHotkeyFocus = () => {
+    activeRecordingToolRef.current = 'colorMaster';
     setIsRecordingColorMasterHotkey(true);
     setColorMasterHotkeyError(null);
     colorMasterOriginalHotkeyRef.current = formData.donkeyTools?.colorMaster?.hotkey || '';
@@ -2511,6 +2497,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleColorMasterHotkeyBlur = () => {
+    if (activeRecordingToolRef.current === 'colorMaster') {
+      activeRecordingToolRef.current = null;
+    }
     setIsRecordingColorMasterHotkey(false);
     colorMasterPressedKeysRef.current.clear();
     colorMasterMaxComboRef.current = [];
@@ -2785,6 +2774,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handlePaletteHotkeyFocus = () => {
+    activeRecordingToolRef.current = 'palette';
     setIsRecordingPaletteHotkey(true);
     setPaletteHotkeyError(null);
     paletteOriginalHotkeyRef.current = formData.donkeyTools?.colorMaster?.paletteHotkey || '';
@@ -2795,6 +2785,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handlePaletteHotkeyBlur = () => {
+    if (activeRecordingToolRef.current === 'palette') {
+      activeRecordingToolRef.current = null;
+    }
     setIsRecordingPaletteHotkey(false);
     palettePressedKeysRef.current.clear();
     paletteMaxComboRef.current = [];
@@ -3015,6 +3008,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleQuickCapHotkeyFocus = () => {
+    activeRecordingToolRef.current = 'quickCap';
     setIsRecordingQuickCapHotkey(true);
     setQuickCapHotkeyError(null);
     quickCapOriginalHotkeyRef.current = formData.donkeyTools?.quickCap?.hotkey || formData.donkeyTools?.fastSnap?.hotkey || '';
@@ -3025,6 +3019,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleQuickCapHotkeyBlur = () => {
+    if (activeRecordingToolRef.current === 'quickCap') {
+      activeRecordingToolRef.current = null;
+    }
     setIsRecordingQuickCapHotkey(false);
     quickCapPressedKeysRef.current.clear();
     quickCapMaxComboRef.current = [];
@@ -3300,6 +3297,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleScreenRulerHotkeyFocus = () => {
+    activeRecordingToolRef.current = 'screenRuler';
     setIsRecordingScreenRulerHotkey(true);
     setScreenRulerHotkeyError(null);
     screenRulerOriginalHotkeyRef.current = formData.donkeyTools?.screenRuler?.hotkey || '';
@@ -3310,6 +3308,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleScreenRulerHotkeyBlur = () => {
+    if (activeRecordingToolRef.current === 'screenRuler') {
+      activeRecordingToolRef.current = null;
+    }
     setIsRecordingScreenRulerHotkey(false);
     screenRulerPressedKeysRef.current.clear();
     screenRulerMaxComboRef.current = [];
@@ -3619,6 +3620,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleEasyClipHotkeyFocus = () => {
+    activeRecordingToolRef.current = 'easyClip';
     setIsRecordingEasyClipHotkey(true);
     setEasyClipHotkeyError(null);
     easyClipOriginalHotkeyRef.current = formData.donkeyTools?.easyClip?.hotkey || '';
@@ -3629,6 +3631,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleEasyClipHotkeyBlur = () => {
+    if (activeRecordingToolRef.current === 'easyClip') {
+      activeRecordingToolRef.current = null;
+    }
     setIsRecordingEasyClipHotkey(false);
     easyClipPressedKeysRef.current.clear();
     easyClipMaxComboRef.current = [];
@@ -3922,6 +3927,73 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
   };
+
+  // Direct handling for injected hotkey events (e.g. Alt+Space, F10 intercepted at native level)
+  const injectedHotkeyHandlerRef = useRef<(data: any) => void>(() => {});
+  injectedHotkeyHandlerRef.current = (data: any) => {
+    let tool = activeRecordingToolRef.current;
+    if (!tool) {
+      if (isRecordingHotkey) tool = 'main';
+      else if (isRecordingColorMasterHotkey) tool = 'colorMaster';
+      else if (isRecordingPaletteHotkey) tool = 'palette';
+      else if (isRecordingQuickCapHotkey) tool = 'quickCap';
+      else if (isRecordingScreenRulerHotkey) tool = 'screenRuler';
+      else if (isRecordingEasyClipHotkey) tool = 'easyClip';
+    }
+    if (!tool) {
+      const activeField = document.activeElement?.getAttribute('data-hotkey-field');
+      if (
+        activeField === 'main' ||
+        activeField === 'colorMaster' ||
+        activeField === 'palette' ||
+        activeField === 'quickCap' ||
+        activeField === 'screenRuler' ||
+        activeField === 'easyClip'
+      ) {
+        tool = activeField as any;
+      }
+    }
+
+    if (!tool) return;
+
+    const fakeTarget = (document.activeElement as HTMLElement) || { blur: () => {} };
+    const fakeEvent = {
+      key: data.key === ' ' || data.key === 'Space' ? 'Space' : data.key,
+      code: data.code || 'Space',
+      altKey: Boolean(data.altKey),
+      ctrlKey: Boolean(data.ctrlKey),
+      shiftKey: Boolean(data.shiftKey),
+      metaKey: Boolean(data.metaKey),
+      preventDefault: () => {},
+      stopPropagation: () => {},
+      target: fakeTarget,
+    } as unknown as React.KeyboardEvent<HTMLInputElement>;
+
+    if (data.type === 'keydown') {
+      if (tool === 'main') handleHotkeyKeyDown(fakeEvent);
+      else if (tool === 'colorMaster') handleColorMasterHotkeyKeyDown(fakeEvent);
+      else if (tool === 'palette') handlePaletteHotkeyKeyDown(fakeEvent);
+      else if (tool === 'quickCap') handleQuickCapHotkeyKeyDown(fakeEvent);
+      else if (tool === 'screenRuler') handleScreenRulerHotkeyKeyDown(fakeEvent);
+      else if (tool === 'easyClip') handleEasyClipHotkeyKeyDown(fakeEvent);
+    } else if (data.type === 'keyup') {
+      if (tool === 'main') handleHotkeyKeyUp(fakeEvent);
+      else if (tool === 'colorMaster') handleColorMasterHotkeyKeyUp(fakeEvent);
+      else if (tool === 'palette') handlePaletteHotkeyKeyUp(fakeEvent);
+      else if (tool === 'quickCap') handleQuickCapHotkeyKeyUp(fakeEvent);
+      else if (tool === 'screenRuler') handleScreenRulerHotkeyKeyUp(fakeEvent);
+      else if (tool === 'easyClip') handleEasyClipHotkeyKeyUp(fakeEvent);
+    }
+  };
+
+  useEffect(() => {
+    const cleanup = window.electronAPI?.onInjectedHotkeyEvent?.((data) => {
+      injectedHotkeyHandlerRef.current(data);
+    });
+    return () => {
+      cleanup?.();
+    };
+  }, []);
 
   const loadRecentQuickCaps = async () => {
     const getRecent = window.electronAPI?.getRecentQuickCaps || window.electronAPI?.getRecentFastSnaps;
@@ -8426,6 +8498,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               }
                               onFocus={handleColorMasterHotkeyFocus}
                               onBlur={handleColorMasterHotkeyBlur}
+                              data-hotkey-field="colorMaster"
                               onKeyDown={handleColorMasterHotkeyKeyDown}
                               onKeyUp={handleColorMasterHotkeyKeyUp}
                               className={`w-64 rounded-full px-4 py-2.5 text-sm font-mono cursor-pointer transition outline-none select-none text-center font-semibold shadow-sm ${
@@ -8587,6 +8660,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               }
                               onFocus={handlePaletteHotkeyFocus}
                               onBlur={handlePaletteHotkeyBlur}
+                              data-hotkey-field="palette"
                               onKeyDown={handlePaletteHotkeyKeyDown}
                               onKeyUp={handlePaletteHotkeyKeyUp}
                               className={`w-64 rounded-full px-4 py-2.5 text-sm font-mono cursor-pointer transition outline-none select-none text-center font-semibold shadow-sm ${
@@ -8742,6 +8816,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               }
                               onFocus={handleQuickCapHotkeyFocus}
                               onBlur={handleQuickCapHotkeyBlur}
+                              data-hotkey-field="quickCap"
                               onKeyDown={handleQuickCapHotkeyKeyDown}
                               onKeyUp={handleQuickCapHotkeyKeyUp}
                               className={`w-64 rounded-full px-4 py-2.5 text-sm font-mono cursor-pointer transition outline-none select-none text-center font-semibold shadow-sm ${
@@ -9028,6 +9103,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               }
                               onFocus={handleScreenRulerHotkeyFocus}
                               onBlur={handleScreenRulerHotkeyBlur}
+                              data-hotkey-field="screenRuler"
                               onKeyDown={handleScreenRulerHotkeyKeyDown}
                               onKeyUp={handleScreenRulerHotkeyKeyUp}
                               className={`w-64 rounded-full px-4 py-2.5 text-sm font-mono cursor-pointer transition outline-none select-none text-center font-semibold shadow-sm ${
@@ -9351,6 +9427,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               placeholder="Klikněte"
                               onFocus={handleEasyClipHotkeyFocus}
                               onBlur={handleEasyClipHotkeyBlur}
+                              data-hotkey-field="easyClip"
                               onKeyDown={handleEasyClipHotkeyKeyDown}
                               onKeyUp={handleEasyClipHotkeyKeyUp}
                               className={`w-64 rounded-full px-4 py-2.5 text-sm font-mono cursor-pointer transition outline-none select-none text-center font-semibold shadow-sm ${
@@ -9939,6 +10016,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         }
                         onFocus={handleHotkeyFocus}
                         onBlur={handleHotkeyBlur}
+                        data-hotkey-field="main"
                         onKeyDown={handleHotkeyKeyDown}
                         onKeyUp={handleHotkeyKeyUp}
                         className={`w-64 rounded-full px-4 py-2.5 text-sm font-mono cursor-pointer transition outline-none select-none text-center font-semibold shadow-sm ${
