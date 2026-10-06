@@ -1714,9 +1714,57 @@ function setupIpcHandlers() {
       globalShortcut.unregister(currentPaletteMasterHotkey);
       console.log(`[Main] PaletteMaster hotkey paused for input recording: ${currentPaletteMasterHotkey}`);
     }
+
+    // Intercept Alt+Space at OS level via RegisterHotKey to suppress Windows native system menu
+    try {
+      globalShortcut.unregister('Alt+Space');
+      const intercepted = globalShortcut.register('Alt+Space', () => {
+        console.log('[Main] Recording interceptor caught Alt+Space');
+        const settingsWin = windowManager.getSettingsWindow();
+        const mainWin = windowManager.getMainWindow();
+        const targetWin =
+          settingsWin && !settingsWin.isDestroyed() && settingsWin.isVisible()
+            ? settingsWin
+            : mainWin && !mainWin.isDestroyed() && mainWin.isVisible()
+            ? mainWin
+            : null;
+
+        if (targetWin) {
+          targetWin.webContents.send('injected-hotkey-event', {
+            type: 'keydown',
+            key: 'Space',
+            code: 'Space',
+            altKey: true,
+            ctrlKey: false,
+            shiftKey: false,
+            metaKey: false,
+          });
+          setTimeout(() => {
+            if (!targetWin.isDestroyed()) {
+              targetWin.webContents.send('injected-hotkey-event', {
+                type: 'keyup',
+                key: 'Space',
+                code: 'Space',
+                altKey: true,
+                ctrlKey: false,
+                shiftKey: false,
+                metaKey: false,
+              });
+            }
+          }, 60);
+        }
+      });
+      console.log(`[Main] Alt+Space OS-level interceptor registered: ${intercepted}`);
+    } catch (err) {
+      console.warn('[Main] Failed to register Alt+Space recording interceptor:', err);
+    }
   });
 
   ipcMain.handle('resume-global-hotkey', () => {
+    try {
+      globalShortcut.unregister('Alt+Space');
+    } catch {}
+
     const cfg = store.getConfig();
     const hotkey = cfg.hotkey || currentHotkey;
     if (hotkey) {
