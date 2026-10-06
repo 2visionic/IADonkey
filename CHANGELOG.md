@@ -4,6 +4,13 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.4] - 6. 10. 2026
+### MagicPlan ukazatele odpracovaného času, extrémní přesahy a rychlý náhled detailů
+- **MagicPlan – Ukazatel odpracovaného času (worklog bar)**: Jemný 4px zaoblený indikátor odpracovaných hodin per uživatel v denním (8h) i týdenním (40h) pohledu. Barevná indikace podle poměru k uplynulému času (červená pod 25 %, primární vybraná barva pod 65 %, zelená nad 65 %) a možnost vypnutí/zapnutí v Nastavení.
+- **MagicPlan – Přepočet poměru dokončení a extrémní přesahy (> 200 %)**: Výpočet procent u přesahu podle skutečného poměru worklogu vůči plánu (např. 2h/1h = 200 %, 1,4h/1h = 140 %). Při překročení 200 % se indikátor i hodiny automaticky zvýrazní červeně namísto oranžové.
+- **MagicPlan – Rychlý náhled detailů v denním pohledu**: Při najetí myši na kartu úkolu déle než 1,2 sekundy se zobrazí bohatá informační karta s kompletními detaily o úkolu a stavu přesahu.
+- **Nastavení – Sjednocení barev v MagicPlanu**: Ikona v záhlaví záložky MagicPlan i přepínač propojení s TaskManagerem byly sjednoceny do čistého odstínu rozšíření (cyan).
+
 ## [2.1.3] - 6. 10. 2026
 ### MagicPlan přehled přesahů a hodin, vizuální vyladění karet a tiché OAuth klonování
 - **MagicPlan – Přesahy a přesný poměr hodin (`2h/1h`)**: V kartách úkolů na nástěnce i v Seznamu se u úkolů překračujících plán zobrazují hodiny v oranžové barvě včetně poměru k původnímu plánu (např. `2h/1h`).

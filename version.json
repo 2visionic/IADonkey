@@ -1,6 +1,6 @@
 {
-  "version": "2.1.3",
-  "releaseNotes": "• MagicPlan: Přehled přesahů a hodin (2h/1h) v oranžové barvě na nástěnce i v Seznamu, sjednocení procent bez znamének napříč všemi pohledy a přesný výpočet přesahu v týdenním plánu.\n• MagicPlan: Pozice dílu vlevo od avatara zpracovatele, primární barva šipek posunu v kontextovém menu a vizuální ladění karet v denním plánu.\n• Nastavení & GitHub: Rozšíření šířky okna Nastavení na 1100 px a spolehlivé OAuth klonování repozitářů bez externích oken.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.3/IADonkey-Setup-2.1.3.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.3/IADonkey-2.1.3.zip"
+  "version": "2.1.4",
+  "releaseNotes": "• MagicPlan: Jemný 4px ukazatel odpracovaného času (worklog bar) v denním (8h) i týdenním (40h) přehledu s barevnou indikací (červená, primární téma, zelená) a možností vypnutí v Nastavení.\n• MagicPlan: Přepočet poměru přesahu (např. 2h/1h = 200 %) a výrazné červené zvýraznění u extrémních přesahů nad 200 %.\n• MagicPlan: Rychlý náhled detailů úkolu v denním přehledu při podržení myši nad 1,2 s.\n• Nastavení: Sjednocení barvy ikony a přepínače propojení s TaskManagerem do odstínu rozšíření MagicPlan (cyan).",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.4/IADonkey-Setup-2.1.4.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.4/IADonkey-2.1.4.zip"
 }

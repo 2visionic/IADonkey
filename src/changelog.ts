@@ -5,12 +5,23 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.3';
+export const CURRENT_APP_VERSION = '2.1.4';
 
 /**
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.4',
+    date: '6. 10. 2026',
+    title: 'MagicPlan ukazatele odpracovaného času, extrémní přesahy a rychlý náhled detailů',
+    highlights: [
+      'MagicPlan – Ukazatel odpracovaného času (worklog bar): Jemný 4px zaoblený indikátor odpracovaných hodin per uživatel v denním (8h) i týdenním (40h) pohledu. Barevná indikace podle poměru k uplynulému času (červená pod 25 %, primární vybraná barva pod 65 %, zelená nad 65 %) a možnost vypnutí/zapnutí v Nastavení.',
+      'MagicPlan – Přepočet poměru dokončení a extrémní přesahy (> 200 %): Výpočet procent u přesahu podle skutečného poměru worklogu vůči plánu (např. 2h/1h = 200 %, 1,4h/1h = 140 %). Při překročení 200 % se indikátor i hodiny automaticky zvýrazní červeně namísto oranžové.',
+      'MagicPlan – Rychlý náhled detailů v denním pohledu: Při najetí myši na kartu úkolu déle než 1,2 sekundy se zobrazí bohatá informační karta s kompletními detaily o úkolu a stavu přesahu.',
+      'Nastavení – Sjednocení barev v MagicPlanu: Ikona v záhlaví záložky MagicPlan i přepínač propojení s TaskManagerem byly sjednoceny do čistého odstínu rozšíření (cyan).',
+    ],
+  },
   {
     version: '2.1.3',
     date: '6. 10. 2026',
