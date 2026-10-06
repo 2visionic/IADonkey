@@ -20,9 +20,9 @@ export const SplashScreen: React.FC = () => {
           {/* Title & Version */}
           <div className="flex items-center gap-2.5 mb-1">
             <span className="font-extrabold text-[26px] text-white tracking-tight leading-tight">
-              {IS_DEV ? 'IADonkey [DEV]' : 'IADonkey'}
+              IADonkey
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-indigo-300 font-mono tracking-wider bg-indigo-500/20">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-indigo-300 font-mono tracking-wider bg-indigo-500/20 whitespace-nowrap shrink-0">
               v{DISPLAY_APP_VERSION}
             </span>
           </div>

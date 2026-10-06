@@ -1565,6 +1565,8 @@ export class WindowManager {
     font-weight: 600;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     letter-spacing: 0.5px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .spacer {
     flex: 1;
@@ -1609,7 +1611,7 @@ export class WindowManager {
   <div class="card">
     ${iconDataUrl ? `<img class="icon" src="${iconDataUrl}" alt="IADonkey" />` : ''}
     <div class="header-row">
-      <div class="title">${isDevMode ? 'IADonkey [DEV]' : 'IADonkey'}</div>
+      <div class="title">IADonkey</div>
       <div class="version-badge">v${isDevMode && !version.endsWith('dev') ? `${version} dev` : version}</div>
     </div>
     <div class="spacer"></div>
