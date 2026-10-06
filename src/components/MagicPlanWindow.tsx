@@ -2980,6 +2980,8 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               const overProgressPct = block.overburnProgressPercent || (rawOver > 0 && task.worklogHours ? Math.round((task.worklogHours / plannedTotal) * 100) : 0);
 
                               const overburnPct = block.overburnPercent || (task.estimatedHours && (task.totalHours || task.worklogHours) ? Math.round((Math.max(task.totalHours || 0, task.worklogHours || 0) / task.estimatedHours) * 100) : 0);
+                              const isExtremeOverburn = isOverburnedInProgress ? overProgressPct > 200 : overburnPct > 200;
+                              const overburnBarColorClass = isExtremeOverburn ? 'bg-red-500' : 'bg-yellow-500';
 
                               const taskBackgroundColor = isNotAvailable
                                 ? '#27272a'
@@ -3085,7 +3087,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                               borderTopRightRadius: isCutRight ? '0px' : cardRadius,
                                               borderBottomRightRadius: isCutRight ? '0px' : cardRadius,
                                             }}
-                                            className="w-full h-full bg-yellow-500"
+                                            className={`w-full h-full ${overburnBarColorClass}`}
                                           />
                                         ) : (
                                           <>
@@ -3095,7 +3097,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                                 borderTopRightRadius: fillPct >= 99 && !isCutRight ? cardRadius : '0px',
                                                 borderBottomRightRadius: fillPct >= 99 && !isCutRight ? cardRadius : '0px',
                                               }}
-                                              className="h-full bg-yellow-500 shrink-0"
+                                              className={`h-full ${overburnBarColorClass} shrink-0`}
                                             />
                                             <div
                                               style={{
@@ -3742,6 +3744,8 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                           const overProgressPct = block.overburnProgressPercent || (rawOver > 0 && task.worklogHours ? Math.round((task.worklogHours / plannedTotal) * 100) : 0);
 
                           const overburnPct = block.overburnPercent || (task.estimatedHours && (task.totalHours || task.worklogHours) ? Math.round((Math.max(task.totalHours || 0, task.worklogHours || 0) / task.estimatedHours) * 100) : 0);
+                          const isExtremeOverburn = isOverburnedInProgress ? overProgressPct > 200 : overburnPct > 200;
+                          const overburnBarColorClass = isExtremeOverburn ? 'bg-red-500' : 'bg-yellow-500';
 
                           const taskBackgroundColor = isNotAvailable
                             ? '#27272a'
@@ -3826,7 +3830,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                           borderTopRightRadius: isCutRight ? '0px' : '8px',
                                           borderBottomRightRadius: isCutRight ? '0px' : '8px',
                                         }}
-                                        className="w-full h-full bg-yellow-500"
+                                        className={`w-full h-full ${overburnBarColorClass}`}
                                       />
                                     ) : (
                                       <>
@@ -3836,7 +3840,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                             borderTopRightRadius: fillPct >= 99 && !isCutRight ? '8px' : '0px',
                                             borderBottomRightRadius: fillPct >= 99 && !isCutRight ? '8px' : '0px',
                                           }}
-                                          className="h-full bg-yellow-500 shrink-0"
+                                          className={`h-full ${overburnBarColorClass} shrink-0`}
                                         />
                                         <div
                                           style={{
@@ -4221,19 +4225,19 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
               {/* Codes & Author */}
               <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-gray-400 font-mono">
                 {hoveredTask.block.task.taskIdentifier && (
-                  <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold">
+                  <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-bold">
                     {hoveredTask.block.task.taskIdentifier}
                   </span>
                 )}
                 {isGoddayTask(hoveredTask.block.task) ? (
-                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
                     godday
                   </span>
                 ) : (
                   hoveredTask.block.task.requirementId &&
                   hoveredTask.block.task.requirementId !== hoveredTask.block.task.taskIdentifier &&
                   hoveredTask.block.task.requirementId !== 'R0' && (
-                    <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold">
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold">
                       {hoveredTask.block.task.requirementId}
                     </span>
                   )
