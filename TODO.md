@@ -6,19 +6,21 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## 📋 Otevřené úkoly (k realizaci)
 
-- [ ] **1. MagicGate: Přepínač mezi lokálním XML souborem a vzdáleným API GET**
-  - **Popis**: Přepínač způsobu získávání instancí MagicGate – buď z lokálního deploy XML souboru, nebo dynamickým stažením přes REST API s autentizací.
+- [ ] **1. MagicGate: Přepínač mezi lokálním XML souborem a vzdáleným API GET (MagicWare Deploy)**
+  - **Popis**: Přepínač způsobu získávání instancí MagicGate – buď z lokálního XML souboru (`applications.xml`), nebo dynamickým stažením přes REST API z **MagicWare Deploy** (`https://deploy.magicware.cz/api/ui/agents`).
+  - **Odkaz na analýzu**: [Technická analýza MagicWare Deploy API](docs/deploy-magicware-api-analyza.md)
   - **Datový model & Konfigurace**:
-    - Rozšíření `MagicGateSettings` o `sourceMode: 'xml' | 'api'`, `apiUrl?: string`, `apiUsername?: string`, `apiPassword?: string`, `apiAuthType?: 'basic' | 'bearer' | 'credentials'`.
+    - Rozšíření `MagicGateSettings` o `sourceMode: 'xml' | 'api'`, `apiUrl?: string` (default: `https://deploy.magicware.cz/api/ui/agents`), `authMode?: 'google_sso' | 'cookie' | 'desktop_token'`.
     - Výchozí hodnota `sourceMode: 'xml'` pro 100% zpětnou kompatibilitu.
   - **Implementace API GET & Mapování**:
-    - Podpora přihlášení buď sdílenými přihlašovacími údaji MagicGate (IS Tour credentials), nebo dedikovaným API klíčem.
-    - Endpoint vrací strukturu serverů a instancí; mapovač data převede na standardní `LauncherItem[]` s `sourceId: 'magicgate-api'`.
+    - Napojení na endpoint `/api/ui/agents` vracející servery flotily a jejich běžící instance Magicu (`agent.instances`).
+    - Autentizace přes Google Workspace SSO (`@magicware.cz`), session cookie `.AspNetCore.Cookies` nebo desktop token z palety MagicGate (`/api/ui/desktop-tokens`).
+    - Mapovač data převede na standardní `LauncherItem[]` s `sourceId: 'magicgate-api'`.
     - Fixní sada Material ikon pro aplikace: Administrace (`admin_panel_settings`), Web (`language`), API (`api`), BackOffice/SIS (`desktop_windows`), Klient (`apartment`).
   - **Uživatelské rozhraní v Nastavení (`SettingsModal.tsx`)**:
-    - Přepínač režimu: *„Lokální soubor XML“* vs. *„Vzdálené API GET“*.
+    - Přepínač režimu: *„Lokální soubor XML“* vs. *„MagicWare Deploy API“*.
     - V režimu XML: výběr cesty k souboru na disku s validací existence.
-    - V režimu API: URL endpointu, volba typu autentizace, tlačítko *„Otestovat připojení k API“*.
+    - V režimu API: URL endpointu, tlačítko *„Přihlásit přes Google SSO“* / vložení tokenu, tlačítko *„Otestovat připojení k API“*.
 
 - [ ] **2. Analýza dodatečné shortcut lišty (rychlého panelu zástupců)**
   - **Popis**: Možnost připnout si vyhledané položky ze Spotlightu i jejich konkrétní akce jako zástupce (zkratky / shortcuts) do rychlého panelu pro okamžité spuštění.
