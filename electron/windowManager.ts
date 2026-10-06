@@ -69,6 +69,11 @@ export class WindowManager {
   private shouldResetSpotlightOnCloneClose = false;
   private shouldResetSpotlightOnCmsDownloadClose = false;
   private registerCrashHandlers(win: BrowserWindow, windowName: string): void {
+    try {
+      win.removeMenu();
+    } catch {
+      // Ignore if not supported
+    }
     win.webContents.on('render-process-gone', (_event, details) => {
       diagnosticsService.recordCrash(`Pád procesu okna ${windowName} (${details.reason})`, new Error(details.reason), {
         windowName,
@@ -106,7 +111,13 @@ export class WindowManager {
     private onColorPickerRequest?: () => void,
     private onScreenRulerRequest?: () => void,
     private onEasyClipRequest?: () => void
-  ) {}
+  ) {
+    try {
+      Menu.setApplicationMenu(null);
+    } catch {
+      // Ignore
+    }
+  }
 
   public createMainWindow(): BrowserWindow {
     const primaryDisplay = screen.getPrimaryDisplay();
@@ -295,7 +306,6 @@ export class WindowManager {
       minHeight: 660,
       title: getWindowTitle('Nastavení'),
       icon: getAppIcon(),
-      autoHideMenuBar: true,
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -308,6 +318,12 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
+
+    try {
+      this.settingsWindow.removeMenu();
+    } catch {
+      // Ignore
+    }
 
     this.registerCrashHandlers(this.settingsWindow, 'Nastavení');
 
@@ -379,7 +395,6 @@ export class WindowManager {
       resizable: false,
       title: getWindowTitle('Správa aplikace'),
       icon: getAppIcon(),
-      autoHideMenuBar: true,
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -393,6 +408,12 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
+
+    try {
+      this.powerWindow.removeMenu();
+    } catch {
+      // Ignore
+    }
 
     if (process.env.VITE_DEV_SERVER_URL) {
       this.powerWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#power`);
@@ -482,7 +503,6 @@ export class WindowManager {
         ? getWindowTitle(`Klonovat repozitáře instance (${params.repoName})`)
         : getWindowTitle(`Klonovat repozitář${params.repoName ? ` (${params.repoName})` : ''}`),
       icon: getAppIcon(),
-      autoHideMenuBar: true,
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -495,6 +515,12 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
+
+    try {
+      this.gitCloneWindow.removeMenu();
+    } catch {
+      // Ignore
+    }
 
     this.gitCloneWindow.on('maximize', () => {
       this.gitCloneWindow?.webContents.send('window-maximize-changed', true);
@@ -599,7 +625,6 @@ export class WindowManager {
       minHeight: 520,
       title: getWindowTitle(`Stažení CMSinFS zdrojáků (${params.instanceName})`),
       icon: getAppIcon(),
-      autoHideMenuBar: true,
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -612,6 +637,12 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
+
+    try {
+      this.cmsDownloadWindow.removeMenu();
+    } catch {
+      // Ignore
+    }
 
     this.cmsDownloadWindow.on('maximize', () => {
       this.cmsDownloadWindow?.webContents.send('window-maximize-changed', true);
@@ -702,7 +733,6 @@ export class WindowManager {
       resizable: true,
       title: getWindowTitle('Doladění barvy'),
       icon: getAppIcon(),
-      autoHideMenuBar: true,
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -716,6 +746,12 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
+
+    try {
+      this.tuneColorWindow.removeMenu();
+    } catch {
+      // Ignore
+    }
 
     this.tuneColorWindow.on('maximize', () => {
       this.tuneColorWindow?.webContents.send('window-maximize-changed', true);
@@ -872,7 +908,6 @@ export class WindowManager {
       resizable: true,
       title: getWindowTitle('PaletteMaster'),
       icon: getAppIcon(),
-      autoHideMenuBar: true,
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -886,6 +921,12 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
+
+    try {
+      this.paletteDetailWindow.removeMenu();
+    } catch {
+      // Ignore
+    }
 
     if (process.env.VITE_DEV_SERVER_URL) {
       this.paletteDetailWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}?${query}#palette-detail`);
@@ -944,7 +985,6 @@ export class WindowManager {
       resizable: true,
       title: getWindowTitle('MagicPlan'),
       icon: getAppIcon(),
-      autoHideMenuBar: true,
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -958,6 +998,12 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
+
+    try {
+      this.magicPlanWindow.removeMenu();
+    } catch {
+      // Ignore
+    }
 
     this.registerCrashHandlers(this.magicPlanWindow, 'MagicPlan');
 

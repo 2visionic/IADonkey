@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, dialog, shell, clipboard, protocol, desktopCapturer, screen, nativeImage, ClipboardItem } from 'electron';
+import { app, BrowserWindow, Menu, globalShortcut, ipcMain, dialog, shell, clipboard, protocol, desktopCapturer, screen, nativeImage, ClipboardItem } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -2714,6 +2714,7 @@ function startBackgroundTasks() {
 
 // App lifecycle
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null);
   store = new AppStore();
   syncManager = new DataSyncManager(store);
   updateChecker = new UpdateChecker(store);

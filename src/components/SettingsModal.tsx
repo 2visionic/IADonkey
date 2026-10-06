@@ -2348,7 +2348,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     // Normalize key
     let keyName = e.key;
     if (keyName === 'Control') keyName = 'Ctrl';
-    else if (keyName === 'Alt') keyName = 'Alt';
+    else if (keyName === 'Alt' || keyName === 'AltGraph') keyName = 'Alt';
     else if (keyName === 'Shift') keyName = 'Shift';
     else if (keyName === 'Meta') keyName = 'Super';
     else if (keyName === ' ') keyName = 'Space';
@@ -2553,7 +2553,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     // Normalize key
     let keyName = e.key;
     if (keyName === 'Control') keyName = 'Ctrl';
-    else if (keyName === 'Alt') keyName = 'Alt';
+    else if (keyName === 'Alt' || keyName === 'AltGraph') keyName = 'Alt';
     else if (keyName === 'Shift') keyName = 'Shift';
     else if (keyName === 'Meta') keyName = 'Super';
     else if (keyName === ' ') keyName = 'Space';
@@ -2828,7 +2828,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     let keyName = e.key;
     if (keyName === 'Control') keyName = 'Ctrl';
-    else if (keyName === 'Alt') keyName = 'Alt';
+    else if (keyName === 'Alt' || keyName === 'AltGraph') keyName = 'Alt';
     else if (keyName === 'Shift') keyName = 'Shift';
     else if (keyName === 'Meta') keyName = 'Super';
     else if (keyName === ' ') keyName = 'Space';
@@ -3069,7 +3069,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     // Normalize key
     let keyName = e.key;
     if (keyName === 'Control') keyName = 'Ctrl';
-    else if (keyName === 'Alt') keyName = 'Alt';
+    else if (keyName === 'Alt' || keyName === 'AltGraph') keyName = 'Alt';
     else if (keyName === 'Shift') keyName = 'Shift';
     else if (keyName === 'Meta') keyName = 'Super';
     else if (keyName === ' ') keyName = 'Space';
@@ -3344,7 +3344,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     // Normalize key
     let keyName = e.key;
     if (keyName === 'Control') keyName = 'Ctrl';
-    else if (keyName === 'Alt') keyName = 'Alt';
+    else if (keyName === 'Alt' || keyName === 'AltGraph') keyName = 'Alt';
     else if (keyName === 'Shift') keyName = 'Shift';
     else if (keyName === 'Meta') keyName = 'Super';
     else if (keyName === ' ') keyName = 'Space';
@@ -3655,7 +3655,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     // Normalize key
     let keyName = e.key;
     if (keyName === 'Control') keyName = 'Ctrl';
-    else if (keyName === 'Alt') keyName = 'Alt';
+    else if (keyName === 'Alt' || keyName === 'AltGraph') keyName = 'Alt';
     else if (keyName === 'Shift') keyName = 'Shift';
     else if (keyName === 'Meta') keyName = 'Super';
     else if (keyName === ' ') keyName = 'Space';
