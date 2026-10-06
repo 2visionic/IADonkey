@@ -119,7 +119,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 window-modal-overlay">
-      <div className="m3-surface-main w-full max-w-lg p-6 flex flex-col gap-4 text-gray-200 select-none">
+      <div className="m3-surface-main modal-card rounded-[28px] shadow-2xl w-full max-w-lg p-6 flex flex-col gap-4 text-gray-200 select-none">
         
         {/* Header section based on state */}
         {downloadState === 'completed' ? (

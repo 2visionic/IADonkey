@@ -80,7 +80,7 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
         onToggleMaximize={(max) => setIsMaximized(max)}
         className={className}
       />
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col [&_.m3-surface-main]:rounded-none [&_.m3-surface-main]:shadow-none">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col [&>main]:rounded-none [&>main]:shadow-none">
         {children}
       </div>
     </div>

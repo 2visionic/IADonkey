@@ -141,7 +141,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="m3-surface-main w-full max-w-3xl flex flex-col overflow-hidden max-h-[85vh] text-gray-100"
+        className="m3-surface-main modal-card rounded-[28px] shadow-2xl w-full max-w-3xl flex flex-col overflow-hidden max-h-[85vh] text-gray-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}

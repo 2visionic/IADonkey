@@ -19,7 +19,7 @@ export const ChangelogModal: React.FC<ChangelogModalProps> = ({ onClose, isSpotl
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 window-modal-overlay ${isSpotlightView ? 'bg-transparent' : 'bg-black/75 backdrop-blur-sm'}`}>
-      <div className="m3-surface-main w-full max-w-2xl h-[calc(100%-40px)] max-h-[calc(100%-40px)] p-6 flex flex-col gap-4 text-gray-200 select-none">
+      <div className="m3-surface-main modal-card rounded-[28px] shadow-2xl w-full max-w-2xl h-[calc(100%-40px)] max-h-[calc(100%-40px)] p-6 flex flex-col gap-4 text-gray-200 select-none">
         {/* Header */}
         <div className="flex items-center justify-between pb-2">
           <div className="flex items-center gap-3">

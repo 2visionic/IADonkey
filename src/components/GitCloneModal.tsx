@@ -829,7 +829,7 @@ export const GitCloneModal: React.FC<GitCloneModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-in fade-in duration-150 window-modal-overlay">
-      <div className="m3-surface-main rounded-[28px] w-full max-w-lg shadow-2xl overflow-hidden text-gray-200 flex flex-col">
+      <div className="m3-surface-main modal-card rounded-[28px] w-full max-w-lg shadow-2xl overflow-hidden text-gray-200 flex flex-col">
         {content}
       </div>
     </div>
