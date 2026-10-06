@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { AppConfig, DataSource, FileSource, ApiSource, StaticSource, LauncherItem, SyncProgress, UpdateInfo, SourceFieldMapping, MappingTargetKey, BannedItem, CustomSnippet, ActionLogEntry, CrashLogEntry } from '../types';
 import { applyPrimaryColor, applyActionsColor, APP_COLOR_PRESETS } from '../utils/theme';
 import { formatLastSyncDate } from '../utils/dateHelper';
-import { CURRENT_APP_VERSION, getLatestRelease } from '../changelog';
+import { CURRENT_APP_VERSION, DISPLAY_APP_VERSION, IS_DEV, getLatestRelease } from '../changelog';
 import { ChangelogModal } from './ChangelogModal';
 import { WhatsNewModal } from './WhatsNewModal';
 import { SearchItemsViewerModal } from './SearchItemsViewerModal';
@@ -5126,7 +5126,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium bg-white/[0.06] hover:bg-white/[0.1] text-gray-300 transition cursor-pointer shadow-sm"
             title="Kliknutím zobrazíte historii verzí a novinky (Changelog)"
           >
-            v{CURRENT_APP_VERSION}
+            v{DISPLAY_APP_VERSION}
           </button>
         </div>
 
@@ -10794,8 +10794,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       className="text-lg font-mono font-bold text-white tracking-wide cursor-pointer select-none active:scale-95 transition-transform inline-flex items-center gap-2 group"
                       title={isDevelop ? 'Vývojářský režim je aktivní' : 'Verze aplikace'}
                     >
-                      <span className="group-hover:text-indigo-300 transition-colors">v{CURRENT_APP_VERSION}</span>
-                      {isDevelop && (
+                      <span className="group-hover:text-indigo-300 transition-colors">v{DISPLAY_APP_VERSION}</span>
+                      {(isDevelop || IS_DEV) && (
                         <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 uppercase tracking-wider inline-flex items-center justify-center leading-none h-4.5 align-middle shadow-xs">
                           DEV
                         </span>

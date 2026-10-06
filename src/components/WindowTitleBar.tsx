@@ -24,6 +24,17 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({
   onToggleMaximize,
   className = '',
 }) => {
+  const isDev = import.meta.env.DEV;
+  const displayTitle = isDev && title && !title.includes('[DEV]')
+    ? title.replace(/IADonkey(?!\s*\[DEV\])/g, 'IADonkey [DEV]')
+    : title;
+
+  useEffect(() => {
+    if (displayTitle) {
+      document.title = displayTitle;
+    }
+  }, [displayTitle]);
+
   const [internalMaximized, setInternalMaximized] = useState(false);
   const isMaximized = controlledMaximized !== undefined ? controlledMaximized : internalMaximized;
 
@@ -208,7 +219,7 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({
           />
         )}
         <span className="text-xs font-semibold text-gray-300 tracking-wide truncate">
-          {title}
+          {displayTitle}
         </span>
         {subtitle && (
           <span className="text-[11px] text-gray-500 font-mono hidden sm:inline-block truncate">

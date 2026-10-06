@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { DISPLAY_APP_VERSION, IS_DEV } from '../changelog';
 import { LauncherItem, LauncherAction, SyncProgress, SnippetsConfig, ColorMasterSettings, QuickCapSettings, FastSnapSettings, ScreenRulerSettings, EasyClipSettings, EasyClipItem, ColorPalette, AppConfig, MagicPlanSettings, MagicPlanData, PlanTaskItem } from '../types';
 import { MaterialIcon } from './MaterialIcon';
 import { evaluateExpression } from '../utils/calculator';
@@ -2918,6 +2919,15 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             settings
           </span>
         </button>
+
+        {IS_DEV && (
+          <span
+            className="ml-0.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30 select-none shrink-0 self-center shadow-sm"
+            title={`IADonkey [DEV] v${DISPLAY_APP_VERSION}`}
+          >
+            DEV
+          </span>
+        )}
       </div>
 
       {/* Sync Progress Bar */}
@@ -4078,6 +4088,11 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {IS_DEV && (
+                  <span className="rounded-full px-2 py-0.5 bg-amber-500/10 text-amber-300 font-mono text-[10px] border border-amber-500/20">
+                    v{DISPLAY_APP_VERSION}
+                  </span>
+                )}
                 <span className="rounded-full px-2.5 py-0.5 bg-white/[0.04] text-gray-400 font-mono text-[11px]">
                   {results.length} výsledků
                 </span>

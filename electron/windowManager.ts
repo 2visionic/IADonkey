@@ -37,6 +37,13 @@ const getAppIconBase64 = (): string => {
   return `data:image/png;base64,${APP_ICON_PNG_B64}`;
 };
 
+export const isDevMode = !app.isPackaged;
+
+export const getWindowTitle = (subTitle?: string): string => {
+  const prefix = isDevMode ? 'IADonkey [DEV]' : 'IADonkey';
+  return subTitle ? `${prefix} – ${subTitle}` : prefix;
+};
+
 export class WindowManager {
   private mainWindow: BrowserWindow | null = null;
   private settingsWindow: BrowserWindow | null = null;
@@ -122,7 +129,7 @@ export class WindowManager {
       x,
       y,
       icon: getAppIcon(),
-      title: 'IADonkey – Spotlight',
+      title: getWindowTitle('Spotlight'),
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -286,7 +293,7 @@ export class WindowManager {
       height: 820,
       minWidth: 860,
       minHeight: 660,
-      title: 'IADonkey – Nastavení',
+      title: getWindowTitle('Nastavení'),
       icon: getAppIcon(),
       autoHideMenuBar: true,
       frame: false,
@@ -370,7 +377,7 @@ export class WindowManager {
       maxWidth: 480,
       maxHeight: 320,
       resizable: false,
-      title: 'IADonkey – Správa aplikace',
+      title: getWindowTitle('Správa aplikace'),
       icon: getAppIcon(),
       autoHideMenuBar: true,
       frame: false,
@@ -472,8 +479,8 @@ export class WindowManager {
       minWidth: 540,
       minHeight: 480,
       title: isInstanceMode
-        ? `IADonkey – Klonovat repozitáře instance (${params.repoName})`
-        : `IADonkey – Klonovat repozitář${params.repoName ? ` (${params.repoName})` : ''}`,
+        ? getWindowTitle(`Klonovat repozitáře instance (${params.repoName})`)
+        : getWindowTitle(`Klonovat repozitář${params.repoName ? ` (${params.repoName})` : ''}`),
       icon: getAppIcon(),
       autoHideMenuBar: true,
       frame: false,
@@ -590,7 +597,7 @@ export class WindowManager {
       height: 620,
       minWidth: 540,
       minHeight: 520,
-      title: `IADonkey – Stažení CMSinFS zdrojáků (${params.instanceName})`,
+      title: getWindowTitle(`Stažení CMSinFS zdrojáků (${params.instanceName})`),
       icon: getAppIcon(),
       autoHideMenuBar: true,
       frame: false,
@@ -693,7 +700,7 @@ export class WindowManager {
       maxWidth: 720,
       maxHeight: 850,
       resizable: true,
-      title: 'IADonkey – Doladění barvy',
+      title: getWindowTitle('Doladění barvy'),
       icon: getAppIcon(),
       autoHideMenuBar: true,
       frame: false,
@@ -785,7 +792,7 @@ export class WindowManager {
       y,
       width: barWidth,
       height: barHeight,
-      title: 'IADonkey – PaletteBar',
+      title: getWindowTitle('PaletteBar'),
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -863,7 +870,7 @@ export class WindowManager {
       minWidth: 540,
       minHeight: 460,
       resizable: true,
-      title: 'IADonkey – PaletteMaster',
+      title: getWindowTitle('PaletteMaster'),
       icon: getAppIcon(),
       autoHideMenuBar: true,
       frame: false,
@@ -935,7 +942,7 @@ export class WindowManager {
       minWidth: 780,
       minHeight: 520,
       resizable: true,
-      title: 'IADonkey – MagicPlan',
+      title: getWindowTitle('MagicPlan'),
       icon: getAppIcon(),
       autoHideMenuBar: true,
       frame: false,
@@ -1044,7 +1051,7 @@ export class WindowManager {
       y: displayBounds.y,
       width: displayBounds.width,
       height: displayBounds.height,
-      title: 'IADonkey – QuickCap',
+      title: getWindowTitle('QuickCap'),
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -1142,7 +1149,7 @@ export class WindowManager {
       y: displayBounds.y,
       width: displayBounds.width,
       height: displayBounds.height - 1,
-      title: 'IADonkey – ScreenRuler',
+      title: getWindowTitle('ScreenRuler'),
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -1324,7 +1331,7 @@ export class WindowManager {
       return;
     }
 
-    this.tray.setToolTip(`IADonkey Launcher (${label})`);
+    this.tray.setToolTip(isDevMode ? `IADonkey [DEV] (${label})` : `IADonkey Launcher (${label})`);
 
     const config = this.getConfig ? this.getConfig() : null;
     const isDonkeyToolsEnabled = Boolean(config?.extensions?.donkeyTools);
@@ -1343,7 +1350,19 @@ export class WindowManager {
       isDonkeyToolsEnabled && config?.donkeyTools?.easyClip?.enabled === true
     );
 
-    const template: Electron.MenuItemConstructorOptions[] = [
+    const template: Electron.MenuItemConstructorOptions[] = [];
+
+    if (isDevMode) {
+      template.push(
+        {
+          label: 'IADonkey [DEV REŽIM]',
+          enabled: false,
+        },
+        { type: 'separator' }
+      );
+    }
+
+    template.push(
       {
         label: `Hledat (${label})`,
         click: () => this.showSpotlight(),
@@ -1358,7 +1377,7 @@ export class WindowManager {
         label: 'Synchronizovat data',
         click: () => this.onSyncRequest(),
       },
-    ];
+    );
 
     const isMagicPlanEnabled = Boolean(config?.extensions?.magicplan);
 
@@ -1434,7 +1453,7 @@ export class WindowManager {
     template.push(
       { type: 'separator' },
       {
-        label: 'Ukončit IADonkey',
+        label: isDevMode ? 'Ukončit IADonkey [DEV]' : 'Ukončit IADonkey',
         click: () => {
           this.isQuitting = true;
           app.quit();
@@ -1590,8 +1609,8 @@ export class WindowManager {
   <div class="card">
     ${iconDataUrl ? `<img class="icon" src="${iconDataUrl}" alt="IADonkey" />` : ''}
     <div class="header-row">
-      <div class="title">IADonkey</div>
-      <div class="version-badge">v${version}</div>
+      <div class="title">${isDevMode ? 'IADonkey [DEV]' : 'IADonkey'}</div>
+      <div class="version-badge">v${isDevMode && !version.endsWith('dev') ? `${version} dev` : version}</div>
     </div>
     <div class="spacer"></div>
     <div class="description">

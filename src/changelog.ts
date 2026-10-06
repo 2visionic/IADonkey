@@ -6,6 +6,8 @@ export interface VersionEntry {
 }
 
 export const CURRENT_APP_VERSION = '2.1.4';
+export const IS_DEV = import.meta.env.DEV;
+export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
 /**
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).

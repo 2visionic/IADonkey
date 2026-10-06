@@ -19,7 +19,7 @@ import { WindowFrame } from './components/WindowFrame';
 import { PowerManagementModal } from './components/PowerManagementModal';
 import { MagicPlanWindow } from './components/MagicPlanWindow';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { CURRENT_APP_VERSION, getLatestRelease } from './changelog';
+import { CURRENT_APP_VERSION, IS_DEV, getLatestRelease } from './changelog';
 import { applyPrimaryColor, applyActionsColor } from './utils/theme';
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -239,6 +239,15 @@ export const App: React.FC = () => {
     };
     window.addEventListener('hashchange', handleHash);
     return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
+  // Set [DEV] in document.title if running in development mode
+  useEffect(() => {
+    if (IS_DEV) {
+      if (!document.title.includes('[DEV]')) {
+        document.title = document.title ? document.title.replace('IADonkey', 'IADonkey [DEV]') : 'IADonkey [DEV]';
+      }
+    }
   }, []);
 
   // Listen to cms-download params updates if window was already open

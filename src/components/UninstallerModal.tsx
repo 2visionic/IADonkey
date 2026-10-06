@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CURRENT_APP_VERSION } from '../changelog';
+import { CURRENT_APP_VERSION, DISPLAY_APP_VERSION, IS_DEV } from '../changelog';
 
 export const UninstallerModal: React.FC = () => {
   const [isUninstalling, setIsUninstalling] = useState(false);
@@ -29,8 +29,10 @@ export const UninstallerModal: React.FC = () => {
           <div className="w-6 h-6 rounded-full bg-rose-500/20 flex items-center justify-center">
             <span className="material-symbols-outlined text-sm text-rose-400">delete</span>
           </div>
-          <span className="text-xs font-semibold text-gray-300">IADonkey – Odinstalace</span>
-          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-white/5 text-gray-400 font-mono">v{CURRENT_APP_VERSION}</span>
+          <span className="text-xs font-semibold text-gray-300">
+            {IS_DEV ? 'IADonkey [DEV] – Odinstalace' : 'IADonkey – Odinstalace'}
+          </span>
+          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-white/5 text-gray-400 font-mono">v{DISPLAY_APP_VERSION}</span>
         </div>
         <button
           type="button"

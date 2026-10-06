@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CURRENT_APP_VERSION } from '../changelog';
+import { CURRENT_APP_VERSION, DISPLAY_APP_VERSION, IS_DEV } from '../changelog';
 import appLogo from '../assets/icon.png';
 
 interface InstallProgress {
@@ -227,7 +227,7 @@ export const InstallerWizard: React.FC<InstallerWizardProps> = ({ previewMode = 
         <div className="flex items-center gap-2.5">
           <img src={appLogo} alt="IADonkey" className="w-5 h-5 object-contain" />
           <span className="text-xs font-semibold text-gray-300 tracking-wide">
-            IADonkey – Průvodce instalací
+            {IS_DEV ? 'IADonkey [DEV] – Průvodce instalací' : 'IADonkey – Průvodce instalací'}
           </span>
           {previewMode && (
             <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold tracking-wider">
@@ -275,7 +275,7 @@ export const InstallerWizard: React.FC<InstallerWizardProps> = ({ previewMode = 
                 <div className="text-sm font-bold text-white tracking-wide flex items-center gap-1.5">
                   IADonkey
                   <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/15 px-2.5 py-0.5 rounded-full">
-                    v{CURRENT_APP_VERSION}
+                    v{DISPLAY_APP_VERSION}
                   </span>
                 </div>
                 <p className="text-xs text-gray-400">Instalátor aplikace</p>
