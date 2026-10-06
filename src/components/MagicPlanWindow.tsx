@@ -1064,6 +1064,7 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
               filterMyOverflow={showOnlyMyTasks && Boolean(currentUser)}
               showOnlyMyTasks={showOnlyMyTasks}
               searchQuery={searchQuery}
+              dailyUserWorklogs={data?.dailyUserWorklogs}
               onOpenTask={handleOpenTask}
               onOpenCodeLink={handleOpenCodeLink}
               getTaskManagerUrl={getTaskManagerUrl}
@@ -1379,6 +1380,7 @@ interface TimelineGridViewProps {
   onUpdateWorkHours?: (newStart: string, newEnd: string) => void;
   primaryColor?: string;
   actionsColor?: string;
+  dailyUserWorklogs?: Record<string, Record<string, number>>;
 }
 
 interface TimelineScheduledBlock {
@@ -1616,7 +1618,7 @@ const calculateScheduleForTasks = (
         const roundedActual = Math.round(actual * 2) / 2;
         overburnH = Math.max(0, roundedActual - est);
         rawOverH = Math.round((actual - est) * 10) / 10;
-        overburnPercent = Math.round(((actual - est) / est) * 100);
+        overburnPercent = Math.round((actual / est) * 100);
         fillPct = 100;
       }
     } else {
@@ -1624,7 +1626,7 @@ const calculateScheduleForTasks = (
       if (worklog > 0 && plannedH > 0 && worklog > plannedH) {
         rawOverH = Math.round((worklog - plannedH) * 10) / 10;
         overburnH = Math.ceil(rawOverH * 2) / 2;
-        overburnProgressPercent = Math.round(((worklog - plannedH) / plannedH) * 100);
+        overburnProgressPercent = Math.round((worklog / plannedH) * 100);
         fillPct = overburnH > 0 ? Math.min(100, Math.max(10, Math.round((rawOverH / overburnH) * 100))) : 100;
       }
     }
@@ -1872,7 +1874,7 @@ const calculateScheduleForTasks = (
       const est = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
       const actualHours = Math.max(task.totalHours || 0, task.worklogHours || 0);
       if (est > 0 && actualHours > est) {
-        const taskOverPct = Math.round(((actualHours - est) / est) * 100);
+        const taskOverPct = Math.round((actualHours / est) * 100);
         for (const b of sorted) {
           b.overburnPercent = taskOverPct;
         }
@@ -1881,7 +1883,7 @@ const calculateScheduleForTasks = (
       const planHours = task.totalHours > 0 ? task.totalHours : (task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : 1);
       const worklogHours = task.worklogHours || 0;
       const isOver = planHours > 0 && worklogHours > planHours;
-      const taskOverProgPct = isOver ? Math.round(((worklogHours - planHours) / planHours) * 100) : 0;
+      const taskOverProgPct = isOver ? Math.round((worklogHours / planHours) * 100) : 0;
 
       if (worklogHours > 0) {
         let accumulatedHours = 0;
@@ -2006,7 +2008,7 @@ const calculateScheduleForTasks = (
       const est = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
       const actualHours = Math.max(task.totalHours || 0, task.worklogHours || 0);
       if (est > 0 && actualHours > est) {
-        const taskOverPct = Math.round(((actualHours - est) / est) * 100);
+        const taskOverPct = Math.round((actualHours / est) * 100);
         for (const tb of sorted) {
           tb.overburnPercent = taskOverPct;
         }
@@ -2015,7 +2017,7 @@ const calculateScheduleForTasks = (
       const planHours = task.totalHours > 0 ? task.totalHours : (task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : 1);
       const worklogHours = task.worklogHours || 0;
       const isOver = planHours > 0 && worklogHours > planHours;
-      const taskOverProgPct = isOver ? Math.round(((worklogHours - planHours) / planHours) * 100) : 0;
+      const taskOverProgPct = isOver ? Math.round((worklogHours / planHours) * 100) : 0;
 
       if (worklogHours > 0) {
         let accumulatedHours = 0;
@@ -2112,10 +2114,12 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
   onUpdateWorkHours,
   primaryColor,
   actionsColor,
+  dailyUserWorklogs,
 }) => {
   const devColor = primaryColor || '#6366f1';
   const serviceColor = actionsColor || '#a855f7';
   const isCompact = Boolean(planSettings?.compactDayView);
+  const showWorklogProgressBar = planSettings?.showWorklogProgressBar !== false;
 
   const [userMenuState, setUserMenuState] = useState<{
     uIdx: number;
@@ -2169,11 +2173,67 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
     }
   }, [todayIdx]);
 
-  // Hover state for custom tooltip in week view
+  // Hover state for custom tooltip in week view and day view (after 3s delay)
   const [hoveredTask, setHoveredTask] = useState<{
     block: TimelineScheduledBlock;
     rect: DOMRect;
   } | null>(null);
+  const dayHoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (dayHoverTimerRef.current) {
+        clearTimeout(dayHoverTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (dayHoverTimerRef.current) {
+      clearTimeout(dayHoverTimerRef.current);
+      dayHoverTimerRef.current = null;
+    }
+    setHoveredTask(null);
+  }, [selectedDayIndex, viewMode]);
+
+  // Helper to retrieve logged hours for a user on a given day
+  const getUserWorklogForDay = (
+    uSched: UserScheduleResult,
+    dayIdx: number,
+    dayDate?: string
+  ): number => {
+    // 1. Check dailyUserWorklogs if available from MLog
+    if (dailyUserWorklogs && dayDate) {
+      const targetUser = uSched.userName;
+      for (const [key, datesMap] of Object.entries(dailyUserWorklogs)) {
+        if (isTaskForUser(key, targetUser, availablePersons) && datesMap && datesMap[dayDate] !== undefined) {
+          return datesMap[dayDate];
+        }
+      }
+    }
+
+    // 2. Fallback: calculate from scheduled blocks on that day
+    const dayBlocks = uSched.scheduledBlocks.filter((b) => b.dayIndex === dayIdx);
+    let sum = 0;
+    for (const b of dayBlocks) {
+      if (b.isNotAvailable) continue;
+      if (b.worklogChunkHours && b.worklogChunkHours > 0) {
+        sum += b.worklogChunkHours;
+      } else if (b.isCompleted) {
+        sum += b.chunkHours;
+      }
+    }
+    return Math.round(sum * 10) / 10;
+  };
+
+  const getUserWorklogForWeek = (uSched: UserScheduleResult): number => {
+    let sum = 0;
+    for (let d = 0; d < 5; d++) {
+      const dDate = days[d]?.date;
+      sum += getUserWorklogForDay(uSched, d, dDate);
+    }
+    return Math.round(sum * 10) / 10;
+  };
 
   // Safe viewport positioning for the week view tooltip
   const tooltipPosition = useMemo(() => {
@@ -2921,9 +2981,9 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               const isOverburnedInProgress = Boolean(!isNotAvailable && !isCompleted && (block.isOverburnedInProgress || hasOverburn));
                               const plannedTotal = task.totalHours > 0 ? task.totalHours : (block.plannedChunkHours || 1);
                               const rawOver = block.rawOverburnHours !== undefined ? block.rawOverburnHours : (task.worklogHours && task.worklogHours > plannedTotal ? task.worklogHours - plannedTotal : 0);
-                              const overProgressPct = block.overburnProgressPercent || (rawOver > 0 ? Math.round((rawOver / plannedTotal) * 100) : 0);
+                              const overProgressPct = block.overburnProgressPercent || (rawOver > 0 && task.worklogHours ? Math.round((task.worklogHours / plannedTotal) * 100) : 0);
 
-                              const overburnPct = block.overburnPercent || (block.rawOverburnHours && task.estimatedHours ? Math.round((block.rawOverburnHours / task.estimatedHours) * 100) : 0);
+                              const overburnPct = block.overburnPercent || (task.estimatedHours && (task.totalHours || task.worklogHours) ? Math.round((Math.max(task.totalHours || 0, task.worklogHours || 0) / task.estimatedHours) * 100) : 0);
 
                               const taskBackgroundColor = isNotAvailable
                                 ? '#27272a'
@@ -2957,7 +3017,29 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                 <div
                                   key={block.id}
                                   style={blockStyle}
-                                  onClick={isMuted ? undefined : () => onOpenTask(task)}
+                                  onClick={isMuted ? undefined : () => {
+                                    if (dayHoverTimerRef.current) {
+                                      clearTimeout(dayHoverTimerRef.current);
+                                      dayHoverTimerRef.current = null;
+                                    }
+                                    setHoveredTask(null);
+                                    onOpenTask(task);
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (isMuted) return;
+                                    if (dayHoverTimerRef.current) clearTimeout(dayHoverTimerRef.current);
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    dayHoverTimerRef.current = setTimeout(() => {
+                                      setHoveredTask({ block, rect });
+                                    }, 3000);
+                                  }}
+                                  onMouseLeave={() => {
+                                    if (dayHoverTimerRef.current) {
+                                      clearTimeout(dayHoverTimerRef.current);
+                                      dayHoverTimerRef.current = null;
+                                    }
+                                    setHoveredTask(null);
+                                  }}
                                   className={`timeline-task-card group mx-[2.5px] transition-all duration-200 select-none overflow-hidden min-w-0 text-white relative ${
                                     isCompact ? 'h-[46px]' : 'h-[112px]'
                                   } ${isMuted ? 'pointer-events-none' : 'cursor-pointer'}`}
@@ -3139,7 +3221,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                               ? `${chunkHours}h (${totalHours}h)`
                                               : `${chunkHours}h`}
                                             {isOverburnedInProgress && (
-                                              <span className="ml-1 text-amber-300 font-normal text-[11px]">
+                                              <span className={`ml-1 font-normal text-[11px] ${overProgressPct > 200 ? 'text-red-400' : 'text-amber-300'}`}>
                                                 ({overProgressPct}%)
                                               </span>
                                             )}
@@ -3149,7 +3231,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                               </span>
                                             )}
                                             {isCompletedTask && hasOverburn && (
-                                              <span className="ml-1 text-amber-300 font-normal text-[11px]">
+                                              <span className={`ml-1 font-normal text-[11px] ${overburnPct > 200 ? 'text-red-400' : 'text-amber-300'}`}>
                                                 ({overburnPct}%)
                                               </span>
                                             )}
@@ -3217,7 +3299,11 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                               : `${chunkHours}h`}
                                           </span>
                                           {isOverburnedInProgress && (
-                                            <span className="text-[10px] text-amber-200 font-bold bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/40 font-mono">
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border font-mono ${
+                                              overProgressPct > 200
+                                                ? 'text-red-200 bg-red-950/60 border-red-500/40'
+                                                : 'text-amber-200 bg-amber-950/60 border-amber-500/40'
+                                            }`}>
                                               {overProgressPct}%
                                             </span>
                                           )}
@@ -3227,7 +3313,11 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                             </span>
                                           )}
                                           {isCompletedTask && hasOverburn && (
-                                            <span className="text-[10px] text-amber-200 font-bold bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/40 font-mono">
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border font-mono ${
+                                              overburnPct > 200
+                                                ? 'text-red-200 bg-red-950/60 border-red-500/40'
+                                                : 'text-amber-200 bg-amber-950/60 border-amber-500/40'
+                                            }`}>
                                               {overburnPct}%
                                             </span>
                                           )}
@@ -3339,6 +3429,58 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                             </div>
                           )}
                         </div>
+
+                        {/* User Worklog Progress Bar (Day View: 8h = 100%) */}
+                        {showWorklogProgressBar && (() => {
+                          const selectedDate = days[selectedDayIndex]?.date;
+                          const dayWorklog = getUserWorklogForDay(uSched, selectedDayIndex, selectedDate);
+                          const isToday = selectedDayIndex === todayIdx;
+                          const dayBarWidth = Math.min(100, Math.max(0, (dayWorklog / totalDayHours) * 100));
+
+                          let dayCompletionRatio = 1;
+                          let dayElapsed = 8;
+                          if (isToday) {
+                            const currentHourDec = currentTime.getHours() + currentTime.getMinutes() / 60;
+                            dayElapsed = Math.max(0, Math.min(totalDayHours, currentHourDec - startHour));
+                            if (dayElapsed <= 0) {
+                              dayCompletionRatio = 1;
+                            } else {
+                              dayCompletionRatio = dayWorklog / dayElapsed;
+                            }
+                          } else if (selectedDayIndex < todayIdx) {
+                            dayElapsed = 8;
+                            dayCompletionRatio = dayWorklog / 8;
+                          } else {
+                            dayElapsed = 0;
+                            dayCompletionRatio = dayWorklog > 0 ? (dayWorklog / 8) : 1;
+                          }
+
+                          const dayBarColor =
+                            dayCompletionRatio < 0.25
+                              ? '#ef4444'
+                              : dayCompletionRatio < 0.65
+                              ? '#f97316'
+                              : '#10b981';
+
+                          return (
+                            <div
+                              className="w-full h-[7px] bg-white/[0.06] rounded-full overflow-hidden mt-1.5 relative cursor-default"
+                              title={
+                                isToday
+                                  ? `Worklog dnes: ${dayWorklog}h z 8h (${Math.round((dayWorklog / 8) * 100)}% kapacity) • K tomuto času očekáváno ${dayElapsed.toFixed(1)}h (${Math.round(dayCompletionRatio * 100)}% splněno)`
+                                  : `Worklog dne: ${dayWorklog}h z 8h (${Math.round(dayCompletionRatio * 100)}% splněno)`
+                              }
+                            >
+                              <div
+                                style={{
+                                  width: `${dayBarWidth}%`,
+                                  backgroundColor: dayBarColor,
+                                }}
+                                className="h-full rounded-full transition-all duration-300"
+                              />
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
@@ -3596,9 +3738,9 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                           const isOverburnedInProgress = Boolean(!isNotAvailable && !isCompleted && (block.isOverburnedInProgress || hasOverburn));
                           const plannedTotal = task.totalHours > 0 ? task.totalHours : (block.plannedChunkHours || 1);
                           const rawOver = block.rawOverburnHours !== undefined ? block.rawOverburnHours : (task.worklogHours && task.worklogHours > plannedTotal ? task.worklogHours - plannedTotal : 0);
-                          const overProgressPct = block.overburnProgressPercent || (rawOver > 0 ? Math.round((rawOver / plannedTotal) * 100) : 0);
+                          const overProgressPct = block.overburnProgressPercent || (rawOver > 0 && task.worklogHours ? Math.round((task.worklogHours / plannedTotal) * 100) : 0);
 
-                          const overburnPct = block.overburnPercent || (block.rawOverburnHours && task.estimatedHours ? Math.round((block.rawOverburnHours / task.estimatedHours) * 100) : 0);
+                          const overburnPct = block.overburnPercent || (task.estimatedHours && (task.totalHours || task.worklogHours) ? Math.round((Math.max(task.totalHours || 0, task.worklogHours || 0) / task.estimatedHours) * 100) : 0);
 
                           const taskBackgroundColor = isNotAvailable
                             ? '#27272a'
@@ -3798,6 +3940,49 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                           </div>
                         ))}
                       </div>
+
+                      {/* User Worklog Progress Bar (Week View: 40h = 100%) */}
+                      {showWorklogProgressBar && (() => {
+                        const weekWorklog = getUserWorklogForWeek(uSched);
+                        const weekBarWidth = Math.min(100, Math.max(0, (weekWorklog / totalWeekColumns) * 100));
+
+                        let expectedWeekHours = 40;
+                        let weekElapsedToday = 0;
+                        if (todayIdx >= 0 && todayIdx < 5) {
+                          const currentHourDec = currentTime.getHours() + currentTime.getMinutes() / 60;
+                          weekElapsedToday = Math.max(0, Math.min(totalDayHours, currentHourDec - startHour));
+                          expectedWeekHours = todayIdx * totalDayHours + weekElapsedToday;
+                        } else if (todayIdx < 0 || todayIdx >= 5) {
+                          expectedWeekHours = 40;
+                        }
+
+                        const weekCompletionRatio =
+                          expectedWeekHours > 0
+                            ? weekWorklog / expectedWeekHours
+                            : (weekWorklog > 0 ? 1 : 1);
+
+                        const weekBarColor =
+                          weekCompletionRatio < 0.25
+                            ? '#ef4444'
+                            : weekCompletionRatio < 0.65
+                            ? '#f97316'
+                            : '#10b981';
+
+                        return (
+                          <div
+                            className="w-full h-[7px] bg-white/[0.06] rounded-full overflow-hidden mt-1.5 relative cursor-default"
+                            title={`Worklog týdne: ${weekWorklog}h z 40h (${Math.round((weekWorklog / 40) * 100)}% kapacity) • K tomuto času očekáváno ${expectedWeekHours.toFixed(1)}h (${Math.round(weekCompletionRatio * 100)}% splněno)`}
+                          >
+                            <div
+                              style={{
+                                width: `${weekBarWidth}%`,
+                                backgroundColor: weekBarColor,
+                              }}
+                              className="h-full rounded-full transition-all duration-300"
+                            />
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 );
@@ -3923,8 +4108,8 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
         </div>
       </div>
 
-      {/* Custom Floating Tooltip for Week View (Bounded inside visible viewport) */}
-      {viewMode === 'week' && hoveredTask && tooltipPosition && (
+      {/* Custom Floating Tooltip for Week View & Day View (Bounded inside visible viewport) */}
+      {hoveredTask && tooltipPosition && (
         <div
           className="fixed z-50 pointer-events-none p-3.5 rounded-2xl bg-[#161720]/95 backdrop-blur-md shadow-2xl text-xs space-y-2 min-w-[240px] max-w-[320px] animate-in fade-in zoom-in-95 duration-150"
           style={{
@@ -3991,9 +4176,9 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                     const task = hoveredTask.block.task;
                     const plan = task.totalHours > 0 ? task.totalHours : (task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : 1);
                     const wl = task.worklogHours || 0;
-                    const pct = hoveredTask.block.overburnProgressPercent || (plan > 0 && wl > plan ? Math.round(((wl - plan) / plan) * 100) : 0);
+                    const pct = hoveredTask.block.overburnProgressPercent || (plan > 0 && wl > plan ? Math.round((wl / plan) * 100) : 0);
                     return pct > 0 ? (
-                      <span className="text-amber-400 font-normal">
+                      <span className={`font-normal ${pct > 200 ? 'text-red-400' : 'text-amber-400'}`}>
                         {' '}{pct}%
                       </span>
                     ) : null;
@@ -4007,9 +4192,9 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                     const task = hoveredTask.block.task;
                     const est = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
                     const act = Math.max(task.totalHours || 0, task.worklogHours || 0);
-                    const pct = hoveredTask.block.overburnPercent || (est > 0 && act > est ? Math.round(((act - est) / est) * 100) : 0);
+                    const pct = hoveredTask.block.overburnPercent || (est > 0 && act > est ? Math.round((act / est) * 100) : 0);
                     return pct > 0 ? (
-                      <span className="text-amber-400 font-normal">
+                      <span className={`font-normal ${pct > 200 ? 'text-red-400' : 'text-amber-400'}`}>
                         {' '}{pct}%
                       </span>
                     ) : null;
@@ -4195,11 +4380,12 @@ const TaskCircleProgress: React.FC<TaskCircleProgressProps> = ({ task, size = 32
     const actual = Math.max(totalHours || 0, worklogHours || 0) || plan;
     if (actual > plan) {
       const overburnH = Math.round((actual - plan) * 10) / 10;
-      const overburnPct = Math.round(((actual - plan) / plan) * 100);
-      strokeColor = '#f97316';
-      textColor = '#fb923c';
+      const overburnPct = Math.round((actual / plan) * 100);
+      const isExtreme = overburnPct > 200;
+      strokeColor = isExtreme ? '#ef4444' : '#f97316';
+      textColor = isExtreme ? '#f87171' : '#fb923c';
       label = `${overburnPct}%`;
-      fillPercent = Math.min(100, Math.max(8, overburnPct));
+      fillPercent = 100;
       title = `Nad odhad: +${overburnH}h (${overburnPct}%) • celkem ${actual}h (odhad ${plan}h)`;
     } else {
       strokeColor = '#10b981';
@@ -4218,11 +4404,12 @@ const TaskCircleProgress: React.FC<TaskCircleProgressProps> = ({ task, size = 32
       title = 'Nezačato (0% odpracováno)';
     } else if (worklogHours > plan) {
       const overburnH = Math.round((worklogHours - plan) * 10) / 10;
-      const overburnPct = Math.round(((worklogHours - plan) / plan) * 100);
-      strokeColor = '#f97316';
-      textColor = '#fb923c';
+      const overburnPct = Math.round((worklogHours / plan) * 100);
+      const isExtreme = overburnPct > 200;
+      strokeColor = isExtreme ? '#ef4444' : '#f97316';
+      textColor = isExtreme ? '#f87171' : '#fb923c';
       label = `${overburnPct}%`;
-      fillPercent = Math.min(100, Math.max(8, overburnPct));
+      fillPercent = 100;
       title = `Nad odhad: +${overburnH}h (${overburnPct}%) • zapsáno ${worklogHours}h (plán ${plan}h)`;
     } else {
       const pct = Math.min(100, Math.max(1, Math.round((worklogHours / plan) * 100)));
@@ -4384,6 +4571,7 @@ const ListView: React.FC<ListViewProps> = ({
           const planClean = Math.round(planHours * 10) / 10;
           const actualClean = Math.round(actualHours * 10) / 10;
           const overburnDiff = Math.round((actualClean - planClean) * 10) / 10;
+          const isExtremeOverburn = planClean > 0 && Math.round((actualClean / planClean) * 100) > 200;
           return (
             <div
               key={task.taskId}
@@ -4530,7 +4718,7 @@ const ListView: React.FC<ListViewProps> = ({
               <div className="text-right">
                 {hasTaskOverburn ? (
                   <span
-                    className="font-mono font-bold text-xs text-orange-400"
+                    className={`font-mono font-bold text-xs ${isExtremeOverburn ? 'text-red-400' : 'text-orange-400'}`}
                     title={`Původní plán: ${planClean}h • Aktuální čas po přesahu: ${actualClean}h (+${overburnDiff}h)`}
                   >
                     {actualClean}h/{planClean}h
@@ -4696,7 +4884,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
             </span>
           ) : hasTaskOverburn ? (
             <span
-              className="font-mono text-xs font-bold text-orange-400 flex items-center gap-1 shrink-0"
+              className={`font-mono text-xs font-bold ${isExtremeOverburn ? 'text-red-400' : 'text-orange-400'} flex items-center gap-1 shrink-0`}
               title={`Původní plán: ${planClean}h • Aktuální čas po přesahu: ${actualClean}h (+${overburnDiff}h)`}
             >
               <span>{actualClean}h/{planClean}h</span>

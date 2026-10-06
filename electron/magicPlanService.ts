@@ -569,9 +569,10 @@ export class MagicPlanService {
         ? planConfig.worklogUrl.trim()
         : 'http://mlog/Logs.aspx';
 
+      let dailyUserWorklogs: Record<string, Record<string, number>> | undefined = undefined;
       if (worklogBase && combinedDays.length > 0) {
         try {
-          await this.fetchAndApplyWorklogs(
+          dailyUserWorklogs = await this.fetchAndApplyWorklogs(
             worklogBase,
             combinedDays,
             allMyTasks,
@@ -602,6 +603,7 @@ export class MagicPlanService {
         unassignedTasks,
         totalMyHours,
         availablePersons: allAvailablePersons,
+        dailyUserWorklogs,
         isOffline: false,
       };
 
@@ -813,15 +815,15 @@ export class MagicPlanService {
     mlogBaseUrl?: string,
     mlogTaskPrefix: string = 'T',
     mlogRequestPrefix: string = 'R'
-  ): Promise<void> {
-    if (!worklogBaseUrl || combinedDays.length === 0) return;
+  ): Promise<Record<string, Record<string, number>>> {
+    if (!worklogBaseUrl || combinedDays.length === 0) return {};
 
     const todayIdx = combinedDays.findIndex((d) => d.isToday);
     const targetDays = (todayIdx >= 0 && todayIdx < 5)
       ? combinedDays.slice(0, todayIdx + 1)
       : combinedDays.slice(0, 5);
 
-    if (targetDays.length === 0) return;
+    if (targetDays.length === 0) return {};
 
     const dailyResults = await Promise.all(
       targetDays.map(async (day) => {
@@ -1010,6 +1012,35 @@ export class MagicPlanService {
         }
       }
     }
+
+    // Build daily worklog totals per user
+    const dailyUserWorklogs: Record<string, Record<string, number>> = {};
+    for (const dayRes of dailyResults) {
+      for (const [wUser, items] of dayRes.usersMap.entries()) {
+        const dayHours = items.reduce((sum, item) => sum + (item.hours || 0), 0);
+        if (dayHours > 0) {
+          const matchedPerson = allAvailablePersons.find(
+            (p) =>
+              matchesPersonName(p.cleanName || '', wUser) ||
+              matchesPersonName(p.name || '', wUser)
+          );
+          const keysToSet = new Set<string>();
+          keysToSet.add(wUser);
+          if (matchedPerson) {
+            if (matchedPerson.id) keysToSet.add(matchedPerson.id);
+            if (matchedPerson.name) keysToSet.add(matchedPerson.name);
+            if (matchedPerson.cleanName) keysToSet.add(matchedPerson.cleanName);
+          }
+          const cleanHours = Math.round(dayHours * 100) / 100;
+          for (const k of keysToSet) {
+            if (!dailyUserWorklogs[k]) dailyUserWorklogs[k] = {};
+            dailyUserWorklogs[k][dayRes.date] = cleanHours;
+          }
+        }
+      }
+    }
+
+    return dailyUserWorklogs;
   }
 
   /**
