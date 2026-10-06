@@ -3031,7 +3031,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                     const rect = e.currentTarget.getBoundingClientRect();
                                     dayHoverTimerRef.current = setTimeout(() => {
                                       setHoveredTask({ block, rect });
-                                    }, 3000);
+                                    }, 1200);
                                   }}
                                   onMouseLeave={() => {
                                     if (dayHoverTimerRef.current) {
@@ -3463,21 +3463,23 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               : '#10b981';
 
                           return (
-                            <div
-                              className="w-full h-[7px] bg-white/[0.06] rounded-full overflow-hidden mt-1.5 relative cursor-default"
-                              title={
-                                isToday
-                                  ? `Worklog dnes: ${dayWorklog}h z 8h (${Math.round((dayWorklog / 8) * 100)}% kapacity) • K tomuto času očekáváno ${dayElapsed.toFixed(1)}h (${Math.round(dayCompletionRatio * 100)}% splněno)`
-                                  : `Worklog dne: ${dayWorklog}h z 8h (${Math.round(dayCompletionRatio * 100)}% splněno)`
-                              }
-                            >
+                            <div className="px-[2.5px] mt-1.5">
                               <div
-                                style={{
-                                  width: `${dayBarWidth}%`,
-                                  backgroundColor: dayBarColor,
-                                }}
-                                className="h-full rounded-full transition-all duration-300"
-                              />
+                                className="w-full h-[4px] bg-white/[0.06] rounded-full overflow-hidden relative cursor-default"
+                                title={
+                                  isToday
+                                    ? `Worklog dnes: ${dayWorklog}h z 8h (${Math.round((dayWorklog / 8) * 100)}% kapacity) • K tomuto času očekáváno ${dayElapsed.toFixed(1)}h (${Math.round(dayCompletionRatio * 100)}% splněno)`
+                                    : `Worklog dne: ${dayWorklog}h z 8h (${Math.round((dayWorklog / 8) * 100)}% kapacity)`
+                                }
+                              >
+                                <div
+                                  style={{
+                                    width: `${dayBarWidth}%`,
+                                    backgroundColor: dayBarColor,
+                                  }}
+                                  className="h-full rounded-full transition-all duration-300 max-w-full"
+                                />
+                              </div>
                             </div>
                           );
                         })()}
@@ -3677,8 +3679,9 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                       </div>
                     )}
 
-                    <div className="flex-1 relative w-full rounded-lg overflow-hidden py-1 px-[2px] h-[38px]">
-                      {/* Background Column Lines */}
+                    <div className="flex-1 relative w-full py-1">
+                      <div className="relative w-full rounded-lg overflow-hidden px-[2px] h-[30px]">
+                        {/* Background Column Lines */}
                       <div
                         className="absolute inset-0 pointer-events-none z-0 px-[2px]"
                         style={{ display: 'grid', gridTemplateColumns: `repeat(${totalWeekColumns}, minmax(0, 1fr))` }}
@@ -3940,11 +3943,12 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                           </div>
                         ))}
                       </div>
+                      </div>
 
                       {/* User Worklog Progress Bar (Week View: 40h = 100%) */}
                       {showWorklogProgressBar && (() => {
                         const weekWorklog = getUserWorklogForWeek(uSched);
-                        const weekBarWidth = Math.min(100, Math.max(0, (weekWorklog / totalWeekColumns) * 100));
+                        const weekBarWidth = Math.min(100, Math.max(0, (weekWorklog / 40) * 100));
 
                         let expectedWeekHours = 40;
                         let weekElapsedToday = 0;
@@ -3969,17 +3973,19 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                             : '#10b981';
 
                         return (
-                          <div
-                            className="w-full h-[7px] bg-white/[0.06] rounded-full overflow-hidden mt-1.5 relative cursor-default"
-                            title={`Worklog týdne: ${weekWorklog}h z 40h (${Math.round((weekWorklog / 40) * 100)}% kapacity) • K tomuto času očekáváno ${expectedWeekHours.toFixed(1)}h (${Math.round(weekCompletionRatio * 100)}% splněno)`}
-                          >
+                          <div className="px-[2px] mt-1.5">
                             <div
-                              style={{
-                                width: `${weekBarWidth}%`,
-                                backgroundColor: weekBarColor,
-                              }}
-                              className="h-full rounded-full transition-all duration-300"
-                            />
+                              className="w-full h-[4px] bg-white/[0.06] rounded-full overflow-hidden relative cursor-default"
+                              title={`Worklog týdne: ${weekWorklog}h z 40h (${Math.round((weekWorklog / 40) * 100)}% kapacity) • K tomuto času očekáváno ${expectedWeekHours.toFixed(1)}h (${Math.round(weekCompletionRatio * 100)}% splněno)`}
+                            >
+                              <div
+                                style={{
+                                  width: `${weekBarWidth}%`,
+                                  backgroundColor: weekBarColor,
+                                }}
+                                className="h-full rounded-full transition-all duration-300 max-w-full"
+                              />
+                            </div>
                           </div>
                         );
                       })()}
