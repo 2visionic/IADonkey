@@ -61,6 +61,18 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 - [x] **MagicPlan: Oprava výpočtu worklog baru (vyloučení budoucích dnů a naplánovaných bloků)**
   - Worklog progress bar čerpá výhradně reálné denní výkazy z MLogu podle data dne. Odstraněn chybný fallback na naplánované bloky a budoucí dny (středa–pátek) mají striktně 0 h.
 
+- [x] **MagicPlan: Sjednocení a sčítání worklogů pro daný úkol napříč týdnem**
+  - Tasky v plánu agregují veškeré své worklogy napříč celým týdnem pro stejné číslo Txx/Rxx (např. 1,08h v Po + 1,72h v Út = 2,8h celkem). Správný výpočet a zobrazení overburnu (1h plán + 1,8h pruh ve 2h bloku) bez narušení řazení plánu.
+
+- [x] **Automatické označení DEV režimu v aplikaci**
+  - Automatické doplnění [DEV] do záhlaví všech oken, tray menu, spouštěče i verze aplikace (např. 2.1.3 dev) během vývojového běhu.
+
+- [x] **Splash screen: Čistý titulek a žlutý surface čipu verze pro DEV**
+  - Ve splash okně ponechán čistý název IADonkey, zabráněno zalamování textu verze (whitespace-nowrap) a při IS_DEV nastaven žlutý surface čipu.
+
+- [x] **MagicPlan: Plně zaoblené pilulky T a R v tooltipu a červený overburn od 201 %**
+  - V plovoucím tooltipu mají identifikátory Txx, Rxx i godday zaoblení rounded-full. V denním i týdenním plánu se overburn bar při překročení nad 200 % automaticky přebarví na červenou.
+
 
 
 
