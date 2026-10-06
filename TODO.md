@@ -58,7 +58,8 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-*(Žádné dokončené úkoly nečekají na revizi – všechny byly schváleny a zkontrolovány)*
+- [x] **MagicPlan: Oprava výpočtu worklog baru (vyloučení budoucích dnů a naplánovaných bloků)**
+  - Worklog progress bar čerpá výhradně reálné denní výkazy z MLogu podle data dne. Odstraněn chybný fallback na naplánované bloky a budoucí dny (středa–pátek) mají striktně 0 h.
 
 
 

@@ -2202,7 +2202,12 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
     dayIdx: number,
     dayDate?: string
   ): number => {
-    // 1. Check dailyUserWorklogs if available from MLog
+    // Pro budoucí dny je worklog vždy 0 (žádný budoucí worklog neexistuje)
+    if (todayIdx >= 0 && dayIdx > todayIdx) {
+      return 0;
+    }
+
+    // Čerpá se VÝHRADNĚ ze skutečného denního výkazu (MLog Logs.aspx?Date=...) pro dané datum dne
     if (dailyUserWorklogs && dayDate) {
       const targetUser = uSched.userName;
       for (const [key, datesMap] of Object.entries(dailyUserWorklogs)) {
@@ -2212,18 +2217,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
       }
     }
 
-    // 2. Fallback: calculate from scheduled blocks on that day
-    const dayBlocks = uSched.scheduledBlocks.filter((b) => b.dayIndex === dayIdx);
-    let sum = 0;
-    for (const b of dayBlocks) {
-      if (b.isNotAvailable) continue;
-      if (b.worklogChunkHours && b.worklogChunkHours > 0) {
-        sum += b.worklogChunkHours;
-      } else if (b.isCompleted) {
-        sum += b.chunkHours;
-      }
-    }
-    return Math.round(sum * 10) / 10;
+    return 0;
   };
 
   const getUserWorklogForWeek = (uSched: UserScheduleResult): number => {
@@ -3452,7 +3446,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                             dayCompletionRatio = dayWorklog / 8;
                           } else {
                             dayElapsed = 0;
-                            dayCompletionRatio = dayWorklog > 0 ? (dayWorklog / 8) : 1;
+                            dayCompletionRatio = 0;
                           }
 
                           const dayBarColor =
@@ -3469,7 +3463,9 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                 title={
                                   isToday
                                     ? `Worklog dnes: ${dayWorklog}h z 8h (${Math.round((dayWorklog / 8) * 100)}% kapacity) • K tomuto času očekáváno ${dayElapsed.toFixed(1)}h (${Math.round(dayCompletionRatio * 100)}% splněno)`
-                                    : `Worklog dne: ${dayWorklog}h z 8h (${Math.round((dayWorklog / 8) * 100)}% kapacity)`
+                                    : selectedDayIndex < todayIdx
+                                    ? `Worklog dne: ${dayWorklog}h z 8h (${Math.round((dayWorklog / 8) * 100)}% splněno)`
+                                    : 'Budoucí den (zatím neodpracováno)'
                                 }
                               >
                                 <div
