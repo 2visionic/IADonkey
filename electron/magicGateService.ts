@@ -142,9 +142,10 @@ export async function runMultiRepoClone(params: {
   recursive?: boolean;
   rawJson?: string;
   forceReclone?: boolean;
+  githubToken?: string;
   onProgress?: (data: { current: number; total: number; repoName: string; log: string }) => void;
 }): Promise<{ success: boolean; targetPath: string; error?: string; alreadyExists?: boolean; allSkipped?: boolean }> {
-  const { repos, targetDir, recursive = false, rawJson, forceReclone = false, onProgress } = params;
+  const { repos, targetDir, recursive = false, rawJson, forceReclone = false, githubToken, onProgress } = params;
 
   if (!targetDir || !targetDir.trim()) {
     return { success: false, targetPath: '', error: 'Nebyla zadána cílová složka.' };
@@ -209,7 +210,21 @@ export async function runMultiRepoClone(params: {
       }
     }
 
-    const args = ['clone'];
+    const authArgs: string[] = [];
+    if (githubToken) {
+      try {
+        const parsed = new URL(repo.repoUrl);
+        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+          const basicAuth = Buffer.from(`x-access-token:${githubToken}`).toString('base64');
+          const origin = `${parsed.protocol}//${parsed.host}`;
+          authArgs.push('-c', `http.${origin}/.extraheader=AUTHORIZATION: basic ${basicAuth}`);
+        }
+      } catch {
+        // Not a standard HTTP(S) URL, omit extraheader
+      }
+    }
+
+    const args = [...authArgs, 'clone'];
     if (recursive) {
       args.push('--recursive');
     }
@@ -224,18 +239,36 @@ export async function runMultiRepoClone(params: {
 
     args.push(repo.repoUrl, subPath);
 
+    // Clean display command without sensitive token headers
+    const displayArgs = args.filter((_, idx) => {
+      if (args[idx] === '-c' && args[idx + 1]?.includes('.extraheader=')) return false;
+      if (args[idx - 1] === '-c' && args[idx]?.includes('.extraheader=')) return false;
+      return true;
+    });
+
     onProgress?.({
       current: i + 1,
       total: validRepos.length,
       repoName: repo.targetSubdir,
-      log: `> git ${args.join(' ')}\n`,
+      log: `> git ${displayArgs.join(' ')}\n`,
     });
+
+    const sanitizeOutput = (data: Buffer | string) => {
+      let str = typeof data === 'string' ? data : data.toString();
+      if (githubToken) {
+        str = str.split(githubToken).join('[REDACTED]');
+        const basicAuth = Buffer.from(`x-access-token:${githubToken}`).toString('base64');
+        str = str.split(basicAuth).join('[REDACTED]');
+      }
+      return str;
+    };
 
     const cloneResult = await new Promise<{ success: boolean; error?: string }>((resolve) => {
       let child: any;
       try {
         child = spawn('git', args, {
-          shell: true,
+          shell: false,
+          windowsHide: true,
           env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
         });
       } catch (err: any) {
@@ -248,7 +281,7 @@ export async function runMultiRepoClone(params: {
           current: i + 1,
           total: validRepos.length,
           repoName: repo.targetSubdir,
-          log: data.toString(),
+          log: sanitizeOutput(data),
         });
       });
 
@@ -257,7 +290,7 @@ export async function runMultiRepoClone(params: {
           current: i + 1,
           total: validRepos.length,
           repoName: repo.targetSubdir,
-          log: data.toString(),
+          log: sanitizeOutput(data),
         });
       });
 

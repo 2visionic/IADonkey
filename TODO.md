@@ -53,14 +53,18 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
   - **Popis**: Zobrazení víkendových dnů v plánu, defaultně indikovaných jako 8h volno.
   - **Požadavky**: Údaje o volnu/kapacitě přebírat dynamicky z dat plánu (ne hardcoded).
 
+- [ ] **6. Integrace MLog Frog API: Zakládání úkolů přes příkaz `/task` ve Spotlightu**
+  - **Popis**: Využití nového moderního REST API serveru MLogu („Frog“ – Vladimír Tintěra) pro rychlé zakládání úkolů přímo ze Spotlight dialogu s následným otevřením přes `LinkOpenner`.
+  - **Odkaz na analýzu**: [Technická analýza Frog MLog API](docs/frog-mlog-api-analyza.md)
+  - **Klíčové kroky**:
+    - Získání DTO modelů z repozitáře `magicware/KMPMlog` a domluva autentizace (PAT / API token).
+    - Implementace servisy pro volání `https://frog.magicware.cz/api/v1/sub-requirements` a načítání uživatelů (`/api/v1/users`).
+    - Spotlight dialog pro příkaz `/task` (název, závažnost, zkratka řešitele např. MCH, projekt).
+
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-- [x] **1. GitHub OAuth klonování repozitářů bez externího vyskakovacího okna**
-  - Předání existujícího GitHub OAuth tokenu přímo do procesu `git clone` pomocí `-c http.<origin>/.extraheader="AUTHORIZATION: basic <token>"`.
-  - Zamezení vyskakování externího Git Credential Manageru, sanitizace výstupů a logů.
+*(Žádné dokončené úkoly nečekají na revizi – všechny byly schváleny a zkontrolovány)*
 
-- [x] **2. Nastavení: Rozšíření výchozí šířky okna Nastavení (na 1100 px)**
-  - Výchozí šířka okna `settingsWindow` zvětšena z 960 px na 1100 px (minWidth 860 px) pro komfortnější zobrazení obsahu a karet.
 
 
 

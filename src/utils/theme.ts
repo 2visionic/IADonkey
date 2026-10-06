@@ -1,11 +1,16 @@
 export interface ColorPreset {
   name: string;
   hex: string;
+  isDefault?: 'primary' | 'secondary' | boolean;
 }
 
+export const DEFAULT_PRIMARY_COLOR = '#6366f1';
+export const DEFAULT_ACTIONS_COLOR = '#a855f7';
 export const VSCODE_EXTENSION_COLOR = '#0e7490';
 
 export const APP_COLOR_PRESETS: readonly ColorPreset[] = [
+  { name: 'Výchozí Indigo (Primární)', hex: '#6366f1', isDefault: 'primary' },
+  { name: 'Výchozí Fialová (Sekundární)', hex: '#a855f7', isDefault: 'secondary' },
   { name: 'Královská modrá', hex: '#2563eb' },
   { name: 'Safírová modrá', hex: '#1d4ed8' },
   { name: 'Nebeská modrá', hex: '#0284c7' },

@@ -158,7 +158,7 @@ export const DataSourcesGuideModal: React.FC<DataSourcesGuideModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 window-modal-overlay">
-      <div className="m3-surface-main rounded-[28px] w-full max-w-4xl max-h-[88vh] p-6 shadow-2xl flex flex-col gap-4 text-gray-200 animate-in fade-in zoom-in-95 duration-150 select-none">
+      <div className="m3-surface-main rounded-[28px] w-full max-w-4xl h-[calc(100%-40px)] max-h-[calc(100%-40px)] p-6 shadow-2xl flex flex-col gap-4 text-gray-200 animate-in fade-in zoom-in-95 duration-150 select-none">
         
         {/* Header */}
         <div className="flex items-center justify-between pb-1 shrink-0">

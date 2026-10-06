@@ -320,7 +320,7 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
     }
   }, [isSearchOpen]);
 
-  // Global Ctrl+F / Cmd+F to open search, and Escape to close
+  // Global Ctrl+F / Cmd+F to open search, Escape to close, and F5 to refresh plan
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
@@ -329,6 +329,9 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
       } else if (e.key === 'Escape' && isSearchOpen) {
         setIsSearchOpen(false);
         setSearchQuery('');
+      } else if (e.key === 'F5') {
+        e.preventDefault();
+        handleRefresh();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -596,22 +599,33 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
 
   const handleUpdateUserColumns = useCallback(
     async (newUserColumns: string[], newCurrentUser?: string) => {
-      const baseConfig = currentConfig || config;
-      const updatedConfig: AppConfig = {
-        ...baseConfig,
-        magicplan: {
-          ...baseConfig.magicplan,
-          userColumns: newUserColumns,
-          userColumn: newUserColumns[0] || '',
-          currentUserColumn: newCurrentUser !== undefined ? newCurrentUser : baseConfig.magicplan?.currentUserColumn,
-        },
-      };
-      setCurrentConfig(updatedConfig);
-      if (onSaveConfig) {
-        onSaveConfig(updatedConfig);
-      }
-      if (window.electronAPI?.saveConfig) {
-        await window.electronAPI.saveConfig(updatedConfig);
+      setIsRefreshing(true);
+      try {
+        const baseConfig = currentConfig || config;
+        const updatedConfig: AppConfig = {
+          ...baseConfig,
+          magicplan: {
+            ...baseConfig.magicplan,
+            userColumns: newUserColumns,
+            userColumn: newUserColumns[0] || '',
+            currentUserColumn: newCurrentUser !== undefined ? newCurrentUser : baseConfig.magicplan?.currentUserColumn,
+          },
+        };
+        setCurrentConfig(updatedConfig);
+        if (onSaveConfig) {
+          onSaveConfig(updatedConfig);
+        }
+        if (window.electronAPI?.saveConfig) {
+          await window.electronAPI.saveConfig(updatedConfig);
+        }
+        if (window.electronAPI?.refreshMagicPlan) {
+          const res = await window.electronAPI.refreshMagicPlan();
+          if (res) setData(res);
+        }
+      } catch (err) {
+        console.error('[MagicPlanWindow] Failed to update user columns:', err);
+      } finally {
+        setIsRefreshing(false);
       }
     },
     [currentConfig, config, onSaveConfig]
@@ -712,12 +726,16 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
 
     for (const t of pool) {
       if ((t.isCompleted || t.isSolved) && !seen.has(t.taskId)) {
+        if (distinctUsers.length > 0 && !showOnlyMyTasks) {
+          const isBelongingToAnyTrackedUser = distinctUsers.some((u) => isTaskForUser(t, u, availablePersons));
+          if (!isBelongingToAnyTrackedUser) continue;
+        }
         seen.add(t.taskId);
         list.push(t);
       }
     }
     return list.sort(comparePlanOrder);
-  }, [myTasks, queueTasks, showOnlyMyTasks, currentUser, availablePersons]);
+  }, [myTasks, queueTasks, showOnlyMyTasks, currentUser, availablePersons, distinctUsers]);
 
   // Active user tasks (excluding completed and notAvailable) for Nástěnka
   const activeMyTasks = useMemo(() => {
@@ -814,7 +832,7 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
                   }`}
                 >
                   <span className={`material-symbols-outlined text-sm ${activeTab === 'timeline' ? 'text-indigo-400' : 'text-gray-400'}`}>
-                    calendar_view_week
+                    schedule
                   </span>
                   <span className={activeTab === 'timeline' ? 'text-white' : ''}>Timeline</span>
                 </button>
@@ -970,92 +988,104 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
         )}
 
         {/* Content Views */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center text-gray-400 space-y-3 py-20">
-            <span className="material-symbols-outlined text-4xl animate-spin text-indigo-400">sync</span>
-            <span className="text-xs">Načítám data plánu ze serveru...</span>
-          </div>
-        ) : !isConfigured ? (
-          <div className="flex flex-col items-center justify-center text-center p-8 space-y-4 max-w-md mx-auto py-20">
-            <div className="w-14 h-14 rounded-full bg-indigo-500/15 text-indigo-400 flex items-center justify-center">
-              <span className="material-symbols-outlined text-3xl">calendar_month</span>
+        <div className="relative flex-1 min-h-[460px] flex flex-col">
+          {/* Centered Loading / Refreshing Overlay */}
+          {(isLoading || isRefreshing) && (
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-[#0e0f12]/80 backdrop-blur-[2px] rounded-2xl select-none animate-in fade-in duration-150">
+              <span
+                className="material-symbols-outlined text-5xl animate-spin m3-primary-text mb-3"
+                style={{ color: currentConfig?.primaryColor || config?.primaryColor || 'var(--color-primary-hex, #6366f1)' }}
+              >
+                progress_activity
+              </span>
+              <span className="text-xs text-gray-300 font-medium tracking-wide">
+                Načítám data plánu...
+              </span>
             </div>
-            <h3 className="text-base font-bold text-white">Sledování plánu není plně nakonfigurováno</h3>
-            <p className="text-xs text-gray-400 leading-relaxed">
-              Pro aktivaci zadejte URL adresu plánu a identifikátor svého sloupce v nastavení rozšíření MagicPlan.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                if (window.electronAPI?.openSettingsWindow) {
-                  window.electronAPI.openSettingsWindow('magicplan');
-                } else if (onOpenSettings) {
-                  onOpenSettings();
-                }
-              }}
-              className="px-5 py-2.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition cursor-pointer"
-            >
-              Přejít do nastavení MagicPlan
-            </button>
-          </div>
-        ) : activeTab === 'nastenka' ? (
-          /* TAB 1: NÁSTĚNKA (4 sloupce: Nepřiřazené, Úkoly, Servis, Splněné) */
-          <BoardView
-            unassignedTasks={filteredQueueTasks}
-            myTasks={activeMyTasks}
-            completedTasks={completedTasks}
-            hasMultipleUsers={hasMultipleUsers}
-            currentUser={currentUser}
-            availablePersons={availablePersons}
-            userDisplay={userDisplay}
-            devHours={devHours}
-            serviceHours={serviceHours}
-            totalHours={totalBoardHours}
-            unassignedColumnName={unassignedDisplayName}
-            onOpenTask={handleOpenTask}
-            onOpenCodeLink={handleOpenCodeLink}
-            getTaskManagerUrl={getTaskManagerUrl}
-            copiedId={copiedId}
-          />
-        ) : activeTab === 'timeline' ? (
-          /* TAB 2: TIMELINE (Po-Pá, 8h denně = 40h týdně, posouvající se linka) */
-          <TimelineGridView
-            days={workWeekDays}
-            tasks={timelineTasks}
-            timeProgressPercent={timeProgressPercent}
-            currentTimeLabel={currentTimeLabel}
-            currentTime={currentTime}
-            planSettings={localPlanSettings || config.magicplan}
-            distinctUsers={distinctUsers}
-            currentUser={currentUser}
-            currentUserDisplayName={currentUserDisplayName}
-            availablePersons={availablePersons}
-            userColumns={config.magicplan?.userColumns || (config.magicplan?.userColumn ? [config.magicplan.userColumn] : [])}
-            onUpdateUserColumns={handleUpdateUserColumns}
-            filterMyOverflow={showOnlyMyTasks && Boolean(currentUser)}
-            showOnlyMyTasks={showOnlyMyTasks}
-            searchQuery={searchQuery}
-            onOpenTask={handleOpenTask}
-            onOpenCodeLink={handleOpenCodeLink}
-            getTaskManagerUrl={getTaskManagerUrl}
-            copiedId={copiedId}
-            onUpdateWorkHours={handleUpdateWorkHours}
-            primaryColor={currentConfig?.primaryColor || config?.primaryColor}
-            actionsColor={currentConfig?.actionsColor || config?.actionsColor}
-          />
-        ) : (
-          /* TAB 3: SEZNAM (Moderní borderless zobrazení) */
-          <ListView
-            tasks={filteredMyTasks}
-            hasMultipleUsers={hasMultipleUsers}
-            currentUser={currentUser}
-            availablePersons={availablePersons}
-            onOpenTask={handleOpenTask}
-            onOpenCodeLink={handleOpenCodeLink}
-            getTaskManagerUrl={getTaskManagerUrl}
-            copiedId={copiedId}
-          />
-        )}
+          )}
+
+          {!isConfigured && !data && !isLoading ? (
+            <div className="flex flex-col items-center justify-center text-center p-8 space-y-4 max-w-md mx-auto py-20">
+              <div className="w-14 h-14 rounded-full bg-indigo-500/15 text-indigo-400 flex items-center justify-center">
+                <span className="material-symbols-outlined text-3xl">calendar_month</span>
+              </div>
+              <h3 className="text-base font-bold text-white">Sledování plánu není plně nakonfigurováno</h3>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Pro aktivaci zadejte URL adresu plánu a identifikátor svého sloupce v nastavení rozšíření MagicPlan.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.electronAPI?.openSettingsWindow) {
+                    window.electronAPI.openSettingsWindow('magicplan');
+                  } else if (onOpenSettings) {
+                    onOpenSettings();
+                  }
+                }}
+                className="px-5 py-2.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition cursor-pointer"
+              >
+                Přejít do nastavení MagicPlan
+              </button>
+            </div>
+          ) : activeTab === 'nastenka' ? (
+            /* TAB 1: NÁSTĚNKA (4 sloupce: Nepřiřazené, Úkoly, Servis, Splněné) */
+            <BoardView
+              unassignedTasks={filteredQueueTasks}
+              myTasks={activeMyTasks}
+              completedTasks={completedTasks}
+              hasMultipleUsers={hasMultipleUsers}
+              currentUser={currentUser}
+              availablePersons={availablePersons}
+              userDisplay={userDisplay}
+              devHours={devHours}
+              serviceHours={serviceHours}
+              totalHours={totalBoardHours}
+              unassignedColumnName={unassignedDisplayName}
+              onOpenTask={handleOpenTask}
+              onOpenCodeLink={handleOpenCodeLink}
+              getTaskManagerUrl={getTaskManagerUrl}
+              copiedId={copiedId}
+            />
+          ) : activeTab === 'timeline' ? (
+            /* TAB 2: TIMELINE (Po-Pá, 8h denně = 40h týdně, posouvající se linka) */
+            <TimelineGridView
+              days={workWeekDays}
+              tasks={timelineTasks}
+              timeProgressPercent={timeProgressPercent}
+              currentTimeLabel={currentTimeLabel}
+              currentTime={currentTime}
+              planSettings={localPlanSettings || config.magicplan}
+              distinctUsers={distinctUsers}
+              currentUser={currentUser}
+              currentUserDisplayName={currentUserDisplayName}
+              availablePersons={availablePersons}
+              userColumns={config.magicplan?.userColumns || (config.magicplan?.userColumn ? [config.magicplan.userColumn] : [])}
+              onUpdateUserColumns={handleUpdateUserColumns}
+              filterMyOverflow={showOnlyMyTasks && Boolean(currentUser)}
+              showOnlyMyTasks={showOnlyMyTasks}
+              searchQuery={searchQuery}
+              onOpenTask={handleOpenTask}
+              onOpenCodeLink={handleOpenCodeLink}
+              getTaskManagerUrl={getTaskManagerUrl}
+              copiedId={copiedId}
+              onUpdateWorkHours={handleUpdateWorkHours}
+              primaryColor={currentConfig?.primaryColor || config?.primaryColor}
+              actionsColor={currentConfig?.actionsColor || config?.actionsColor}
+            />
+          ) : (
+            /* TAB 3: SEZNAM (Moderní borderless zobrazení) */
+            <ListView
+              tasks={filteredMyTasks}
+              hasMultipleUsers={hasMultipleUsers}
+              currentUser={currentUser}
+              availablePersons={availablePersons}
+              onOpenTask={handleOpenTask}
+              onOpenCodeLink={handleOpenCodeLink}
+              getTaskManagerUrl={getTaskManagerUrl}
+              copiedId={copiedId}
+            />
+          )}
+        </div>
       </div>
 
       {/* Footer / Status Bar */}
@@ -1367,6 +1397,17 @@ interface TimelineScheduledBlock {
   totalParts: number;
   isSplit: boolean;
   isOverflowPart?: boolean;
+  worklogPercent?: number;
+  worklogChunkHours?: number;
+  overburnPercent?: number;
+  isOverburnedInProgress?: boolean;
+  overburnProgressPercent?: number;
+  rawOverburnHours?: number;
+  overburnFillPercent?: number;
+  allocatedOverburnHours?: number;
+  plannedChunkHours?: number;
+  overburnChunkHours?: number;
+  hasOverburnChunk?: boolean;
 }
 
 interface UserScheduleResult {
@@ -1374,7 +1415,7 @@ interface UserScheduleResult {
   initials: string;
   scheduledBlocks: TimelineScheduledBlock[];
   weekMergedBlocks: TimelineScheduledBlock[];
-  overflowTasks: { task: PlanTaskItem; remainingHours: number }[];
+  overflowTasks: { task: PlanTaskItem; remainingHours: number; partIndex?: number; totalParts?: number; originalTotalHours?: number }[];
   freeSlots: { dayIndex: number; startCol: number; spanCols: number; freeHours: number }[];
   dayCapacities: {
     dayIndex: number;
@@ -1433,6 +1474,12 @@ const calculateScheduleForTasks = (
       if (t.totalHours > et.totalHours) {
         et.totalHours = t.totalHours;
       }
+      if (t.estimatedHours && (!et.estimatedHours || t.estimatedHours > et.estimatedHours)) {
+        et.estimatedHours = t.estimatedHours;
+      }
+      if (t.worklogHours && (!et.worklogHours || t.worklogHours > et.worklogHours)) {
+        et.worklogHours = t.worklogHours;
+      }
       if (typeof t.topPx === 'number') {
         if (typeof et.topPx !== 'number' || t.topPx < et.topPx) {
           et.topPx = t.topPx;
@@ -1472,14 +1519,22 @@ const calculateScheduleForTasks = (
     (t) => !t.isCompleted && !t.isSolved && isServiceTaskItem(t)
   );
 
-  // Řazení: dle kritické závažnosti, pak podle přirozeného pořadí jak přišly z plánu (comparePlanOrder)
-  const critDevTasks = activeDevTasks.filter((t) => t.isCritical).sort(comparePlanOrder);
-  const normDevTasks = activeDevTasks.filter((t) => !t.isCritical).sort(comparePlanOrder);
-  const critServiceTasks = activeServiceTasks.filter((t) => t.isCritical).sort(comparePlanOrder);
-  const normServiceTasks = activeServiceTasks.filter((t) => !t.isCritical).sort(comparePlanOrder);
+  // 2. Třídění aktivních úkolů podle priorit:
+  // 1) Kritické požadavky
+  // 2) Rozpracované požadavky (s worklogem) včetně servisu
+  // 3) Nerozpracované požadavky
+  const isRozpracovany = (t: PlanTaskItem) => Boolean(t.worklogHours && t.worklogHours > 0);
 
-  const sortedDevTasks = [...critDevTasks, ...normDevTasks];
-  const sortedServiceTasks = [...critServiceTasks, ...normServiceTasks];
+  const critDevTasks = activeDevTasks.filter((t) => t.isCritical).sort(comparePlanOrder);
+  const rozpracDevTasks = activeDevTasks.filter((t) => !t.isCritical && isRozpracovany(t)).sort(comparePlanOrder);
+  const nerozpracDevTasks = activeDevTasks.filter((t) => !t.isCritical && !isRozpracovany(t)).sort(comparePlanOrder);
+
+  const critServiceTasks = activeServiceTasks.filter((t) => t.isCritical).sort(comparePlanOrder);
+  const rozpracServiceTasks = activeServiceTasks.filter((t) => !t.isCritical && isRozpracovany(t)).sort(comparePlanOrder);
+  const nerozpracServiceTasks = activeServiceTasks.filter((t) => !t.isCritical && !isRozpracovany(t)).sort(comparePlanOrder);
+
+  const sortedDevTasks = [...critDevTasks, ...rozpracDevTasks, ...nerozpracDevTasks];
+  const sortedServiceTasks = [...critServiceTasks, ...rozpracServiceTasks, ...nerozpracServiceTasks];
 
   // Mapování NA bloků na konkrétní dny
   const dayNA = new Map<number, PlanTaskItem[]>();
@@ -1530,198 +1585,94 @@ const calculateScheduleForTasks = (
     }
   }
 
-  // 2. Předchozí dny: za sebou plní zpracované požadavky do aktuálního dne
-  const maxCompDay = todayIdx !== -1 ? todayIdx - 1 : -1;
-  let compDay = 0;
-  for (const comp of compTasks) {
-    if (compDay > maxCompDay) break;
-    let compHoursRemaining = comp.totalHours > 0 ? comp.totalHours : 1;
-    let compPart = 1;
-
-    while (compHoursRemaining > 0 && compDay <= maxCompDay) {
-      const usedOnTarget = blocks
-        .filter((b) => b.dayIndex === compDay)
-        .reduce((s, b) => s + b.spanCols, 0);
-      const availableOnTarget = totalDaySlots - usedOnTarget;
-      if (availableOnTarget <= 0) {
-        compDay++;
-        continue;
-      }
-      const remainingSlots = Math.round(compHoursRemaining * SLOTS_PER_HOUR);
-      const spanCols = Math.min(availableOnTarget, remainingSlots);
-      const chunkHours = spanCols / SLOTS_PER_HOUR;
-      const startCol = compDay * totalDaySlots + usedOnTarget + 1;
-      blocks.push({
-        id: `comp-${comp.taskId}-d${compDay}-p${compPart}`,
-        task: comp,
-        isService: false,
-        isNotAvailable: false,
-        isCompleted: true,
-        isCritical: comp.isCritical,
-        dayIndex: compDay,
-        startCol,
-        spanCols,
-        chunkHours,
-        totalHours: comp.totalHours > 0 ? comp.totalHours : chunkHours,
-        partIndex: compPart,
-        totalParts: 1,
-        isSplit: false,
-        isOverflowPart: compPart > 1,
-      });
-      compHoursRemaining = Math.max(0, Math.round((compHoursRemaining - chunkHours) * 10) / 10);
-      compPart++;
-      if (compHoursRemaining > 0) {
-        compDay++;
-      }
-    }
-  }
-
-  // Příprava front pro aktivní úkoly
+  // 2. Hotové / zpracované požadavky a aktivní úkoly:
+  // Příprava front pro plánování s odděleným přesahem (overburn extension bar)
   interface TaskQueueItem {
     task: PlanTaskItem;
-    remainingHours: number;
+    remainingPlannedHours: number;
+    remainingOverburnHours: number;
+    rawOverburnHours: number;
+    overburnFillPercent: number;
+    allocatedOverburnHours: number;
+    overburnPercent: number;
+    overburnProgressPercent: number;
     part: number;
   }
 
-  const devQueue: TaskQueueItem[] = sortedDevTasks.map((t) => ({
-    task: t,
-    remainingHours: t.totalHours > 0 ? t.totalHours : 1,
-    part: 1,
-  }));
+  const createTaskQueueItem = (t: PlanTaskItem): TaskQueueItem => {
+    const isDone = Boolean(t.isCompleted || t.isSolved);
+    let plannedH = t.totalHours > 0 ? t.totalHours : 1;
+    let overburnH = 0;
+    let rawOverH = 0;
+    let fillPct = 100;
+    let overburnPercent = 0;
+    let overburnProgressPercent = 0;
 
-  const serviceQueue: TaskQueueItem[] = sortedServiceTasks.map((t) => ({
-    task: t,
-    remainingHours: t.totalHours > 0 ? t.totalHours : 1,
-    part: 1,
-  }));
-
-  // 3. & 4. Aktuální den (todayIdx)
-  if (todayIdx >= 0 && todayIdx < 5) {
-    const usedNaSlots = blocks
-      .filter((b) => b.dayIndex === todayIdx)
-      .reduce((s, b) => s + b.spanCols, 0);
-    const availableTotalSlots = Math.max(0, totalDaySlots - usedNaSlots);
-    const availableTotalHours = availableTotalSlots / SLOTS_PER_HOUR;
-
-    // Pravidlo servisu v aktuálním dni:
-    // Max 3h servisu, pokud je dev >= 5h. Pokud má dev méně, zbytek kapacity se doplní servisem od konce dne.
-    const standardDevCap = Math.max(0, availableTotalHours - 3); // 5h při 8h dni
-    const totalDevNeeded = devQueue.reduce((s, q) => s + q.remainingHours, 0);
-    const totalServiceNeeded = serviceQueue.reduce((s, q) => s + q.remainingHours, 0);
-
-    const plannedDevHours = Math.min(standardDevCap, totalDevNeeded);
-    const unusedDevHours = Math.max(0, standardDevCap - plannedDevHours);
-    const maxServiceHoursForToday = Math.min(availableTotalHours - plannedDevHours, 3 + unusedDevHours);
-
-    const targetServiceHours = Math.min(maxServiceHoursForToday, totalServiceNeeded);
-    const targetServiceSlots = Math.round(targetServiceHours * SLOTS_PER_HOUR);
-
-    if (targetServiceSlots > 0) {
-      let srvSlotInDay = totalDaySlots - targetServiceSlots;
-      for (const q of serviceQueue) {
-        if (srvSlotInDay >= totalDaySlots) break;
-        if (q.remainingHours <= 0) continue;
-
-        const slotsLeft = totalDaySlots - srvSlotInDay;
-        const maxH = slotsLeft / SLOTS_PER_HOUR;
-        const chunkH = Math.min(maxH, q.remainingHours);
-        const spanCols = Math.round(chunkH * SLOTS_PER_HOUR);
-        const actualChunkH = spanCols / SLOTS_PER_HOUR;
-
-        blocks.push({
-          id: `service-${q.task.taskId}-d${todayIdx}-p${q.part}`,
-          task: q.task,
-          isService: true,
-          isCritical: q.task.isCritical,
-          dayIndex: todayIdx,
-          startCol: todayIdx * totalDaySlots + srvSlotInDay + 1,
-          spanCols,
-          chunkHours: actualChunkH,
-          totalHours: q.task.totalHours || actualChunkH,
-          partIndex: q.part,
-          totalParts: 1,
-          isSplit: false,
-          isOverflowPart: q.part > 1,
-        });
-
-        srvSlotInDay += spanCols;
-        q.remainingHours = Math.max(0, Math.round((q.remainingHours - actualChunkH) * 10) / 10);
-        q.part++;
+    if (isDone) {
+      const est = t.estimatedHours && t.estimatedHours > 0 ? t.estimatedHours : (t.totalHours > 0 ? t.totalHours : 1);
+      const actual = Math.max(t.totalHours || 0, t.worklogHours || 0) || plannedH;
+      if (est && est > 0 && actual > est) {
+        plannedH = est;
+        const roundedActual = Math.round(actual * 2) / 2;
+        overburnH = Math.max(0, roundedActual - est);
+        rawOverH = Math.round((actual - est) * 10) / 10;
+        overburnPercent = Math.round(((actual - est) / est) * 100);
+        fillPct = 100;
+      }
+    } else {
+      const worklog = t.worklogHours || 0;
+      if (worklog > 0 && plannedH > 0 && worklog > plannedH) {
+        rawOverH = Math.round((worklog - plannedH) * 10) / 10;
+        overburnH = Math.ceil(rawOverH * 2) / 2;
+        overburnProgressPercent = Math.round(((worklog - plannedH) / plannedH) * 100);
+        fillPct = overburnH > 0 ? Math.min(100, Math.max(10, Math.round((rawOverH / overburnH) * 100))) : 100;
       }
     }
 
-    // 4. Aktualni den: Ze zbyleho casu odecteni servisu vlozim vyvojove ukoly
-    let devSlotInDay = usedNaSlots;
-    const devMaxSlotInDay = totalDaySlots - targetServiceSlots;
+    return {
+      task: t,
+      remainingPlannedHours: plannedH,
+      remainingOverburnHours: overburnH,
+      rawOverburnHours: rawOverH,
+      overburnFillPercent: fillPct,
+      allocatedOverburnHours: overburnH,
+      overburnPercent,
+      overburnProgressPercent,
+      part: 1,
+    };
+  };
 
-    for (const q of devQueue) {
-      if (devSlotInDay >= devMaxSlotInDay) break;
-      if (q.remainingHours <= 0) continue;
-
-      const slotsLeft = devMaxSlotInDay - devSlotInDay;
-      const maxH = slotsLeft / SLOTS_PER_HOUR;
-      const chunkH = Math.min(maxH, q.remainingHours);
-      const spanCols = Math.round(chunkH * SLOTS_PER_HOUR);
-      const actualChunkH = spanCols / SLOTS_PER_HOUR;
-
-      blocks.push({
-        id: `${q.task.taskId}-d${todayIdx}-p${q.part}`,
-        task: q.task,
-        isService: false,
-        isCritical: q.task.isCritical,
-        dayIndex: todayIdx,
-        startCol: todayIdx * totalDaySlots + devSlotInDay + 1,
-        spanCols,
-        chunkHours: actualChunkH,
-        totalHours: q.task.totalHours || actualChunkH,
-        partIndex: q.part,
-        totalParts: 1,
-        isSplit: false,
-        isOverflowPart: q.part > 1,
-      });
-
-      devSlotInDay += spanCols;
-      q.remainingHours = Math.max(0, Math.round((q.remainingHours - actualChunkH) * 10) / 10);
-      q.part++;
+  const placeQueueItem = (
+    q: TaskQueueItem,
+    d: number,
+    slotInDay: number,
+    maxSlot: number,
+    isService: boolean
+  ): { slotsAdded: number } => {
+    const isDone = Boolean(q.task.isCompleted || q.task.isSolved);
+    const totalNeeded = q.remainingPlannedHours + q.remainingOverburnHours;
+    if (totalNeeded <= 0 || slotInDay >= maxSlot) {
+      return { slotsAdded: 0 };
     }
-  }
 
-  // 5. Následující dny:
-  // Do zbylých dnů vkládáme od rána do odpoledne v pořadí:
-  // 1) kritické vývojové
-  // 2) kritické servisní
-  // 3) nekritické vývojové
-  // 4) nekritické servisní
-  // vždy dle pořadí jak přišly z plánu
-  const subsequentQueue: TaskQueueItem[] = [
-    ...devQueue.filter((q) => q.task.isCritical && q.remainingHours > 0),
-    ...serviceQueue.filter((q) => q.task.isCritical && q.remainingHours > 0),
-    ...devQueue.filter((q) => !q.task.isCritical && q.remainingHours > 0),
-    ...serviceQueue.filter((q) => !q.task.isCritical && q.remainingHours > 0),
-  ];
+    const slotsLeft = maxSlot - slotInDay;
+    const maxH = slotsLeft / SLOTS_PER_HOUR;
+    const chunkH = Math.min(maxH, totalNeeded);
 
-  const firstSubsequentDay = todayIdx !== -1 ? todayIdx + 1 : 0;
-  for (let d = firstSubsequentDay; d < 5; d++) {
-    const usedNa = blocks
-      .filter((b) => b.dayIndex === d)
-      .reduce((s, b) => s + b.spanCols, 0);
-    let slotInDay = usedNa;
+    // Kolik z tohoto bloku připadá na plán a kolik na přepálení:
+    const plannedH = Math.min(chunkH, q.remainingPlannedHours);
+    const overburnH = Math.max(0, Math.min(chunkH - plannedH, q.remainingOverburnHours));
 
-    for (const q of subsequentQueue) {
-      if (slotInDay >= totalDaySlots) break;
-      if (q.remainingHours <= 0) continue;
+    const spanCols = Math.round((plannedH + overburnH) * SLOTS_PER_HOUR);
+    const actualChunkH = spanCols / SLOTS_PER_HOUR;
 
-      const slotsLeft = totalDaySlots - slotInDay;
-      const maxH = slotsLeft / SLOTS_PER_HOUR;
-      const chunkH = Math.min(maxH, q.remainingHours);
-      const spanCols = Math.round(chunkH * SLOTS_PER_HOUR);
-      const actualChunkH = spanCols / SLOTS_PER_HOUR;
-      const isSrv = isServiceTaskItem(q.task);
-
+    if (spanCols > 0) {
       blocks.push({
-        id: `${isSrv ? 'service-' : ''}${q.task.taskId}-d${d}-p${q.part}`,
+        id: `${isDone ? 'comp-' : ''}${isService ? 'srv-' : 'dev-'}${q.task.taskId}-d${d}-p${q.part}`,
         task: q.task,
-        isService: isSrv,
+        isService,
+        isNotAvailable: false,
+        isCompleted: isDone,
         isCritical: q.task.isCritical,
         dayIndex: d,
         startCol: d * totalDaySlots + slotInDay + 1,
@@ -1732,21 +1683,156 @@ const calculateScheduleForTasks = (
         totalParts: 1,
         isSplit: false,
         isOverflowPart: q.part > 1,
+        plannedChunkHours: plannedH,
+        overburnChunkHours: overburnH,
+        hasOverburnChunk: overburnH > 0,
+        rawOverburnHours: q.rawOverburnHours,
+        overburnFillPercent: q.overburnFillPercent,
+        allocatedOverburnHours: q.allocatedOverburnHours,
+        overburnPercent: q.overburnPercent,
+        overburnProgressPercent: q.overburnProgressPercent,
+        isOverburnedInProgress: !isDone && (overburnH > 0 || (q.rawOverburnHours !== undefined && q.rawOverburnHours > 0) || q.overburnProgressPercent > 0),
       });
 
-      slotInDay += spanCols;
-      q.remainingHours = Math.max(0, Math.round((q.remainingHours - actualChunkH) * 10) / 10);
+      q.remainingPlannedHours = Math.max(0, Math.round((q.remainingPlannedHours - plannedH) * 10) / 10);
+      q.remainingOverburnHours = Math.max(0, Math.round((q.remainingOverburnHours - overburnH) * 10) / 10);
       q.part++;
+
+      return { slotsAdded: spanCols };
+    }
+
+    return { slotsAdded: 0 };
+  };
+
+  // 1. Hotové úkoly: skládáme za sebou od začátku týdne (d=0) dle relevance z plánu.
+  const compQueue: TaskQueueItem[] = compTasks.map(createTaskQueueItem);
+
+  for (let d = 0; d < 5; d++) {
+    const naSlots = blocks
+      .filter((b) => b.dayIndex === d && b.isNotAvailable)
+      .reduce((s, b) => s + b.spanCols, 0);
+    let slotInDay = naSlots;
+
+    for (const q of compQueue) {
+      if (slotInDay >= totalDaySlots) break;
+      if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+
+      const isSrv = isServiceTaskItem(q.task);
+      const { slotsAdded } = placeQueueItem(q, d, slotInDay, totalDaySlots, isSrv);
+      slotInDay += slotsAdded;
+    }
+  }
+
+  // Příprava front aktivních úkolů (řazených: kritické -> rozpracované s worklogem -> nerozpracované)
+  const devQueue: TaskQueueItem[] = sortedDevTasks.map(createTaskQueueItem);
+  const serviceQueue: TaskQueueItem[] = sortedServiceTasks.map(createTaskQueueItem);
+
+  // 2. Aktuální den (todayIdx)
+  if (todayIdx >= 0 && todayIdx < 5) {
+    const usedInToday = blocks
+      .filter((b) => b.dayIndex === todayIdx)
+      .reduce((s, b) => s + b.spanCols, 0);
+
+    const availableTotalSlots = Math.max(0, totalDaySlots - usedInToday);
+    const availableTotalHours = availableTotalSlots / SLOTS_PER_HOUR;
+
+    const totalDevNeeded = devQueue.reduce((s, q) => s + q.remainingPlannedHours + q.remainingOverburnHours, 0);
+    const totalServiceNeeded = serviceQueue.reduce((s, q) => s + q.remainingPlannedHours + q.remainingOverburnHours, 0);
+
+    // Pravidlo: 3h servisu na konci dne, 5h devs.
+    let targetServiceHours = 0;
+    let targetDevHours = 0;
+
+    if (availableTotalHours > 0) {
+      const baseDevCap = Math.max(0, availableTotalHours - 3);
+      const plannedDev = Math.min(baseDevCap, totalDevNeeded);
+      const unusedDev = Math.max(0, baseDevCap - plannedDev);
+
+      const maxServicePossible = Math.min(availableTotalHours - plannedDev, 3 + unusedDev);
+      targetServiceHours = Math.min(maxServicePossible, totalServiceNeeded);
+
+      const unusedService = Math.max(0, 3 - targetServiceHours);
+      const maxDevPossible = Math.min(availableTotalHours - targetServiceHours, 5 + unusedService);
+      targetDevHours = Math.min(maxDevPossible, totalDevNeeded);
+    }
+
+    const targetServiceSlots = Math.round(targetServiceHours * SLOTS_PER_HOUR);
+    const targetDevSlots = Math.round(targetDevHours * SLOTS_PER_HOUR);
+
+    const isContiguous = (usedInToday + targetDevSlots + targetServiceSlots) < totalDaySlots;
+
+    let devStartSlot = usedInToday;
+    let srvStartSlot = isContiguous
+      ? usedInToday + targetDevSlots
+      : totalDaySlots - targetServiceSlots;
+
+    // Vložení vývojových úkolů do dneška (kritické -> rozpracované -> nerozpracované)
+    const devMaxSlot = isContiguous ? srvStartSlot : totalDaySlots - targetServiceSlots;
+    for (const q of devQueue) {
+      if (devStartSlot >= devMaxSlot) break;
+      if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+
+      const { slotsAdded } = placeQueueItem(q, todayIdx, devStartSlot, devMaxSlot, false);
+      devStartSlot += slotsAdded;
+    }
+
+    // Vložení servisních úkolů do dneška (kritické -> rozpracované -> nerozpracované)
+    if (targetServiceSlots > 0) {
+      let curSrvSlot = srvStartSlot;
+      for (const q of serviceQueue) {
+        if (curSrvSlot >= totalDaySlots) break;
+        if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+
+        const { slotsAdded } = placeQueueItem(q, todayIdx, curSrvSlot, totalDaySlots, true);
+        curSrvSlot += slotsAdded;
+      }
+    }
+  }
+
+  // 3. Následující dny (d > todayIdx, případně d < todayIdx pokud by v nich zbyl prostor):
+  const subsequentQueue: TaskQueueItem[] = [
+    ...devQueue.filter((q) => q.task.isCritical && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+    ...serviceQueue.filter((q) => q.task.isCritical && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+    ...devQueue.filter((q) => !q.task.isCritical && isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+    ...serviceQueue.filter((q) => !q.task.isCritical && isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+    ...devQueue.filter((q) => !q.task.isCritical && !isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+    ...serviceQueue.filter((q) => !q.task.isCritical && !isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+  ];
+
+  const firstSubsequentDay = todayIdx !== -1 ? todayIdx + 1 : 0;
+  for (let d = firstSubsequentDay; d < 5; d++) {
+    const usedInDay = blocks
+      .filter((b) => b.dayIndex === d)
+      .reduce((s, b) => s + b.spanCols, 0);
+    let slotInDay = usedInDay;
+
+    for (const q of subsequentQueue) {
+      if (slotInDay >= totalDaySlots) break;
+      if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+
+      const isSrv = isServiceTaskItem(q.task);
+      const { slotsAdded } = placeQueueItem(q, d, slotInDay, totalDaySlots, isSrv);
+      slotInDay += slotsAdded;
     }
   }
 
   // Overflow tasks (zbylé úkoly, které se nevešly do týdne)
-  const overflowTasks: { task: PlanTaskItem; remainingHours: number }[] = [];
-  for (const q of subsequentQueue) {
-    if (q.remainingHours > 0) {
+  const overflowTasks: { task: PlanTaskItem; remainingHours: number; partIndex?: number; totalParts?: number; originalTotalHours?: number }[] = [];
+  for (const q of compQueue) {
+    const rem = q.remainingPlannedHours + q.remainingOverburnHours;
+    if (rem > 0) {
       overflowTasks.push({
         task: q.task,
-        remainingHours: q.remainingHours,
+        remainingHours: rem,
+      });
+    }
+  }
+  for (const q of subsequentQueue) {
+    const rem = q.remainingPlannedHours + q.remainingOverburnHours;
+    if (rem > 0) {
+      overflowTasks.push({
+        task: q.task,
+        remainingHours: rem,
       });
     }
   }
@@ -1762,6 +1848,58 @@ const calculateScheduleForTasks = (
     if (partsTotal > 1 || hasOverflow) {
       b.isSplit = true;
       b.totalParts = partsTotal + (hasOverflow ? 1 : 0);
+    }
+  }
+
+  // Výpočet odpracovaných hodin a procent pro jednotlivé bloky nehotových úkolů s worklogem
+  const taskDailyBlocksMap = new Map<string, TimelineScheduledBlock[]>();
+  for (const b of blocks) {
+    if (!b.isNotAvailable) {
+      const list = taskDailyBlocksMap.get(b.task.taskId) || [];
+      list.push(b);
+      taskDailyBlocksMap.set(b.task.taskId, list);
+    }
+  }
+
+  for (const [, tBlocks] of taskDailyBlocksMap.entries()) {
+    const task = tBlocks[0]?.task;
+    if (!task) continue;
+
+    const isDone = Boolean(task.isCompleted || task.isSolved);
+    const sorted = [...tBlocks].sort((a, b) => a.partIndex - b.partIndex || a.startCol - b.startCol);
+
+    if (isDone) {
+      const est = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
+      const actualHours = Math.max(task.totalHours || 0, task.worklogHours || 0);
+      if (est > 0 && actualHours > est) {
+        const taskOverPct = Math.round(((actualHours - est) / est) * 100);
+        for (const b of sorted) {
+          b.overburnPercent = taskOverPct;
+        }
+      }
+    } else {
+      const planHours = task.totalHours > 0 ? task.totalHours : (task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : 1);
+      const worklogHours = task.worklogHours || 0;
+      const isOver = planHours > 0 && worklogHours > planHours;
+      const taskOverProgPct = isOver ? Math.round(((worklogHours - planHours) / planHours) * 100) : 0;
+
+      if (worklogHours > 0) {
+        let accumulatedHours = 0;
+        for (const b of sorted) {
+          const hoursBefore = accumulatedHours;
+          accumulatedHours += b.chunkHours;
+          const availableWorklog = Math.max(0, worklogHours - hoursBefore);
+          const worklogInThisBlock = Math.min(b.chunkHours, availableWorklog);
+          b.worklogChunkHours = Math.round(worklogInThisBlock * 100) / 100;
+          b.worklogPercent = b.chunkHours > 0
+            ? Math.min(100, worklogInThisBlock > 0 ? Math.max(1, Math.round((worklogInThisBlock / b.chunkHours) * 100)) : 0)
+            : 0;
+          if (isOver) {
+            b.isOverburnedInProgress = true;
+            b.overburnProgressPercent = taskOverProgPct;
+          }
+        }
+      }
     }
   }
 
@@ -1823,7 +1961,16 @@ const calculateScheduleForTasks = (
     ) {
       prev.spanCols += block.spanCols;
       prev.chunkHours += block.chunkHours;
+      prev.plannedChunkHours = (prev.plannedChunkHours || 0) + (block.plannedChunkHours || 0);
+      prev.overburnChunkHours = (prev.overburnChunkHours || 0) + (block.overburnChunkHours || 0);
+      prev.hasOverburnChunk = Boolean(prev.overburnChunkHours && prev.overburnChunkHours > 0);
       prev.isSplit = block.totalHours > prev.chunkHours;
+      prev.overburnPercent = block.overburnPercent ?? prev.overburnPercent;
+      prev.overburnProgressPercent = block.overburnProgressPercent ?? prev.overburnProgressPercent;
+      prev.isOverburnedInProgress = Boolean(prev.isOverburnedInProgress || block.isOverburnedInProgress);
+      prev.rawOverburnHours = block.rawOverburnHours ?? prev.rawOverburnHours;
+      prev.overburnFillPercent = block.overburnFillPercent ?? prev.overburnFillPercent;
+      prev.allocatedOverburnHours = block.allocatedOverburnHours ?? prev.allocatedOverburnHours;
     } else {
       weekMergedBlocks.push({ ...block });
     }
@@ -1848,6 +1995,46 @@ const calculateScheduleForTasks = (
       tb.totalParts = totalParts;
       tb.isSplit = isSplit;
     });
+
+    const task = tBlocks[0]?.task;
+    if (!task) continue;
+
+    const isDone = Boolean(task.isCompleted || task.isSolved);
+    const sorted = [...tBlocks].sort((a, b) => a.partIndex - b.partIndex || a.startCol - b.startCol);
+
+    if (isDone) {
+      const est = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
+      const actualHours = Math.max(task.totalHours || 0, task.worklogHours || 0);
+      if (est > 0 && actualHours > est) {
+        const taskOverPct = Math.round(((actualHours - est) / est) * 100);
+        for (const tb of sorted) {
+          tb.overburnPercent = taskOverPct;
+        }
+      }
+    } else {
+      const planHours = task.totalHours > 0 ? task.totalHours : (task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : 1);
+      const worklogHours = task.worklogHours || 0;
+      const isOver = planHours > 0 && worklogHours > planHours;
+      const taskOverProgPct = isOver ? Math.round(((worklogHours - planHours) / planHours) * 100) : 0;
+
+      if (worklogHours > 0) {
+        let accumulatedHours = 0;
+        for (const tb of sorted) {
+          const hoursBefore = accumulatedHours;
+          accumulatedHours += tb.chunkHours;
+          const availableWorklog = Math.max(0, worklogHours - hoursBefore);
+          const worklogInThisBlock = Math.min(tb.chunkHours, availableWorklog);
+          tb.worklogChunkHours = Math.round(worklogInThisBlock * 100) / 100;
+          tb.worklogPercent = tb.chunkHours > 0
+            ? Math.min(100, worklogInThisBlock > 0 ? Math.max(1, Math.round((worklogInThisBlock / tb.chunkHours) * 100)) : 0)
+            : 0;
+          if (isOver) {
+            tb.isOverburnedInProgress = true;
+            tb.overburnProgressPercent = taskOverProgPct;
+          }
+        }
+      }
+    }
   }
 
   const dayCapacities = days.slice(0, 5).map((day, dIdx) => {
@@ -1871,6 +2058,15 @@ const calculateScheduleForTasks = (
       totalCapacity: totalDayHours,
     };
   });
+
+  for (const ot of overflowTasks) {
+    const tBlocks = weekTaskBlocksMap.get(ot.task.taskId) || [];
+    const partsInWeek = tBlocks.length;
+    const totalParts = partsInWeek > 0 ? partsInWeek + 1 : 1;
+    ot.partIndex = totalParts;
+    ot.totalParts = totalParts;
+    ot.originalTotalHours = ot.task.totalHours || ot.remainingHours;
+  }
 
   return {
     scheduledBlocks: blocks,
@@ -1917,8 +2113,8 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
   primaryColor,
   actionsColor,
 }) => {
-  const devColor = hexToRgba(primaryColor, '#6366f1', 0.7);
-  const serviceColor = hexToRgba(actionsColor, '#a855f7', 0.7);
+  const devColor = primaryColor || '#6366f1';
+  const serviceColor = actionsColor || '#a855f7';
   const isCompact = Boolean(planSettings?.compactDayView);
 
   const [userMenuState, setUserMenuState] = useState<{
@@ -2150,8 +2346,8 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
 
   const pillAlignment = useMemo((): 'start' | 'end' | 'center' => {
     if (currentIndicatorPercent === null) return 'center';
-    if (currentIndicatorPercent <= 0.5) return 'start';
-    if (currentIndicatorPercent >= 99.5) return 'end';
+    if (currentIndicatorPercent <= 1) return 'start';
+    if (currentIndicatorPercent >= 96) return 'end';
     return 'center';
   }, [currentIndicatorPercent]);
 
@@ -2257,7 +2453,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
 
   // Overflow tasks: filtered by toggle [Moje úkoly / Všechny úkoly]
   const allOverflowTasks = useMemo(() => {
-    const list: { task: PlanTaskItem; remainingHours: number }[] = [];
+    const list: { task: PlanTaskItem; remainingHours: number; partIndex?: number; totalParts?: number; originalTotalHours?: number }[] = [];
     const schedules = (filterMyOverflow && currentUser)
       ? userSchedules.filter((u) => isTaskForUser(u.userName, currentUser, availablePersons))
       : userSchedules;
@@ -2341,16 +2537,16 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                 <span className="material-symbols-outlined text-sm">chevron_right</span>
               </button>
 
-              {/* Always visible 'Přejít na Dnes' button */}
+              {/* Always visible 'Nyní' button */}
               {todayIdx !== -1 && (
                 <button
                   type="button"
                   disabled={selectedDayIndex === todayIdx}
                   onClick={() => setSelectedDayIndex(todayIdx)}
                   className="ml-1 px-3 py-1.5 rounded-full bg-indigo-500/15 hover:bg-indigo-500/25 disabled:opacity-30 disabled:pointer-events-none text-indigo-300 text-xs font-semibold transition cursor-pointer"
-                  title="Přejít na dnešní den"
+                  title="Přejít na aktuální den (Nyní)"
                 >
-                  Přejít na Dnes
+                  Nyní
                 </button>
               )}
             </div>
@@ -2363,7 +2559,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
             {/* Realtime Moving Time Indicator Line (SHARED persistent element - animates smoothly between Day and Week!) */}
             {currentIndicatorPercent !== null && (
               <div
-                className="absolute top-0 bottom-0 pointer-events-none z-40 outline-none"
+                className="absolute top-0 bottom-0 pointer-events-none z-40 outline-none overflow-hidden"
                 style={{
                   left: hasMultipleUsers ? '52px' : '0px',
                   right: '0px',
@@ -2387,7 +2583,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                     <span>{currentTimeLabel}</span>
                   </div>
                   {/* Vertical Guideline extending continuously down OVER all tasks (dashed style) */}
-                  <div className="w-0 flex-1 border-l-[1.5px] border-dashed border-indigo-400/70 z-40" />
+                  <div className={`w-0 flex-1 border-l-[1.5px] border-dashed border-indigo-400/70 z-40 ${currentIndicatorPercent !== null && currentIndicatorPercent >= 99.8 ? '-translate-x-[1.5px]' : ''}`} />
                 </div>
               </div>
             )}
@@ -2537,7 +2733,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               });
                             }
                           }}
-                          className={`group relative w-[32px] h-[32px] rounded-full font-mono font-bold text-[10px] select-none cursor-pointer transition-all hover:ring-2 hover:ring-indigo-400/50 shrink-0 ${
+                          className={`group relative w-[36px] h-[36px] rounded-full font-mono font-bold text-[11.5px] select-none cursor-pointer transition-all hover:ring-2 hover:ring-indigo-400/50 shrink-0 ${
                             isMe
                               ? 'bg-indigo-500/20 text-indigo-400 font-bold hover:bg-indigo-500/30'
                               : 'bg-white/[0.08] text-gray-300 hover:bg-white/[0.16] hover:text-white'
@@ -2546,8 +2742,8 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            width: '32px',
-                            height: '32px',
+                            width: '36px',
+                            height: '36px',
                           }}
                           title={isMe ? `${formatUserDisplayName(uSched.userName, availablePersons)} (To jste vy) – Možnosti` : `Uživatel: ${formatUserDisplayName(uSched.userName, availablePersons)} – Možnosti`}
                         >
@@ -2559,21 +2755,21 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               justifyContent: 'center',
                               width: '100%',
                               height: '100%',
-                              lineHeight: '10px',
+                              lineHeight: '14px',
                             }}
                           >
                             {uSched.initials}
                           </span>
                           <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                             <span
-                              className="material-symbols-outlined text-white text-[18px] select-none"
+                              className="material-symbols-outlined text-white text-[19px] select-none"
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 width: '100%',
                                 height: '100%',
-                                lineHeight: '18px',
+                                lineHeight: '19px',
                               }}
                             >
                               more_horiz
@@ -2700,28 +2896,61 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               }
 
                               const isSolidCard = !isNotAvailable;
+                              const isCompletedTask = Boolean(isCompleted || task.isCompleted || task.isSolved);
+                              const actualTaskHours = isCompletedTask ? Math.max(task.totalHours || 0, task.worklogHours || 0) : (task.totalHours || 0);
+                              const hasOverburn = Boolean(!isNotAvailable && (block.hasOverburnChunk || (block.overburnChunkHours && block.overburnChunkHours > 0) || (isCompletedTask && task.estimatedHours && actualTaskHours > task.estimatedHours)));
 
                               const isCutRight = Boolean(!isNotAvailable && isSplit && partIndex < totalParts);
                               const isCutLeft = Boolean(!isNotAvailable && isSplit && partIndex > 1);
 
+                              const plannedChunkH = block.plannedChunkHours !== undefined
+                                ? block.plannedChunkHours
+                                : (hasOverburn
+                                    ? (isCompletedTask && task.estimatedHours ? Math.min(chunkHours, task.estimatedHours) : chunkHours)
+                                    : chunkHours);
+
+                              const totalBlockH = block.chunkHours > 0 ? block.chunkHours : 1;
+                              const plannedWidthPct = hasOverburn && totalBlockH > 0
+                                ? Math.max(10, Math.min(95, Math.round((plannedChunkH / totalBlockH) * 100)))
+                                : 100;
+                              const overburnWidthPct = 100 - plannedWidthPct;
+
                               const isMatch = isTaskMatchingQuery(task, searchQuery || '');
                               const isMuted = Boolean(searchQuery?.trim()) && !isMatch;
 
+                              const isOverburnedInProgress = Boolean(!isNotAvailable && !isCompleted && (block.isOverburnedInProgress || hasOverburn));
+                              const plannedTotal = task.totalHours > 0 ? task.totalHours : (block.plannedChunkHours || 1);
+                              const rawOver = block.rawOverburnHours !== undefined ? block.rawOverburnHours : (task.worklogHours && task.worklogHours > plannedTotal ? task.worklogHours - plannedTotal : 0);
+                              const overProgressPct = block.overburnProgressPercent || (rawOver > 0 ? Math.round((rawOver / plannedTotal) * 100) : 0);
+
+                              const overburnPct = block.overburnPercent || (block.rawOverburnHours && task.estimatedHours ? Math.round((block.rawOverburnHours / task.estimatedHours) * 100) : 0);
+
                               const taskBackgroundColor = isNotAvailable
-                                ? 'rgba(39, 39, 42, 0.8)'
-                                : isCompleted
-                                ? 'rgba(16, 185, 129, 0.7)'
+                                ? '#27272a'
+                                : isCompletedTask
+                                ? '#10b981'
                                 : isService
                                 ? serviceColor
                                 : devColor;
 
+                              const hasWorklogProgress = Boolean(!isNotAvailable && !isCompleted && block.worklogPercent && block.worklogPercent > 0);
+                              const pct = block.worklogPercent || 0;
+                              const fillPct = block.overburnFillPercent !== undefined
+                                ? block.overburnFillPercent
+                                : (block.overburnChunkHours && rawOver > 0
+                                    ? Math.min(100, Math.max(10, Math.round((rawOver / block.overburnChunkHours) * 100)))
+                                    : 100);
+
                               const cardRadius = isCompact ? '8px' : '16px';
+                              const cardRadiusPx = isCompact ? 8 : 16;
                               const blockStyle: React.CSSProperties = {
                                 gridColumn: `${dayColStart} / span ${spanCols}`,
                                 gridRow: 1,
                                 borderRadius: `${isCutLeft ? '0px' : cardRadius} ${isCutRight ? '0px' : cardRadius} ${isCutRight ? '0px' : cardRadius} ${isCutLeft ? '0px' : cardRadius}`,
                                 opacity: isMuted ? 0.1 : 1,
-                                backgroundColor: taskBackgroundColor,
+                                boxShadow: hasOverburn ? undefined : '0 2px 6px rgba(0, 0, 0, 0.35)',
+                                zIndex: 10,
+                                position: 'relative',
                               };
 
                               return (
@@ -2729,28 +2958,147 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                   key={block.id}
                                   style={blockStyle}
                                   onClick={isMuted ? undefined : () => onOpenTask(task)}
-                                  className={`timeline-task-card group mx-[2.5px] transition-all duration-200 select-none overflow-hidden min-w-0 text-white ${
-                                    isCompact
-                                      ? 'h-[46px] px-2.5 py-1 flex items-center justify-between'
-                                      : 'h-[112px] p-2.5 flex flex-col justify-between gap-1'
+                                  className={`timeline-task-card group mx-[2.5px] transition-all duration-200 select-none overflow-hidden min-w-0 text-white relative ${
+                                    isCompact ? 'h-[46px]' : 'h-[112px]'
                                   } ${isMuted ? 'pointer-events-none' : 'cursor-pointer'}`}
                                 >
+                                  {/* Vrstva 1: Šedý podkres se ztmaveným pozadím */}
+                                  <div className="absolute inset-0 bg-[#0c0c0e] pointer-events-none" style={{ opacity: 0.05 }} />
+
+                                  {/* Vrstva 2: BAREVNÉ VRSTVY */}
+                                  {hasOverburn ? (
+                                    /* Overburn úkol: obě barvy v jednom kontejneru s opacitou 0.5 */
+                                    <div className="absolute inset-0 pointer-events-none flex" style={{ opacity: isCompletedTask ? 0.5 : 0.8 }}>
+                                      {/* A. Hlavní část úkolu se svým vlastním radiusem a box shadow */}
+                                      <div
+                                        style={{
+                                          width: `${plannedWidthPct}%`,
+                                          backgroundColor: taskBackgroundColor,
+                                          opacity: 1,
+                                          isolation: 'isolate',
+                                          borderTopLeftRadius: isCutLeft ? '0px' : cardRadius,
+                                          borderBottomLeftRadius: isCutLeft ? '0px' : cardRadius,
+                                          borderTopRightRadius: cardRadius,
+                                          borderBottomRightRadius: cardRadius,
+                                          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.35)',
+                                          zIndex: 2,
+                                          position: 'relative',
+                                        }}
+                                        className="h-full shrink-0 flex overflow-hidden"
+                                      />
+
+                                      {/* B. Overburn část (přesah) podložená pod radius hlavní části */}
+                                      <div
+                                        style={{
+                                          marginLeft: `-${cardRadiusPx}px`,
+                                          width: `calc(${overburnWidthPct}% + ${cardRadiusPx}px)`,
+                                          borderTopRightRadius: isCutRight ? '0px' : cardRadius,
+                                          borderBottomRightRadius: isCutRight ? '0px' : cardRadius,
+                                          backgroundColor: 'transparent',
+                                          opacity: 1,
+                                          zIndex: 1,
+                                          position: 'relative',
+                                        }}
+                                        className="h-full shrink-0 overflow-hidden flex"
+                                      >
+                                        {isCompletedTask ? (
+                                          <div
+                                            style={{
+                                              borderTopRightRadius: isCutRight ? '0px' : cardRadius,
+                                              borderBottomRightRadius: isCutRight ? '0px' : cardRadius,
+                                            }}
+                                            className="w-full h-full bg-yellow-500"
+                                          />
+                                        ) : (
+                                          <>
+                                            <div
+                                              style={{
+                                                width: `${fillPct}%`,
+                                                borderTopRightRadius: fillPct >= 99 && !isCutRight ? cardRadius : '0px',
+                                                borderBottomRightRadius: fillPct >= 99 && !isCutRight ? cardRadius : '0px',
+                                              }}
+                                              className="h-full bg-yellow-500 shrink-0"
+                                            />
+                                            <div
+                                              style={{
+                                                width: `${100 - fillPct}%`,
+                                                borderTopRightRadius: isCutRight ? '0px' : cardRadius,
+                                                borderBottomRightRadius: isCutRight ? '0px' : cardRadius,
+                                              }}
+                                              className="h-full bg-zinc-800 shrink-0"
+                                            />
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* Běžný úkol bez přesahu (rozpracovaný s 0.7 barvou / nezačatý 0.35 / dokončený 1.0) */
+                                    <div className="absolute inset-0 pointer-events-none flex overflow-hidden">
+                                      {hasWorklogProgress && !isCompletedTask ? (
+                                        <>
+                                          {/* Odpracovaná část: 0.7 primární barva (vývoj) nebo sekundární barva (servis) */}
+                                          <div
+                                            style={{
+                                              width: `${pct}%`,
+                                              backgroundColor: taskBackgroundColor,
+                                              opacity: 0.7,
+                                            }}
+                                            className="h-full shrink-0"
+                                          />
+                                          {/* Neodpracovaná část plánu: opacitní 0.35 podkres */}
+                                          <div
+                                            style={{
+                                              width: `${100 - pct}%`,
+                                              backgroundColor: taskBackgroundColor,
+                                              opacity: 0.35,
+                                            }}
+                                            className="h-full shrink-0"
+                                          />
+                                        </>
+                                      ) : (
+                                        <div
+                                          style={{
+                                            backgroundColor: taskBackgroundColor,
+                                            opacity: isCompletedTask ? 0.5 : 0.35,
+                                          }}
+                                          className="w-full h-full"
+                                        />
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Vrstva 3: Informační vrstva s texty omezená na plannedWidthPct */}
+                                  <div
+                                    style={{ width: hasOverburn ? `${plannedWidthPct}%` : '100%' }}
+                                    className={`absolute inset-y-0 left-0 z-10 h-full min-w-0 ${
+                                      isCompact
+                                        ? 'px-2.5 py-1 flex items-center justify-between overflow-hidden'
+                                        : 'p-2.5 flex flex-col justify-between gap-1'
+                                    }`}
+                                  >
                                   {isCompact ? (
                                     <div className="relative w-full h-full flex items-center min-w-0 overflow-hidden">
                                       {/* Základní stav: Ikona na střed, Název + Projekt na střed s nulovou mezerou, Zadavatel na střed vpravo (u 0.5h se nezobrazuje) */}
                                       <div className="flex items-center gap-2 min-w-0 w-full h-full group-hover:hidden select-none">
                                         <div className="relative flex items-center justify-center shrink-0">
                                           <span className="material-symbols-outlined text-lg opacity-90 text-white">
-                                            {isCompleted ? 'check_circle' : isService ? 'build' : 'code'}
+                                            {isService ? 'build' : 'code'}
                                           </span>
-                                          {isCrit && (
+                                          {isCompletedTask ? (
+                                            <span
+                                              className="material-symbols-outlined text-[13px] text-emerald-400 absolute -top-1.5 -right-1.5 drop-shadow"
+                                              title="Splněno"
+                                            >
+                                              check_circle
+                                            </span>
+                                          ) : isCrit ? (
                                             <span
                                               className="material-symbols-outlined text-[13px] text-red-400 absolute -top-1.5 -right-1.5 drop-shadow"
                                               title="Kritická priorita"
                                             >
                                               warning
                                             </span>
-                                          )}
+                                          ) : null}
                                         </div>
 
                                         <div className="flex flex-col justify-center min-w-0 flex-1 gap-0">
@@ -2785,7 +3133,26 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
 
                                         {chunkHours > 0.5 && (
                                           <span className="font-mono font-bold shrink-0 text-white text-xs">
-                                            {isSplit ? `${chunkHours}h (${totalHours}h)` : `${chunkHours}h`}
+                                            {hasOverburn && plannedChunkH < chunkHours
+                                              ? `${chunkHours}h/${plannedChunkH}h`
+                                              : isSplit
+                                              ? `${chunkHours}h (${totalHours}h)`
+                                              : `${chunkHours}h`}
+                                            {isOverburnedInProgress && (
+                                              <span className="ml-1 text-amber-300 font-normal text-[11px]">
+                                                ({overProgressPct}%)
+                                              </span>
+                                            )}
+                                            {!isOverburnedInProgress && hasWorklogProgress && (
+                                              <span className="ml-1 text-white/80 font-normal text-[11px]">
+                                                ({pct}%)
+                                              </span>
+                                            )}
+                                            {isCompletedTask && hasOverburn && (
+                                              <span className="ml-1 text-amber-300 font-normal text-[11px]">
+                                                ({overburnPct}%)
+                                              </span>
+                                            )}
                                           </span>
                                         )}
 
@@ -2843,8 +3210,27 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                             </span>
                                           )}
                                           <span className="font-bold text-xs">
-                                            {isSplit ? `${chunkHours}h z ${totalHours}h` : `${chunkHours}h`}
+                                            {hasOverburn && plannedChunkH < chunkHours
+                                              ? `${chunkHours}h/${plannedChunkH}h`
+                                              : isSplit
+                                              ? `${chunkHours}h z ${totalHours}h`
+                                              : `${chunkHours}h`}
                                           </span>
+                                          {isOverburnedInProgress && (
+                                            <span className="text-[10px] text-amber-200 font-bold bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/40 font-mono">
+                                              {overProgressPct}%
+                                            </span>
+                                          )}
+                                          {!isOverburnedInProgress && hasWorklogProgress && (
+                                            <span className="text-[10px] text-white/80 font-bold bg-white/10 px-1.5 py-0.5 rounded border border-white/20 font-mono">
+                                              {pct}%
+                                            </span>
+                                          )}
+                                          {isCompletedTask && hasOverburn && (
+                                            <span className="text-[10px] text-amber-200 font-bold bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/40 font-mono">
+                                              {overburnPct}%
+                                            </span>
+                                          )}
                                         </div>
                                       </div>
 
@@ -2903,14 +3289,21 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
 
                                         {/* Type indicator icon with warning triangle next to it: white when solid card */}
                                         <div className="flex items-center gap-1 shrink-0">
-                                          {isCrit && (
+                                          {isCompletedTask ? (
+                                            <span
+                                              className="material-symbols-outlined text-sm text-emerald-400"
+                                              title="Splněno"
+                                            >
+                                              check_circle
+                                            </span>
+                                          ) : isCrit ? (
                                             <span
                                               className="material-symbols-outlined text-sm text-red-400"
                                               title="Kritická priorita"
                                             >
                                               warning
                                             </span>
-                                          )}
+                                          ) : null}
                                           <span
                                             className={`material-symbols-outlined text-sm ${isSolidCard ? 'text-white' : 'text-white/50'}`}
                                           >
@@ -2920,6 +3313,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                       </div>
                                     </>
                                   )}
+                                  </div>
                                 </div>
                               );
                             })
@@ -3095,7 +3489,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               });
                             }
                           }}
-                          className={`group relative w-[32px] h-[32px] rounded-full font-mono font-bold text-[10px] select-none cursor-pointer transition-all hover:ring-2 hover:ring-indigo-400/50 shrink-0 ${
+                          className={`group relative w-[36px] h-[36px] rounded-full font-mono font-bold text-[11.5px] select-none cursor-pointer transition-all hover:ring-2 hover:ring-indigo-400/50 shrink-0 ${
                             isMe
                               ? 'bg-indigo-500/20 text-indigo-400 font-bold hover:bg-indigo-500/30'
                               : 'bg-white/[0.08] text-gray-300 hover:bg-white/[0.16] hover:text-white'
@@ -3104,8 +3498,8 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            width: '32px',
-                            height: '32px',
+                            width: '36px',
+                            height: '36px',
                           }}
                           title={isMe ? `${formatUserDisplayName(uSched.userName, availablePersons)} (To jste vy) – Možnosti` : `Uživatel: ${formatUserDisplayName(uSched.userName, availablePersons)} – Možnosti`}
                         >
@@ -3117,21 +3511,21 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               justifyContent: 'center',
                               width: '100%',
                               height: '100%',
-                              lineHeight: '10px',
+                              lineHeight: '14px',
                             }}
                           >
                             {uSched.initials}
                           </span>
                           <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                             <span
-                              className="material-symbols-outlined text-white text-[18px] select-none"
+                              className="material-symbols-outlined text-white text-[19px] select-none"
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 width: '100%',
                                 height: '100%',
-                                lineHeight: '18px',
+                                lineHeight: '19px',
                               }}
                             >
                               more_horiz
@@ -3171,33 +3565,64 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                         style={{ display: 'grid', gridTemplateColumns: `repeat(${totalWeekSlots}, minmax(0, 1fr))` }}
                       >
                         {uSched.weekMergedBlocks.map((block) => {
-                          const { task, startCol, spanCols, isService, isNotAvailable, isCompleted, isCritical, isSplit, partIndex, totalParts } = block;
+                          const { task, startCol, spanCols, chunkHours, isService, isNotAvailable, isCompleted, isCritical, isSplit, partIndex, totalParts } = block;
                           const isCrit = Boolean(isCritical || task.isCritical);
-
                           const isSolidBlock = !isNotAvailable;
+
+                          const isCompletedTask = Boolean(isCompleted || task.isCompleted || task.isSolved);
+                          const actualTaskHours = isCompletedTask ? Math.max(task.totalHours || 0, task.worklogHours || 0) : (task.totalHours || 0);
+                          const hasOverburn = Boolean(!isNotAvailable && (block.hasOverburnChunk || (block.overburnChunkHours && block.overburnChunkHours > 0) || (isCompletedTask && task.estimatedHours && actualTaskHours > task.estimatedHours)));
 
                           const isCutRight = Boolean(!isNotAvailable && isSplit && partIndex < totalParts);
                           const isCutLeft = Boolean(!isNotAvailable && isSplit && partIndex > 1);
+
+                          const plannedChunkH = block.plannedChunkHours !== undefined
+                            ? block.plannedChunkHours
+                            : (hasOverburn
+                                ? (isCompletedTask && task.estimatedHours ? Math.min(chunkHours, task.estimatedHours) : chunkHours)
+                                : chunkHours);
+
+                          const totalBlockH = block.chunkHours > 0 ? block.chunkHours : 1;
+                          const plannedWidthPct = hasOverburn && totalBlockH > 0
+                            ? Math.max(10, Math.min(95, Math.round((plannedChunkH / totalBlockH) * 100)))
+                            : 100;
+                          const overburnWidthPct = 100 - plannedWidthPct;
 
                           const isMatch = isNotAvailable
                             ? (!searchQuery?.trim() || 'nedostupný volno absence dovolená'.includes(searchQuery.trim().toLowerCase()))
                             : isTaskMatchingQuery(task, searchQuery || '');
                           const isMuted = Boolean(searchQuery?.trim()) && !isMatch;
 
+                          const isOverburnedInProgress = Boolean(!isNotAvailable && !isCompleted && (block.isOverburnedInProgress || hasOverburn));
+                          const plannedTotal = task.totalHours > 0 ? task.totalHours : (block.plannedChunkHours || 1);
+                          const rawOver = block.rawOverburnHours !== undefined ? block.rawOverburnHours : (task.worklogHours && task.worklogHours > plannedTotal ? task.worklogHours - plannedTotal : 0);
+                          const overProgressPct = block.overburnProgressPercent || (rawOver > 0 ? Math.round((rawOver / plannedTotal) * 100) : 0);
+
+                          const overburnPct = block.overburnPercent || (block.rawOverburnHours && task.estimatedHours ? Math.round((block.rawOverburnHours / task.estimatedHours) * 100) : 0);
+
                           const taskBackgroundColor = isNotAvailable
-                            ? 'rgba(39, 39, 42, 0.8)'
-                            : isCompleted
-                            ? 'rgba(16, 185, 129, 0.7)'
+                            ? '#27272a'
+                            : isCompletedTask
+                            ? '#10b981'
                             : isService
                             ? serviceColor
                             : devColor;
+
+                          const hasWorklogProgress = Boolean(!isNotAvailable && !isCompleted && block.worklogPercent && block.worklogPercent > 0);
+                          const pct = block.worklogPercent || 0;
+                          const fillPct = block.overburnFillPercent !== undefined
+                            ? block.overburnFillPercent
+                            : (block.overburnChunkHours && rawOver > 0
+                                ? Math.min(100, Math.max(10, Math.round((rawOver / block.overburnChunkHours) * 100)))
+                                : 100);
 
                           const blockStyle: React.CSSProperties = {
                             gridColumn: `${startCol} / span ${spanCols}`,
                             gridRow: 1,
                             borderRadius: `${isCutLeft ? '0px' : '8px'} ${isCutRight ? '0px' : '8px'} ${isCutRight ? '0px' : '8px'} ${isCutLeft ? '0px' : '8px'}`,
                             opacity: isMuted ? 0.1 : 1,
-                            backgroundColor: taskBackgroundColor,
+                            boxShadow: hasOverburn ? undefined : '0 2px 6px rgba(0, 0, 0, 0.35)',
+                            position: 'relative',
                           };
 
                           return (
@@ -3209,33 +3634,150 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                 isMuted ? undefined : setHoveredTask({ block, rect: e.currentTarget.getBoundingClientRect() })
                               }
                               onMouseLeave={() => setHoveredTask(null)}
-                              className={`timeline-task-card h-full transition-all duration-200 select-none flex items-center justify-center overflow-hidden ${
+                              className={`timeline-task-card h-full transition-all duration-200 select-none overflow-hidden relative ${
                                 isMuted ? 'pointer-events-none' : ''
                               } ${
                                 isNotAvailable ? 'text-zinc-300 cursor-default' : 'cursor-pointer text-white'
                               }`}
                             >
+                              {/* Vrstva 1: Šedý podkres - velmi tmavý a jemný */}
+                              <div className="absolute inset-0 bg-[#0c0c0e] pointer-events-none" style={{ opacity: 0.05 }} />
+
+                              {/* Vrstva 2: BAREVNÉ VRSTVY */}
+                              {hasOverburn ? (
+                                /* Overburn úkol: obě barvy v jednom kontejneru s opacitou 0.5 */
+                                <div className="absolute inset-0 pointer-events-none flex" style={{ opacity: isCompletedTask ? 0.5 : 0.8 }}>
                                   <div
-                                    className={`pointer-events-none flex items-center justify-center ${
-                                      isCrit && !isNotAvailable ? 'flex-col gap-0.5' : 'flex-row gap-1'
-                                    }`}
+                                    style={{
+                                      width: `${plannedWidthPct}%`,
+                                      backgroundColor: taskBackgroundColor,
+                                      opacity: 1,
+                                      isolation: 'isolate',
+                                      borderTopLeftRadius: isCutLeft ? '0px' : '8px',
+                                      borderBottomLeftRadius: isCutLeft ? '0px' : '8px',
+                                      borderTopRightRadius: '8px',
+                                      borderBottomRightRadius: '8px',
+                                      boxShadow: '0 2px 6px rgba(0, 0, 0, 0.35)',
+                                      zIndex: 2,
+                                      position: 'relative',
+                                    }}
+                                    className="h-full shrink-0 flex overflow-hidden"
+                                  />
+
+                                  <div
+                                    style={{
+                                      marginLeft: '-8px',
+                                      width: `calc(${overburnWidthPct}% + 8px)`,
+                                      borderTopRightRadius: isCutRight ? '0px' : '8px',
+                                      borderBottomRightRadius: isCutRight ? '0px' : '8px',
+                                      backgroundColor: 'transparent',
+                                      opacity: 1,
+                                      zIndex: 1,
+                                      position: 'relative',
+                                    }}
+                                    className="h-full shrink-0 overflow-hidden flex"
                                   >
-                                    {isCrit && !isNotAvailable && (
-                                      <span
-                                        className="material-symbols-outlined text-xs text-red-400"
-                                        title="Kritická priorita"
-                                      >
-                                        warning
-                                      </span>
+                                    {isCompletedTask ? (
+                                      <div
+                                        style={{
+                                          borderTopRightRadius: isCutRight ? '0px' : '8px',
+                                          borderBottomRightRadius: isCutRight ? '0px' : '8px',
+                                        }}
+                                        className="w-full h-full bg-yellow-500"
+                                      />
+                                    ) : (
+                                      <>
+                                        <div
+                                          style={{
+                                            width: `${fillPct}%`,
+                                            borderTopRightRadius: fillPct >= 99 && !isCutRight ? '8px' : '0px',
+                                            borderBottomRightRadius: fillPct >= 99 && !isCutRight ? '8px' : '0px',
+                                          }}
+                                          className="h-full bg-yellow-500 shrink-0"
+                                        />
+                                        <div
+                                          style={{
+                                            width: `${100 - fillPct}%`,
+                                            borderTopRightRadius: isCutRight ? '0px' : '8px',
+                                            borderBottomRightRadius: isCutRight ? '0px' : '8px',
+                                          }}
+                                          className="h-full bg-zinc-800 shrink-0"
+                                        />
+                                      </>
                                     )}
-                                    <span
-                                      className={`material-symbols-outlined text-xs ${isSolidBlock ? 'text-white' : 'text-white/50'}`}
-                                    >
-                                      {isNotAvailable ? 'celebration' : isService ? 'build' : 'code'}
-                                    </span>
                                   </div>
                                 </div>
-                              );
+                              ) : (
+                                /* Běžný úkol bez přesahu (rozpracovaný s 0.7 barvou / nezačatý 0.35 / dokončený 1.0) */
+                                <div className="absolute inset-0 pointer-events-none flex overflow-hidden">
+                                  {hasWorklogProgress && !isCompletedTask ? (
+                                    <>
+                                      {/* Odpracovaná část: 0.7 primární barva (vývoj) nebo sekundární barva (servis) */}
+                                      <div
+                                        style={{
+                                          width: `${pct}%`,
+                                          backgroundColor: taskBackgroundColor,
+                                          opacity: 0.7,
+                                        }}
+                                        className="h-full shrink-0"
+                                      />
+                                      {/* Neodpracovaná část plánu: opacitní 0.35 podkres */}
+                                      <div
+                                        style={{
+                                          width: `${100 - pct}%`,
+                                          backgroundColor: taskBackgroundColor,
+                                          opacity: 0.35,
+                                        }}
+                                        className="h-full shrink-0"
+                                      />
+                                    </>
+                                  ) : (
+                                    <div
+                                      style={{
+                                        backgroundColor: taskBackgroundColor,
+                                        opacity: isCompletedTask ? 0.5 : 0.35,
+                                      }}
+                                      className="w-full h-full"
+                                    />
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Vrstva 3: Informační vrstva s ikonami v prostoru plánu */}
+                              <div
+                                style={{ width: hasOverburn ? `${plannedWidthPct}%` : '100%' }}
+                                className="absolute inset-y-0 left-0 z-10 w-full h-full flex items-center justify-center pointer-events-none"
+                              >
+                                <div
+                                  className={`flex items-center justify-center ${
+                                    (isCrit || isCompleted) && !isNotAvailable ? 'flex-col gap-0.5' : 'flex-row gap-1'
+                                  }`}
+                                >
+                                  {isCrit && !isNotAvailable && (
+                                    <span
+                                      className="material-symbols-outlined text-xs text-red-400"
+                                      title="Kritická priorita"
+                                    >
+                                      warning
+                                    </span>
+                                  )}
+                                  {isCompleted && !isNotAvailable && (
+                                    <span
+                                      className="material-symbols-outlined text-xs text-emerald-300"
+                                      title="Dokončený úkol"
+                                    >
+                                      check_circle
+                                    </span>
+                                  )}
+                                  <span
+                                    className={`material-symbols-outlined text-xs ${isSolidBlock ? 'text-white' : 'text-white/50'}`}
+                                  >
+                                    {isNotAvailable ? 'celebration' : isService ? 'build' : 'code'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
                         })}
 
                         {/* Free Capacity Slots */}
@@ -3348,6 +3890,14 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
               <span>Volno / Absence</span>
             </div>
             <div className="flex items-center gap-2">
+              <span className="w-3.5 h-3.5 rounded bg-emerald-500 border border-emerald-400/40 shadow-sm" />
+              <span>Dokončeno</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3.5 h-3.5 rounded bg-yellow-500/60 border border-yellow-400/50 shadow-sm" />
+              <span>Nad odhad</span>
+            </div>
+            <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-sm text-red-400">warning</span>
               <span>Kritická priorita</span>
             </div>
@@ -3431,10 +3981,39 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                   )}
                 </div>
                 <span className="font-mono font-bold text-gray-200">
-                  {hoveredTask.block.chunkHours}h
-                  {hoveredTask.block.totalHours > hoveredTask.block.chunkHours && (
+                  {hoveredTask.block.hasOverburnChunk && hoveredTask.block.plannedChunkHours !== undefined && hoveredTask.block.plannedChunkHours < hoveredTask.block.chunkHours
+                    ? `${hoveredTask.block.chunkHours}h/${hoveredTask.block.plannedChunkHours}h`
+                    : `${hoveredTask.block.chunkHours}h`}
+                  {hoveredTask.block.totalHours > hoveredTask.block.chunkHours && !hoveredTask.block.hasOverburnChunk && (
                     <span className="text-gray-400 font-normal"> z {hoveredTask.block.totalHours}h</span>
                   )}
+                  {Boolean(!hoveredTask.block.isCompleted && hoveredTask.block.isOverburnedInProgress) && (() => {
+                    const task = hoveredTask.block.task;
+                    const plan = task.totalHours > 0 ? task.totalHours : (task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : 1);
+                    const wl = task.worklogHours || 0;
+                    const pct = hoveredTask.block.overburnProgressPercent || (plan > 0 && wl > plan ? Math.round(((wl - plan) / plan) * 100) : 0);
+                    return pct > 0 ? (
+                      <span className="text-amber-400 font-normal">
+                        {' '}{pct}%
+                      </span>
+                    ) : null;
+                  })()}
+                  {Boolean(!hoveredTask.block.isCompleted && !hoveredTask.block.isOverburnedInProgress && hoveredTask.block.worklogChunkHours) && (
+                    <span className="text-white/80 font-normal">
+                      {' '}({hoveredTask.block.worklogPercent}%)
+                    </span>
+                  )}
+                  {Boolean(hoveredTask.block.isCompleted && (hoveredTask.block.overburnPercent || hoveredTask.block.hasOverburnChunk)) && (() => {
+                    const task = hoveredTask.block.task;
+                    const est = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
+                    const act = Math.max(task.totalHours || 0, task.worklogHours || 0);
+                    const pct = hoveredTask.block.overburnPercent || (est > 0 && act > est ? Math.round(((act - est) / est) * 100) : 0);
+                    return pct > 0 ? (
+                      <span className="text-amber-400 font-normal">
+                        {' '}{pct}%
+                      </span>
+                    ) : null;
+                  })()}
                 </span>
               </div>
 
@@ -3492,19 +4071,33 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
             <span>Úkoly přesahující do dalšího týdne ({allOverflowTasks.length})</span>
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 min-[1366px]:grid-cols-4 min-[1921px]:grid-cols-5 gap-2.5">
-            {allOverflowTasks.map(({ task, remainingHours }) => (
-              <TaskCard
-                key={`timeline-overflow-${task.taskId}`}
-                task={{ ...task, totalHours: remainingHours }}
-                onOpenTask={onOpenTask}
-                onOpenCodeLink={onOpenCodeLink}
-                getTaskManagerUrl={getTaskManagerUrl}
-                isCopied={copiedId === task.taskId}
-                showAssignee={hasMultipleUsers && !showOnlyMyTasks}
-                currentUser={currentUser}
-                availablePersons={availablePersons}
-              />
-            ))}
+            {allOverflowTasks.map(({ task, remainingHours, partIndex, totalParts, originalTotalHours }) => {
+              const originalTotal = originalTotalHours || task.totalHours || remainingHours;
+              const scheduledHours = Math.max(0, originalTotal - remainingHours);
+              const remainingWorklog = Math.max(0, (task.worklogHours || 0) - scheduledHours);
+              return (
+                <TaskCard
+                  key={`timeline-overflow-${task.taskId}`}
+                  task={{ ...task, totalHours: remainingHours, worklogHours: remainingWorklog }}
+                  onOpenTask={onOpenTask}
+                  onOpenCodeLink={onOpenCodeLink}
+                  getTaskManagerUrl={getTaskManagerUrl}
+                  isCopied={copiedId === task.taskId}
+                  showAssignee={hasMultipleUsers && !showOnlyMyTasks}
+                  currentUser={currentUser}
+                  availablePersons={availablePersons}
+                  overflowSplitInfo={
+                    totalParts && totalParts > 1 && partIndex
+                      ? {
+                          partIndex,
+                          totalParts,
+                          originalTotalHours: originalTotal,
+                        }
+                      : undefined
+                  }
+                />
+              );
+            })}
           </div>
         </div>
       )}
@@ -3529,7 +4122,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
               }}
               className="w-full flex items-center gap-2 px-3 py-1.5 text-gray-300 hover:text-white hover:bg-white/5 transition text-left cursor-pointer"
             >
-              <span className="material-symbols-outlined text-sm text-gray-400">arrow_upward</span>
+              <span className="material-symbols-outlined text-sm" style={{ color: devColor }}>arrow_upward</span>
               <span>Posunout nahoru</span>
             </button>
           )}
@@ -3542,7 +4135,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
               }}
               className="w-full flex items-center gap-2 px-3 py-1.5 text-gray-300 hover:text-white hover:bg-white/5 transition text-left cursor-pointer"
             >
-              <span className="material-symbols-outlined text-sm text-gray-400">arrow_downward</span>
+              <span className="material-symbols-outlined text-sm" style={{ color: devColor }}>arrow_downward</span>
               <span>Posunout dolů</span>
             </button>
           )}
@@ -3554,7 +4147,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
             }}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-gray-300 hover:text-white hover:bg-white/5 transition text-left cursor-pointer"
           >
-            <span className={`material-symbols-outlined text-sm ${userMenuState.isMe ? 'text-amber-400' : 'text-indigo-400'}`}>
+            <span className={`material-symbols-outlined text-sm ${userMenuState.isMe ? 'text-red-400' : 'text-indigo-400'}`}>
               {userMenuState.isMe ? 'person_cancel' : 'person'}
             </span>
             <span>{userMenuState.isMe ? 'To nejsem já' : 'To jsem já'}</span>
@@ -3580,6 +4173,122 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
 /* ========================================================================= */
 /* TAB 3: LIST VIEW COMPONENT (Modern borderless list cards)                 */
 /* ========================================================================= */
+interface TaskCircleProgressProps {
+  task: PlanTaskItem;
+  size?: number;
+}
+
+const TaskCircleProgress: React.FC<TaskCircleProgressProps> = ({ task, size = 32 }) => {
+  const isDone = Boolean(task.isCompleted || task.isSolved);
+  const totalHours = task.totalHours || 0;
+  const worklogHours = task.worklogHours || 0;
+  const estimatedHours = task.estimatedHours || 0;
+
+  let strokeColor = '#3f3f46';
+  let textColor = '#71717a';
+  let label = '0%';
+  let fillPercent = 0;
+  let title = 'Nezačato (0% odpracováno)';
+
+  if (isDone) {
+    const plan = estimatedHours > 0 ? estimatedHours : (totalHours > 0 ? totalHours : 1);
+    const actual = Math.max(totalHours || 0, worklogHours || 0) || plan;
+    if (actual > plan) {
+      const overburnH = Math.round((actual - plan) * 10) / 10;
+      const overburnPct = Math.round(((actual - plan) / plan) * 100);
+      strokeColor = '#f97316';
+      textColor = '#fb923c';
+      label = `${overburnPct}%`;
+      fillPercent = Math.min(100, Math.max(8, overburnPct));
+      title = `Nad odhad: +${overburnH}h (${overburnPct}%) • celkem ${actual}h (odhad ${plan}h)`;
+    } else {
+      strokeColor = '#10b981';
+      textColor = '#34d399';
+      label = '100%';
+      fillPercent = 100;
+      title = `Dokončeno v plánu (${actual}h / ${plan}h)`;
+    }
+  } else {
+    const plan = totalHours > 0 ? totalHours : 1;
+    if (worklogHours <= 0) {
+      strokeColor = '#3f3f46';
+      textColor = '#71717a';
+      label = '0%';
+      fillPercent = 0;
+      title = 'Nezačato (0% odpracováno)';
+    } else if (worklogHours > plan) {
+      const overburnH = Math.round((worklogHours - plan) * 10) / 10;
+      const overburnPct = Math.round(((worklogHours - plan) / plan) * 100);
+      strokeColor = '#f97316';
+      textColor = '#fb923c';
+      label = `${overburnPct}%`;
+      fillPercent = Math.min(100, Math.max(8, overburnPct));
+      title = `Nad odhad: +${overburnH}h (${overburnPct}%) • zapsáno ${worklogHours}h (plán ${plan}h)`;
+    } else {
+      const pct = Math.min(100, Math.max(1, Math.round((worklogHours / plan) * 100)));
+      strokeColor = '#10b981';
+      textColor = '#34d399';
+      label = `${pct}%`;
+      fillPercent = pct;
+      title = `Rozpracováno: ${worklogHours}h z ${plan}h (${pct}%)`;
+    }
+  }
+
+  const strokeWidth = 2.5;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (fillPercent / 100) * circumference;
+  const center = size / 2;
+  const fontSize = label.length >= 4 ? 9 : label.length >= 3 ? 10.5 : 11.5;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="shrink-0 select-none overflow-visible -my-1"
+    >
+      <title>{title}</title>
+      <circle
+        cx={center}
+        cy={center}
+        r={radius}
+        fill="rgba(0, 0, 0, 0.25)"
+        stroke="rgba(255, 255, 255, 0.08)"
+        strokeWidth={strokeWidth}
+      />
+      {fillPercent > 0 && (
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${center} ${center})`}
+          style={{ transition: 'stroke-dashoffset 0.3s ease' }}
+        />
+      )}
+      <text
+        x={center}
+        y={center}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill={textColor}
+        fontSize={fontSize}
+        fontWeight="bold"
+        fontFamily="ui-monospace, monospace"
+      >
+        {label}
+      </text>
+    </svg>
+  );
+};
+
+
 interface ListViewProps {
   tasks: PlanTaskItem[];
   hasMultipleUsers?: boolean;
@@ -3614,8 +4323,8 @@ const ListView: React.FC<ListViewProps> = ({
   }
 
   const gridColsClass = hasMultipleUsers
-    ? 'grid-cols-[40px_36px_120px_70px_1fr_160px_110px_60px]'
-    : 'grid-cols-[36px_120px_70px_1fr_160px_110px_60px]';
+    ? 'grid-cols-[40px_36px_120px_70px_1fr_160px_110px_70px_50px]'
+    : 'grid-cols-[36px_120px_70px_1fr_160px_110px_70px_50px]';
 
   return (
     <div className="space-y-2">
@@ -3629,6 +4338,7 @@ const ListView: React.FC<ListViewProps> = ({
         <div>Projekt</div>
         <div>Termín</div>
         <div className="text-right">Hodiny</div>
+        <div className="text-center">Progres</div>
       </div>
 
       {/* Rows */}
@@ -3642,6 +4352,38 @@ const ListView: React.FC<ListViewProps> = ({
             task.userName &&
             isTaskForUser(task.userName, currentUser, availablePersons)
           );
+          const isDoneTask = Boolean(isCompleted || task.isCompleted || task.isSolved);
+          const estHours = task.estimatedHours || 0;
+          const totHours = task.totalHours || 0;
+          const workHours = task.worklogHours || 0;
+
+          let hasTaskOverburn = false;
+          let planHours = totHours;
+          let actualHours = totHours;
+
+          if (isDoneTask) {
+            const plan = estHours > 0 ? estHours : totHours;
+            const actual = Math.max(totHours, workHours);
+            if (plan > 0 && actual > plan) {
+              hasTaskOverburn = true;
+              planHours = plan;
+              actualHours = actual;
+            }
+          } else {
+            if (estHours > 0 && Math.max(totHours, workHours) > estHours) {
+              hasTaskOverburn = true;
+              planHours = estHours;
+              actualHours = Math.max(totHours, workHours);
+            } else if (totHours > 0 && workHours > totHours) {
+              hasTaskOverburn = true;
+              planHours = totHours;
+              actualHours = workHours;
+            }
+          }
+
+          const planClean = Math.round(planHours * 10) / 10;
+          const actualClean = Math.round(actualHours * 10) / 10;
+          const overburnDiff = Math.round((actualClean - planClean) * 10) / 10;
           return (
             <div
               key={task.taskId}
@@ -3786,9 +4528,23 @@ const ListView: React.FC<ListViewProps> = ({
 
               {/* Hours in plain text (no chip) */}
               <div className="text-right">
-                <span className={`font-mono font-bold text-xs ${isCompleted ? 'text-emerald-300' : 'text-gray-300'}`}>
-                  {task.totalHours}h
-                </span>
+                {hasTaskOverburn ? (
+                  <span
+                    className="font-mono font-bold text-xs text-orange-400"
+                    title={`Původní plán: ${planClean}h • Aktuální čas po přesahu: ${actualClean}h (+${overburnDiff}h)`}
+                  >
+                    {actualClean}h/{planClean}h
+                  </span>
+                ) : (
+                  <span className={`font-mono font-bold text-xs ${isCompleted ? 'text-emerald-300' : 'text-gray-300'}`}>
+                    {task.totalHours}h
+                  </span>
+                )}
+              </div>
+
+              {/* Progress: Circle Progress */}
+              <div className="flex items-center justify-center">
+                <TaskCircleProgress task={task} size={32} />
               </div>
             </div>
           );
@@ -3811,6 +4567,11 @@ interface TaskCardProps {
   isCompletedView?: boolean;
   currentUser?: string;
   availablePersons?: PlanPersonInfo[];
+  overflowSplitInfo?: {
+    partIndex: number;
+    totalParts: number;
+    originalTotalHours: number;
+  };
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({
@@ -3822,6 +4583,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   isCompletedView,
   currentUser,
   availablePersons,
+  overflowSplitInfo,
 }) => {
   const isDev = task.taskType === 'dev';
   const isService = task.taskType === 'service';
@@ -3832,19 +4594,54 @@ const TaskCard: React.FC<TaskCardProps> = ({
     isTaskForUser(task.userName, currentUser, availablePersons)
   );
 
+  const isDoneTask = Boolean(isCompletedView || task.isCompleted || task.isSolved);
+
+  // Overburn calculation for TaskCard (na nástěnce)
+  const estHours = task.estimatedHours || 0;
+  const totHours = task.totalHours || 0;
+  const workHours = task.worklogHours || 0;
+
+  let hasTaskOverburn = false;
+  let planHours = totHours;
+  let actualHours = totHours;
+
+  if (isDoneTask) {
+    const plan = estHours > 0 ? estHours : totHours;
+    const actual = Math.max(totHours, workHours);
+    if (plan > 0 && actual > plan) {
+      hasTaskOverburn = true;
+      planHours = plan;
+      actualHours = actual;
+    }
+  } else {
+    if (estHours > 0 && Math.max(totHours, workHours) > estHours) {
+      hasTaskOverburn = true;
+      planHours = estHours;
+      actualHours = Math.max(totHours, workHours);
+    } else if (totHours > 0 && workHours > totHours) {
+      hasTaskOverburn = true;
+      planHours = totHours;
+      actualHours = workHours;
+    }
+  }
+
+  const planClean = Math.round(planHours * 10) / 10;
+  const actualClean = Math.round(actualHours * 10) / 10;
+  const overburnDiff = Math.round((actualClean - planClean) * 10) / 10;
+
   return (
     <div
       onClick={() => onOpenTask(task)}
-      className={`group relative p-3.5 rounded-2xl transition-colors cursor-pointer flex flex-col justify-between gap-2.5 select-none shadow-sm ${
+      className={`group relative p-3.5 rounded-2xl transition-colors cursor-pointer flex flex-col justify-between gap-2.5 select-none shadow-sm overflow-hidden ${
         isCompletedView
           ? 'bg-emerald-950/30 hover:bg-emerald-950/50 text-emerald-100'
           : 'bg-white/[0.04] hover:bg-white/[0.08] text-white'
       }`}
     >
-      {/* Top row: Type indicator (plain text & icon, no chip), author chip in primary color, plain hours */}
+      {/* Top row: Type indicator (plain text & icon, no chip), author chip in primary color, hours & circle progress */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Dev / Service type indicator (no chip visual) */}
+          {/* Dev / Service type indicator (Point 1: Always type icon + type text, NOT check circle or 'Splněno') */}
           <div
             className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
               isCompletedView
@@ -3857,19 +4654,28 @@ const TaskCard: React.FC<TaskCardProps> = ({
             }`}
           >
             {task.isPinned && !isCompletedView && <span className="material-symbols-outlined text-xs">push_pin</span>}
-            <span className={`material-symbols-outlined text-xs ${isCompletedView ? 'text-emerald-400' : ''}`}>
+            <span className="material-symbols-outlined text-xs">
               {isDev ? 'code' : isService ? 'build' : 'task'}
             </span>
-            {isCrit && (
-              <span
-                className={`material-symbols-outlined text-xs ${isCompletedView ? 'text-emerald-400' : 'text-red-400'}`}
-                title="Kritická priorita"
-              >
-                warning
-              </span>
-            )}
-            <span>{isCompletedView ? 'Splněno' : isDev ? 'Vývoj' : isService ? 'Servis' : 'Úkol'}</span>
+            <span>{isDev ? 'Vývoj' : isService ? 'Servis' : 'Úkol'}</span>
           </div>
+
+          {/* Point 1: Indicator: check_circle for completed, warning for critical (never both together) */}
+          {isDoneTask ? (
+            <span
+              className="material-symbols-outlined text-xs flex items-center shrink-0 text-emerald-400"
+              title="Vyřešeno"
+            >
+              check_circle
+            </span>
+          ) : isCrit ? (
+            <span
+              className="material-symbols-outlined text-xs flex items-center shrink-0 text-red-400"
+              title="Kritická priorita"
+            >
+              warning
+            </span>
+          ) : null}
 
           {/* Author in primary color chip */}
           {task.author && (
@@ -3882,75 +4688,104 @@ const TaskCard: React.FC<TaskCardProps> = ({
           )}
         </div>
 
-        {/* Hours plain text (no chip visual) */}
-        <span className={`font-mono text-xs font-bold shrink-0 ${isCompletedView ? 'text-emerald-300' : 'text-gray-300'}`}>
-          {task.totalHours}h
-        </span>
-      </div>
-
-      {/* Middle: Title */}
-      <div className={`text-xs font-semibold leading-snug line-clamp-2 ${isCompletedView ? 'text-gray-400' : 'text-white'}`}>
-        {task.customName || task.title}
-      </div>
-
-      {/* Bottom row: Project + Codes & Assignee */}
-      <div className="flex items-center justify-between gap-2 text-[11px] text-gray-400 pt-0.5 flex-wrap">
-        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-          <span className="truncate max-w-[150px] text-gray-400 text-xs" title={task.project || 'Projekt'}>
-            {task.project || '–'}
-          </span>
-
-          {/* Task / Req Codes / Godday chip moved behind project */}
-          {isGoddayTask(task) ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenTask(task);
-              }}
-              className="px-2 py-0.5 rounded-full bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 font-mono text-[10px] font-bold transition cursor-pointer"
-              title={task.url ? 'Otevřít odkaz úkolu' : 'Godday úkol'}
+        {/* Hours & Circle Progress */}
+        <div className="flex items-center gap-2 shrink-0">
+          {overflowSplitInfo && overflowSplitInfo.totalParts > 1 ? (
+            <span className={`font-mono text-xs font-bold ${isDoneTask ? 'text-emerald-300' : 'text-gray-300'}`}>
+              {task.totalHours}h z {overflowSplitInfo.originalTotalHours}h
+            </span>
+          ) : hasTaskOverburn ? (
+            <span
+              className="font-mono text-xs font-bold text-orange-400 flex items-center gap-1 shrink-0"
+              title={`Původní plán: ${planClean}h • Aktuální čas po přesahu: ${actualClean}h (+${overburnDiff}h)`}
             >
-              godday
-            </button>
+              <span>{actualClean}h/{planClean}h</span>
+            </span>
           ) : (
-            <>
-              {task.taskIdentifier && (
-                <button
-                  type="button"
-                  onClick={(e) => onOpenCodeLink(task.taskIdentifier!, task, e)}
-                  className="px-2 py-0.5 rounded-full bg-purple-500/15 hover:bg-purple-500/30 text-purple-300 font-mono text-[10px] font-bold transition cursor-pointer"
-                  title={getTaskManagerUrl(task.taskIdentifier) ? 'Otevřít úkol v TaskManageru' : 'Kliknutím zkopírovat kód'}
-                >
-                  {task.taskIdentifier}
-                </button>
-              )}
-              {task.requirementId && task.requirementId !== task.taskIdentifier && task.requirementId !== 'R0' && (
-                <button
-                  type="button"
-                  onClick={(e) => onOpenCodeLink(task.requirementId!, task, e)}
-                  className="px-2 py-0.5 rounded-full bg-blue-500/15 hover:bg-blue-500/30 text-blue-300 font-mono text-[10px] font-semibold transition cursor-pointer"
-                  title={getTaskManagerUrl(task.requirementId) ? 'Otevřít požadavek v TaskManageru' : 'Kliknutím zkopírovat kód'}
-                >
-                  {task.requirementId}
-                </button>
-              )}
-            </>
+            <span className={`font-mono text-xs font-bold ${isDoneTask ? 'text-emerald-300' : 'text-gray-300'}`}>
+              {task.totalHours}h
+            </span>
           )}
+          <TaskCircleProgress task={task} size={32} />
+        </div>
+      </div>
+      {/* Middle & Bottom: Title and Project / Codes close together */}
+      <div className="flex flex-col gap-1 min-w-0">
+        <div className="text-xs font-semibold leading-snug line-clamp-2 text-white">
+          {task.customName || task.title}
         </div>
 
-        {showAssignee && task.userName && (
-          <div
-            className={`w-6 h-6 rounded-full font-mono text-[10px] font-bold flex items-center justify-center text-center shadow-sm select-none shrink-0 ml-auto ${
-              isMe
-                ? 'bg-indigo-500/20 text-indigo-300'
-                : 'bg-white/[0.08] text-gray-300'
-            }`}
-            title={`Přiřazeno: ${formatUserDisplayName(task.userName, availablePersons)}${isMe ? ' (Vy)' : ''}`}
-          >
-            {getUserInitials(task.userName, availablePersons)}
+        {/* Bottom row: Project + Codes & Assignee */}
+        <div className="flex items-center justify-between gap-2 text-[11px] text-gray-400 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            <span className="truncate max-w-[150px] text-gray-400 text-xs" title={task.project || 'Projekt'}>
+              {task.project || '–'}
+            </span>
+
+            {/* Task / Req Codes / Godday chip moved behind project */}
+            {isGoddayTask(task) ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenTask(task);
+                }}
+                className="px-2 py-0.5 rounded-full bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 font-mono text-[10px] font-bold transition cursor-pointer"
+                title={task.url ? 'Otevřít odkaz úkolu' : 'Godday úkol'}
+              >
+                godday
+              </button>
+            ) : (
+              <>
+                {task.taskIdentifier && (
+                  <button
+                    type="button"
+                    onClick={(e) => onOpenCodeLink(task.taskIdentifier!, task, e)}
+                    className="px-2 py-0.5 rounded-full bg-purple-500/15 hover:bg-purple-500/30 text-purple-300 font-mono text-[10px] font-bold transition cursor-pointer"
+                    title={getTaskManagerUrl(task.taskIdentifier) ? 'Otevřít úkol v TaskManageru' : 'Kliknutím zkopírovat kód'}
+                  >
+                    {task.taskIdentifier}
+                  </button>
+                )}
+                {task.requirementId && task.requirementId !== task.taskIdentifier && task.requirementId !== 'R0' && (
+                  <button
+                    type="button"
+                    onClick={(e) => onOpenCodeLink(task.requirementId!, task, e)}
+                    className="px-2 py-0.5 rounded-full bg-blue-500/15 hover:bg-blue-500/30 text-blue-300 font-mono text-[10px] font-semibold transition cursor-pointer"
+                    title={getTaskManagerUrl(task.requirementId) ? 'Otevřít požadavek v TaskManageru' : 'Kliknutím zkopírovat kód'}
+                  >
+                    {task.requirementId}
+                  </button>
+                )}
+              </>
+            )}
           </div>
-        )}
+
+          {(showAssignee || Boolean(overflowSplitInfo)) && (
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              {overflowSplitInfo && overflowSplitInfo.totalParts > 1 && (
+                <span
+                  className="px-2 py-0.5 rounded-full bg-white/[0.08] text-white/90 font-mono text-[10px] font-bold tracking-wider shrink-0"
+                  title={`Díl ${overflowSplitInfo.partIndex} z ${overflowSplitInfo.totalParts}`}
+                >
+                  {overflowSplitInfo.partIndex}/{overflowSplitInfo.totalParts}
+                </span>
+              )}
+              {task.userName && (
+                <div
+                  className={`w-8 h-8 rounded-full font-mono text-[11px] font-bold flex items-center justify-center text-center shadow-sm select-none shrink-0 -my-1 ${
+                    isMe
+                      ? 'bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-400/40'
+                      : 'bg-white/[0.08] text-gray-300'
+                  }`}
+                  title={`Přiřazeno: ${formatUserDisplayName(task.userName, availablePersons)}${isMe ? ' (Vy)' : ''}`}
+                >
+                  {getUserInitials(task.userName, availablePersons)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -8,7 +8,57 @@ interface InstallProgress {
   detail?: string;
 }
 
-export const InstallerWizard: React.FC = () => {
+export interface InstallerWizardProps {
+  previewMode?: boolean;
+  onClose?: () => void;
+}
+
+interface CustomCheckboxProps {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  description: string;
+}
+
+const CustomCheckbox: React.FC<CustomCheckboxProps> = ({ checked, onChange, label, description }) => {
+  return (
+    <label className="group flex items-center gap-3.5 p-3.5 bg-white/[0.04] hover:bg-white/[0.07] rounded-2xl cursor-pointer transition-all duration-150 border border-white/[0.04] hover:border-white/10 select-none">
+      <div className="relative flex items-center justify-center shrink-0">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          className="sr-only"
+        />
+        <div
+          className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all duration-200 ${
+            checked
+              ? 'bg-indigo-600 border border-indigo-500 shadow-sm shadow-indigo-600/30 text-white'
+              : 'bg-white/[0.05] border border-white/20 group-hover:border-white/40 text-transparent'
+          }`}
+        >
+          <span
+            className={`material-symbols-outlined text-[15px] font-bold leading-none transition-transform duration-150 ${
+              checked ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
+            }`}
+          >
+            check
+          </span>
+        </div>
+      </div>
+      <div className="flex flex-col flex-1 min-w-0">
+        <span className="text-sm font-medium text-white group-hover:text-indigo-200 transition-colors">
+          {label}
+        </span>
+        <span className="text-xs text-gray-400">
+          {description}
+        </span>
+      </div>
+    </label>
+  );
+};
+
+export const InstallerWizard: React.FC<InstallerWizardProps> = ({ previewMode = false, onClose }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [targetDir, setTargetDir] = useState<string>('');
   const [desktopShortcut, setDesktopShortcut] = useState<boolean>(true);
@@ -29,6 +79,8 @@ export const InstallerWizard: React.FC = () => {
       window.electronAPI.installerGetDefaultPath().then((defaultPath: string) => {
         if (defaultPath) setTargetDir(defaultPath);
       });
+    } else if (previewMode) {
+      setTargetDir('C:\\Program Files\\IADonkey');
     }
 
     if (window.electronAPI?.onInstallerProgress) {
@@ -37,9 +89,12 @@ export const InstallerWizard: React.FC = () => {
       });
       return () => unsubscribe();
     }
-  }, []);
+  }, [previewMode]);
 
   const handleBrowseFolder = async () => {
+    if (previewMode) {
+      return;
+    }
     if (!window.electronAPI?.installerBrowseFolder) return;
     const selected = await window.electronAPI.installerBrowseFolder(targetDir);
     if (selected) {
@@ -51,6 +106,20 @@ export const InstallerWizard: React.FC = () => {
     setStep(3);
     setInstallError(null);
     setInstallProgress({ percent: 5, phase: 'Zahajuji instalaci...', detail: 'Příprava složek' });
+
+    if (previewMode) {
+      // Simulation for preview mode without executing real install
+      for (let i = 15; i <= 100; i += 15) {
+        await new Promise((r) => setTimeout(r, 220));
+        setInstallProgress({
+          percent: i,
+          phase: i < 50 ? 'Příprava a simulace souborů (náhled)' : i < 85 ? 'Kopírování součástí (náhled)' : 'Dokončování instalace (náhled)',
+          detail: `Simulace kroku ${i}% (žádné systémové změny)`,
+        });
+      }
+      setStep(4);
+      return;
+    }
 
     try {
       if (window.electronAPI?.installerPerformInstall) {
@@ -84,6 +153,11 @@ export const InstallerWizard: React.FC = () => {
   };
 
   const handleFinish = () => {
+    if (previewMode) {
+      if (onClose) onClose();
+      else window.close();
+      return;
+    }
     if (window.electronAPI?.installerLaunchAndFinish) {
       window.electronAPI.installerLaunchAndFinish(targetDir, runOnFinish);
     } else {
@@ -92,10 +166,15 @@ export const InstallerWizard: React.FC = () => {
   };
 
   const handleMinimize = () => {
+    if (previewMode) return;
     window.electronAPI?.minimizeWindow?.();
   };
 
   const handleClose = () => {
+    if (previewMode && onClose) {
+      onClose();
+      return;
+    }
     window.electronAPI?.closeWindow?.() || window.close();
   };
 
@@ -107,10 +186,42 @@ export const InstallerWizard: React.FC = () => {
   ] as const;
 
   return (
-    <div className="w-screen h-screen bg-[#14151b] text-gray-200 flex flex-col select-none overflow-hidden font-sans rounded-[28px] shadow-2xl">
+    <div className="installer-wizard-isolated w-full h-full bg-[#121319] text-gray-200 flex flex-col select-none overflow-hidden font-sans rounded-[28px] shadow-2xl relative">
+      {/* Scoped CSS reset to guarantee pristine default Indigo colors in preview/simulation mode */}
+      <style>{`
+        .installer-wizard-isolated .bg-indigo-600 {
+          background-color: #4f46e5 !important;
+        }
+        .installer-wizard-isolated .bg-indigo-500 {
+          background-color: #6366f1 !important;
+        }
+        .installer-wizard-isolated .hover\\:bg-indigo-500:hover,
+        .installer-wizard-isolated .hover\\:bg-indigo-600:hover {
+          background-color: #4338ca !important;
+        }
+        .installer-wizard-isolated .text-indigo-400 {
+          color: #818cf8 !important;
+        }
+        .installer-wizard-isolated .text-indigo-300 {
+          color: #a5b4fc !important;
+        }
+        .installer-wizard-isolated .text-indigo-200 {
+          color: #c7d2fe !important;
+        }
+        .installer-wizard-isolated .border-indigo-500,
+        .installer-wizard-isolated .border-indigo-600 {
+          border-color: #6366f1 !important;
+        }
+        .installer-wizard-isolated .bg-indigo-500\\/10,
+        .installer-wizard-isolated .bg-indigo-500\\/15,
+        .installer-wizard-isolated .bg-indigo-500\\/20 {
+          background-color: rgba(99, 102, 241, 0.15) !important;
+        }
+      `}</style>
+
       {/* 1. TOP FULL-WIDTH HEADER WITH MINIATURE IADONKEY ICON */}
       <div
-        className="h-11 w-full bg-[#12131c] flex items-center justify-between px-5 flex-shrink-0"
+        className="h-11 w-full bg-[#121319] flex items-center justify-between px-5 flex-shrink-0"
         style={{ WebkitAppRegion: 'drag' } as any}
       >
         <div className="flex items-center gap-2.5">
@@ -118,6 +229,11 @@ export const InstallerWizard: React.FC = () => {
           <span className="text-xs font-semibold text-gray-300 tracking-wide">
             IADonkey – Průvodce instalací
           </span>
+          {previewMode && (
+            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold tracking-wider">
+              NÁHLED / TEST
+            </span>
+          )}
         </div>
 
         {/* Window control buttons */}
@@ -144,7 +260,7 @@ export const InstallerWizard: React.FC = () => {
       {/* 2. MIDDLE AREA (SIDEBAR + MAIN CONTENT) */}
       <div className="flex-1 flex overflow-hidden">
         {/* LEFT SIDEBAR: Branding and Steps */}
-        <div className="w-72 bg-[#12131c] flex flex-col justify-start p-6 flex-shrink-0 space-y-8">
+        <div className="w-72 bg-[#121319] flex flex-col justify-start p-6 flex-shrink-0 space-y-8">
           {/* Top Header in Sidebar with official IADonkey icon */}
           <div>
             <div className="flex items-center gap-3">
@@ -167,7 +283,7 @@ export const InstallerWizard: React.FC = () => {
             </div>
           </div>
 
-          {/* Vertical Steps List - larger spacing, larger fonts, no glow, no connecting line */}
+          {/* Vertical Steps List: Current = outline primary, Completed = full primary */}
           <div className="space-y-7 py-2">
             {STEPS.map((s) => {
               const isCompleted = step > s.num;
@@ -175,24 +291,24 @@ export const InstallerWizard: React.FC = () => {
 
               return (
                 <div key={s.num} className="relative flex items-center gap-3.5">
-                  {/* Step Circle Indicator - clean solid look without glow effect */}
+                  {/* Step Circle Indicator */}
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-200 flex-shrink-0 ${
                       isCompleted
-                        ? 'bg-emerald-500 text-white shadow-sm'
+                        ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/35 font-bold shadow-sm'
                         : isCurrent
-                        ? 'bg-indigo-600 text-white font-bold'
-                        : 'bg-white/5 text-gray-400'
+                        ? 'border-2 border-indigo-500 bg-indigo-500/15 text-indigo-300 font-bold'
+                        : 'border border-white/10 bg-white/[0.03] text-gray-500'
                     }`}
                   >
                     {isCompleted ? (
-                      <span className="material-symbols-outlined text-base font-bold">check</span>
+                      <span className="material-symbols-outlined text-base font-bold text-indigo-300">check</span>
                     ) : (
                       s.num
                     )}
                   </div>
 
-                  {/* Step Text Label - enlarged typography */}
+                  {/* Step Text Label */}
                   <div className="flex flex-col">
                     <span
                       className={`text-sm font-semibold transition-colors ${
@@ -200,12 +316,14 @@ export const InstallerWizard: React.FC = () => {
                           ? 'text-white'
                           : isCompleted
                           ? 'text-gray-200'
-                          : 'text-gray-400'
+                          : 'text-gray-500'
                       }`}
                     >
                       {s.label}
                     </span>
-                    <span className="text-xs text-gray-400 leading-tight mt-0.5">{s.desc}</span>
+                    <span className={`text-xs leading-tight mt-0.5 ${isCurrent ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {s.desc}
+                    </span>
                   </div>
                 </div>
               );
@@ -213,8 +331,8 @@ export const InstallerWizard: React.FC = () => {
           </div>
         </div>
 
-        {/* RIGHT MAIN CONTENT AREA */}
-        <div className="flex-1 bg-[#181926] p-8 overflow-y-auto space-y-6">
+        {/* RIGHT MAIN CONTENT AREA - Unified background with the rest of app */}
+        <div className="flex-1 bg-[#121319] p-8 overflow-y-auto space-y-6">
           {/* STEP 1: ÚVOD / VÍTEJTE */}
           {step === 1 && (
             <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
@@ -227,32 +345,26 @@ export const InstallerWizard: React.FC = () => {
                 </p>
               </div>
 
-              {/* Informative feature card with larger text and icons */}
-              <div className="bg-white/[0.03] rounded-2xl p-5 space-y-4">
+              {/* Informative feature items - Clean list without wrapping box */}
+              <div className="space-y-3">
                 <p className="text-sm font-semibold text-gray-200 flex items-center gap-2">
                   <span className="material-symbols-outlined text-indigo-400 text-lg">auto_awesome</span>
                   Co vám IADonkey přináší:
                 </p>
-                <div className="grid grid-cols-1 gap-3 text-sm text-gray-300">
-                  <div className="flex items-center gap-3 p-3 bg-white/[0.03] rounded-2xl">
-                    <span className="material-symbols-outlined text-emerald-400 text-lg flex-shrink-0">search</span>
+                <div className="grid grid-cols-1 gap-2.5 text-sm text-gray-300">
+                  <div className="flex items-center gap-3 p-3.5 bg-white/[0.04] rounded-2xl border border-white/[0.04]">
+                    <span className="material-symbols-outlined text-indigo-400 text-lg flex-shrink-0">search</span>
                     <span>Bleskové vyhledávání souborů, repozitářů, požadavků a nástrojů klávesou Ctrl+Alt+Space</span>
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-white/[0.03] rounded-2xl">
+                  <div className="flex items-center gap-3 p-3.5 bg-white/[0.04] rounded-2xl border border-white/[0.04]">
                     <span className="material-symbols-outlined text-indigo-400 text-lg flex-shrink-0">integration_instructions</span>
-                    <span>Přímá integrace s VS Code, Android Studio, GitHubem a helpdeskem MLog</span>
+                    <span>Přímá integrace s VS Code, Android Studio a GitHubem</span>
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-white/[0.03] rounded-2xl">
-                    <span className="material-symbols-outlined text-purple-400 text-lg flex-shrink-0">bolt</span>
-                    <span>Bleskové In-App aktualizace na pozadí bez zdržujících instalačních oken</span>
+                  <div className="flex items-center gap-3 p-3.5 bg-white/[0.04] rounded-2xl border border-white/[0.04]">
+                    <span className="material-symbols-outlined text-indigo-400 text-lg flex-shrink-0">widgets</span>
+                    <span>Integrované IADonkey Tools: chytrá schránka historie kopírování, snímky obrazovky, pravítko, kapátko barev i denní plánování</span>
                   </div>
                 </div>
-              </div>
-
-              {/* Info bubble with larger text and icon */}
-              <div className="flex items-center gap-3 p-4 bg-indigo-500/10 rounded-2xl text-sm text-indigo-200">
-                <span className="material-symbols-outlined text-lg text-indigo-400 flex-shrink-0">info</span>
-                <span>Instalace se provádí do vašeho uživatelského profilu bez nutnosti administrátorských práv.</span>
               </div>
             </div>
           )}
@@ -285,54 +397,36 @@ export const InstallerWizard: React.FC = () => {
                     onClick={handleBrowseFolder}
                     className="px-5 py-2.5 text-sm font-semibold text-white bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer flex items-center gap-1.5 flex-shrink-0"
                   >
-                    <span className="material-symbols-outlined text-base">drive_file_move</span>
+                    <span className="material-symbols-outlined text-base text-indigo-400">drive_file_move</span>
                     Procházet...
                   </button>
                 </div>
               </div>
 
-              {/* Checkboxes List with larger fonts and icons */}
+              {/* Checkboxes List with custom UI checkboxes */}
               <div className="space-y-3 pt-2">
                 <p className="text-sm font-semibold text-gray-200">Zástupci a spouštění:</p>
 
-                <label className="flex items-center gap-3 p-3.5 bg-white/[0.03] hover:bg-white/[0.05] rounded-2xl cursor-pointer transition">
-                  <input
-                    type="checkbox"
-                    checked={desktopShortcut}
-                    onChange={(e) => setDesktopShortcut(e.target.checked)}
-                    className="w-4.5 h-4.5 rounded border-gray-700 text-indigo-600 focus:ring-indigo-500 bg-black/40 cursor-pointer"
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-white">Vytvořit zástupce na Ploše</span>
-                    <span className="text-xs text-gray-400">Rychlý přístup přímo z vaší pracovní plochy</span>
-                  </div>
-                </label>
+                <CustomCheckbox
+                  checked={desktopShortcut}
+                  onChange={setDesktopShortcut}
+                  label="Vytvořit zástupce na Ploše"
+                  description="Rychlý přístup přímo z vaší pracovní plochy"
+                />
 
-                <label className="flex items-center gap-3 p-3.5 bg-white/[0.03] hover:bg-white/[0.05] rounded-2xl cursor-pointer transition">
-                  <input
-                    type="checkbox"
-                    checked={startMenuShortcut}
-                    onChange={(e) => setStartMenuShortcut(e.target.checked)}
-                    className="w-4.5 h-4.5 rounded border-gray-700 text-indigo-600 focus:ring-indigo-500 bg-black/40 cursor-pointer"
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-white">Vytvořit zástupce v nabídce Start</span>
-                    <span className="text-xs text-gray-400">Snadné spuštění přes vyhledávání v systému Windows</span>
-                  </div>
-                </label>
+                <CustomCheckbox
+                  checked={startMenuShortcut}
+                  onChange={setStartMenuShortcut}
+                  label="Vytvořit zástupce v nabídce Start"
+                  description="Snadné spuštění přes vyhledávání v systému Windows"
+                />
 
-                <label className="flex items-center gap-3 p-3.5 bg-white/[0.03] hover:bg-white/[0.05] rounded-2xl cursor-pointer transition">
-                  <input
-                    type="checkbox"
-                    checked={autoStart}
-                    onChange={(e) => setAutoStart(e.target.checked)}
-                    className="w-4.5 h-4.5 rounded border-gray-700 text-indigo-600 focus:ring-indigo-500 bg-black/40 cursor-pointer"
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-white">Spouštět automaticky při startu Windows</span>
-                    <span className="text-xs text-gray-400">IADonkey bude ihned k dispozici na klávesovou zkratku</span>
-                  </div>
-                </label>
+                <CustomCheckbox
+                  checked={autoStart}
+                  onChange={setAutoStart}
+                  label="Spouštět automaticky při startu Windows"
+                  description="IADonkey bude ihned k dispozici na klávesovou zkratku"
+                />
               </div>
             </div>
           )}
@@ -348,7 +442,7 @@ export const InstallerWizard: React.FC = () => {
               </div>
 
               {/* Progress Bar Container */}
-              <div className="bg-white/[0.03] rounded-2xl p-6 space-y-4">
+              <div className="bg-white/[0.04] border border-white/[0.04] rounded-2xl p-6 space-y-4">
                 <div className="w-full bg-black/50 h-3.5 rounded-full overflow-hidden p-0.5">
                   <div
                     className="h-full bg-indigo-500 rounded-full transition-all duration-300 ease-out flex items-center justify-end"
@@ -365,7 +459,7 @@ export const InstallerWizard: React.FC = () => {
               </div>
 
               {installError ? (
-                <div className="p-4 bg-rose-500/10 rounded-2xl text-sm text-rose-300 flex items-center gap-3">
+                <div className="p-4 bg-rose-500/10 rounded-2xl text-sm text-rose-300 flex items-center gap-3 border border-rose-500/20">
                   <span className="material-symbols-outlined text-rose-400 text-xl flex-shrink-0">error</span>
                   <span>{installError}</span>
                 </div>
@@ -395,26 +489,14 @@ export const InstallerWizard: React.FC = () => {
               </div>
 
               {/* Run Application Checkbox Card */}
-              <div className="bg-white/[0.03] rounded-2xl p-5">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={runOnFinish}
-                    onChange={(e) => setRunOnFinish(e.target.checked)}
-                    className="w-4.5 h-4.5 rounded border-gray-700 text-indigo-600 focus:ring-indigo-500 bg-black/40 cursor-pointer"
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-semibold text-white">
-                      Spustit aplikaci IADonkey nyní
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      Otevře vyhledávací okno a umístí ikonu do systémové lišty
-                    </span>
-                  </div>
-                </label>
-              </div>
+              <CustomCheckbox
+                checked={runOnFinish}
+                onChange={setRunOnFinish}
+                label="Spustit aplikaci IADonkey nyní"
+                description="Otevře vyhledávací okno a umístí ikonu do systémové lišty"
+              />
 
-              <div className="p-4 bg-white/[0.03] rounded-2xl text-sm text-gray-300 flex items-center gap-3">
+              <div className="p-4 bg-white/[0.04] border border-white/[0.04] rounded-2xl text-sm text-gray-300 flex items-center gap-3">
                 <span className="material-symbols-outlined text-indigo-400 text-lg flex-shrink-0">keyboard</span>
                 <span>Aplikaci můžete kdykoliv vyvolat klávesovou zkratkou <kbd className="px-2.5 py-0.5 bg-white/10 rounded-full font-mono text-white text-xs">Ctrl+Alt+Space</kbd></span>
               </div>
@@ -424,8 +506,8 @@ export const InstallerWizard: React.FC = () => {
       </div>
 
       {/* 3. FULL-WIDTH FIXED BOTTOM ACTION FOOTER */}
-      <div className="h-16 w-full bg-[#12131c] flex items-center justify-between px-6 flex-shrink-0">
-        {/* Left side of footer: UAC indicator moved from left menu */}
+      <div className="h-16 w-full bg-[#121319] border-t border-white/[0.04] flex items-center justify-between px-6 flex-shrink-0">
+        {/* Left side of footer: UAC indicator */}
         <div className="text-xs text-gray-400 flex items-center gap-2.5">
           <span className="material-symbols-outlined text-base text-indigo-400">verified_user</span>
           <span>Instalace bez UAC práv</span>

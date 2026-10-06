@@ -187,6 +187,25 @@ export const PaletteBar: React.FC = () => {
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         setActiveSlot((prev) => (prev === null ? 0 : prev < 4 ? prev + 1 : 0));
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        const unselectedIndices = colorsRef.current
+          .map((c, i) => (c === null ? i : -1))
+          .filter((i) => i !== -1);
+        const targetList = unselectedIndices.length > 0 ? unselectedIndices : [0, 1, 2, 3, 4];
+
+        setActiveSlot((current) => {
+          if (current === null) {
+            return e.shiftKey ? targetList[targetList.length - 1] : targetList[0];
+          }
+          if (e.shiftKey) {
+            const prevs = targetList.filter((idx) => idx < current);
+            return prevs.length > 0 ? prevs[prevs.length - 1] : targetList[targetList.length - 1];
+          } else {
+            const nexts = targetList.filter((idx) => idx > current);
+            return nexts.length > 0 ? nexts[0] : targetList[0];
+          }
+        });
       } else if (e.key.toLowerCase() === 'c' || e.key === ' ') {
         if (activeSlotRef.current !== null) {
           e.preventDefault();
@@ -338,6 +357,10 @@ export const PaletteBar: React.FC = () => {
         {/* Shortcuts pill (Spotlight kbd badges, Unified h-8) */}
         <div className="h-8 flex items-center gap-1.5 px-2 text-[11px] text-gray-400 font-sans shrink-0 border-l border-white/10">
           <kbd className="h-[20px] px-2 bg-white/[0.08] text-gray-300 rounded-full font-mono text-[10px] leading-none flex items-center justify-center">
+            Tab
+          </kbd>
+          <span className="text-[11px] text-gray-300">další</span>
+          <kbd className="h-[20px] px-2 bg-white/[0.08] text-gray-300 rounded-full font-mono text-[10px] leading-none flex items-center justify-center ml-1">
             Space
           </kbd>
           <span className="text-[11px] text-gray-300">nabrat</span>

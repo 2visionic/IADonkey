@@ -122,6 +122,7 @@ export interface MagicPlanSettings {
   timelineCustomEnd?: string;
   showAllTasks?: boolean;
   compactDayView?: boolean;
+  worklogUrl?: string;
 }
 
 export interface PlanDayInfo {
@@ -141,6 +142,8 @@ export interface PlanTaskItem {
   userId: string;
   userName: string;
   totalHours: number;
+  estimatedHours?: number;
+  worklogHours?: number;
   isPinned: boolean;
   isSolved?: boolean;
   taskType: 'dev' | 'service' | 'other';

@@ -218,6 +218,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('window-maximize-changed', handler);
     return () => ipcRenderer.removeListener('window-maximize-changed', handler);
   },
+  onWindowSnapChanged: (callback: (snapState: 'left' | 'right' | null) => void) => {
+    const handler = (_event: any, snapState: any) => callback(snapState);
+    ipcRenderer.on('window-snap-changed', handler);
+    return () => ipcRenderer.removeListener('window-snap-changed', handler);
+  },
+  startWindowDrag: (data: {
+    screenX: number;
+    screenY: number;
+    gripRatioX: number;
+    gripOffsetY: number;
+    isMaximized: boolean;
+    allowMaximize?: boolean;
+  }): Promise<void> => ipcRenderer.invoke('start-window-drag', data),
+  moveWindowDrag: (data: {
+    screenX: number;
+    screenY: number;
+  }): Promise<{ snapZone: 'top' | 'left' | 'right' | null }> => ipcRenderer.invoke('move-window-drag', data),
+  endWindowDrag: (data: { screenX: number; screenY: number }): Promise<void> =>
+    ipcRenderer.invoke('end-window-drag', data),
 
   // Splash Screen API
   getSplashStatus: (): Promise<{ percent: number; text: string }> => ipcRenderer.invoke('get-splash-status'),

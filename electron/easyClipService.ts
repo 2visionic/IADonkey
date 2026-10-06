@@ -1,4 +1,4 @@
-import { app, clipboard as electronClipboard, nativeImage } from 'electron';
+import { app, clipboard as electronClipboard, nativeImage, ClipboardItem } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { EasyClipItem, AppConfig } from '../src/types';
@@ -87,7 +87,7 @@ export class EasyClipService {
       this.checkClipboard().catch((err) => {
         console.warn('[EasyClip] Polling error in checkClipboard:', err);
       });
-    }, 400);
+    }, 1200);
   }
 
   private stopMonitoring(): void {
@@ -97,113 +97,171 @@ export class EasyClipService {
     }
   }
 
+  private registerCapturedImage(img: Electron.NativeImage, existingBuf?: Buffer): boolean {
+    if (!img || img.isEmpty()) return false;
+    const size = img.getSize();
+    if (!size || size.width <= 0 || size.height <= 0) return false;
+
+    const buf = existingBuf || img.toPNG();
+    if (!buf || buf.length === 0) return false;
+
+    const hash = `${size.width}x${size.height}_${buf.length}_${buf.subarray(0, 32).toString('hex')}`;
+
+    const topItem = this.items[0];
+    const isSameAsTopImage =
+      topItem &&
+      topItem.type === 'image' &&
+      topItem.width === size.width &&
+      topItem.height === size.height &&
+      topItem.sizeBytes === buf.length;
+
+    if (!isSameAsTopImage && hash !== this.lastImageHash) {
+      this.lastImageHash = hash;
+      this.lastText = ''; // New image supersedes prior text
+
+      // Check if identical image already in history (by dimensions + size)
+      const existingIdx = this.items.findIndex(
+        (it) => it.type === 'image' && it.width === size.width && it.height === size.height && it.sizeBytes === buf.length
+      );
+
+      if (existingIdx >= 0) {
+        const [existing] = this.items.splice(existingIdx, 1);
+        existing.timestamp = Date.now();
+        this.items.unshift(existing);
+        this.saveToDisk();
+        this.notifyRenderer();
+        return true;
+      }
+
+      const id = `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const filePath = path.join(this.imagesDir, `${id}.png`);
+      try {
+        fs.writeFileSync(filePath, buf);
+      } catch (err) {
+        console.error('[EasyClip] Failed to write image to disk:', err);
+      }
+
+      // Create compact thumbnail for fast UI rendering
+      let thumbImg = img;
+      if (size.width > 240 || size.height > 240) {
+        const maxDim = 240;
+        const ratio = Math.min(maxDim / size.width, maxDim / size.height);
+        thumbImg = img.resize({
+          width: Math.max(1, Math.round(size.width * ratio)),
+          height: Math.max(1, Math.round(size.height * ratio)),
+        });
+      }
+      const dataUrl = thumbImg.toDataURL();
+
+      const newItem: EasyClipItem = {
+        id,
+        type: 'image',
+        filePath,
+        dataUrl,
+        width: size.width,
+        height: size.height,
+        sizeBytes: buf.length,
+        timestamp: Date.now(),
+      };
+
+      this.items.unshift(newItem);
+      this.pruneItems();
+      this.saveToDisk();
+      this.notifyRenderer();
+
+      console.log(`[EasyClip] Captured image (${newItem.width}x${newItem.height}, ${newItem.sizeBytes} B)`);
+      diagnosticsService.logAction({
+        type: 'action',
+        title: 'EasyClip: Zachycen nový obrázek ze schránky',
+        details: `Rozměry: ${newItem.width} × ${newItem.height} px (${Math.round((newItem.sizeBytes || 0) / 1024)} KB)`,
+        status: 'info',
+      });
+      return true;
+    } else if (isSameAsTopImage || hash === this.lastImageHash) {
+      // Clipboard still holds the current top image; don't fall through to check text
+      return true;
+    }
+    return false;
+  }
+
   private async checkClipboard(): Promise<void> {
     if (!this.isEnabled || this.isWritingToClipboard) return;
 
     try {
-      let formats: string[] = [];
+      // 1. Try reading image via modern Electron 44+ Async Clipboard API (ClipboardItem / Blob)
+      let foundImage = false;
       try {
-        const rawFormats = clipboard.availableFormats();
-        formats = (rawFormats instanceof Promise ? await rawFormats : rawFormats) || [];
-      } catch {
-        formats = [];
+        if (typeof clipboard.read === 'function') {
+          const rawItems = clipboard.read();
+          const clipItems = rawItems instanceof Promise ? await rawItems : rawItems;
+          if (Array.isArray(clipItems)) {
+            for (const cItem of clipItems) {
+              const types: string[] = cItem?.types || [];
+              const imgType = types.find((t: string) => t.startsWith('image/'));
+              if (imgType && typeof cItem.getType === 'function') {
+                const blob = await cItem.getType(imgType);
+                if (blob && blob.size > 0) {
+                  const arrBuf = await blob.arrayBuffer();
+                  const buf = Buffer.from(arrBuf);
+                  const img = nativeImage.createFromBuffer(buf);
+                  if (img && !img.isEmpty()) {
+                    if (this.registerCapturedImage(img, buf)) {
+                      return;
+                    }
+                    foundImage = true;
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (readErr) {
+        console.warn('[EasyClip] Error reading clipboard items:', readErr);
       }
 
-      // Check if image format is present in clipboard
-      const hasImageFormat = Array.isArray(formats) && formats.some((f: string) => {
-        const lower = String(f).toLowerCase();
-        return lower.includes('image') || lower.includes('dib') || lower.includes('bitmap');
-      });
-
-      // 1. Try reading image if image format detected
-      if (hasImageFormat) {
+      // 1b. Fallback for Electron < 44 where clipboard.readImage existed
+      if (!foundImage && typeof (clipboard as any).readImage === 'function') {
         try {
-          const rawImg = clipboard.readImage();
+          const rawImg = (clipboard as any).readImage();
           const img = rawImg instanceof Promise ? await rawImg : rawImg;
-          if (img && typeof img.isEmpty === 'function' && !img.isEmpty() && typeof img.getSize === 'function') {
-            const size = img.getSize();
-            if (size && size.width > 0 && size.height > 0 && typeof img.toPNG === 'function') {
-              const buf = img.toPNG();
-              const hash = `${size.width}x${size.height}_${buf.length}_${buf.subarray(0, 32).toString('hex')}`;
+          if (img && typeof img.isEmpty === 'function' && !img.isEmpty()) {
+            if (this.registerCapturedImage(img)) {
+              return;
+            }
+            foundImage = true;
+          }
+        } catch (imgErr) {
+          console.warn('[EasyClip] Error reading legacy image:', imgErr);
+        }
+      }
 
-              const topItem = this.items[0];
-              const isSameAsTopImage =
-                topItem &&
-                topItem.type === 'image' &&
-                topItem.width === size.width &&
-                topItem.height === size.height &&
-                topItem.sizeBytes === buf.length;
-
-              if (!isSameAsTopImage && hash !== this.lastImageHash) {
-                this.lastImageHash = hash;
-                this.lastText = ''; // New image supersedes prior text
-
-                // Check if identical image already in history (by dimensions + size)
-                const existingIdx = this.items.findIndex(
-                  (it) => it.type === 'image' && it.width === size.width && it.height === size.height && it.sizeBytes === buf.length
-                );
-
-                if (existingIdx >= 0) {
-                  const [existing] = this.items.splice(existingIdx, 1);
-                  existing.timestamp = Date.now();
-                  this.items.unshift(existing);
-                  this.saveToDisk();
-                  this.notifyRenderer();
-                  return;
-                }
-
-                const id = `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-                const filePath = path.join(this.imagesDir, `${id}.png`);
-                try {
-                  fs.writeFileSync(filePath, buf);
-                } catch (err) {
-                  console.error('[EasyClip] Failed to write image to disk:', err);
-                }
-
-                // Create compact thumbnail for fast UI rendering
-                let thumbImg = img;
-                if (size.width > 240 || size.height > 240) {
-                  const maxDim = 240;
-                  const ratio = Math.min(maxDim / size.width, maxDim / size.height);
-                  thumbImg = img.resize({
-                    width: Math.max(1, Math.round(size.width * ratio)),
-                    height: Math.max(1, Math.round(size.height * ratio)),
-                  });
-                }
-                const dataUrl = thumbImg.toDataURL();
-
-                const newItem: EasyClipItem = {
-                  id,
-                  type: 'image',
-                  filePath,
-                  dataUrl,
-                  width: size.width,
-                  height: size.height,
-                  sizeBytes: buf.length,
-                  timestamp: Date.now(),
-                };
-
-                this.items.unshift(newItem);
-                this.pruneItems();
-                this.saveToDisk();
-                this.notifyRenderer();
-
-                console.log(`[EasyClip] Captured image (${newItem.width}x${newItem.height}, ${newItem.sizeBytes} B)`);
-                diagnosticsService.logAction({
-                  type: 'action',
-                  title: 'EasyClip: Zachycen nový obrázek ze schránky',
-                  details: `Rozměry: ${newItem.width} × ${newItem.height} px (${Math.round((newItem.sizeBytes || 0) / 1024)} KB)`,
-                  status: 'info',
-                });
+      // 2. Try reading image file path if copied from Windows Explorer
+      try {
+        let filePathFromClip = '';
+        if (typeof (clipboard as any).read === 'function') {
+          try {
+            const rawPath = (clipboard as any).read('FileNameW');
+            if (typeof rawPath === 'string' && rawPath.trim()) {
+              filePathFromClip = rawPath.replace(/\0+$/, '').trim();
+            }
+          } catch {}
+        }
+        if (filePathFromClip && fs.existsSync(filePathFromClip)) {
+          const ext = path.extname(filePathFromClip).toLowerCase();
+          if (['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'].includes(ext)) {
+            const fileImg = nativeImage.createFromPath(filePathFromClip);
+            if (fileImg && !fileImg.isEmpty()) {
+              if (this.registerCapturedImage(fileImg)) {
                 return;
               }
             }
           }
-        } catch (imgErr) {
-          console.warn('[EasyClip] Error reading image:', imgErr);
         }
+      } catch (fileErr) {
+        console.warn('[EasyClip] Error reading image file from clipboard:', fileErr);
       }
 
+      // 3. Try reading text from clipboard
       let text = '';
       try {
         const raw = clipboard.readText();
@@ -284,14 +342,19 @@ export class EasyClipService {
   private notifyRenderer(): void {
     if (this.onItemsUpdatedCallback) {
       try {
-        this.onItemsUpdatedCallback(this.getItems());
+        this.onItemsUpdatedCallback([...this.items]);
       } catch (err) {
         console.error('[EasyClip] Failed to notify renderer:', err);
       }
     }
   }
 
-  public getItems(): EasyClipItem[] {
+  public async getItems(): Promise<EasyClipItem[]> {
+    try {
+      await this.checkClipboard();
+    } catch (err) {
+      console.warn('[EasyClip] Failed to check clipboard on getItems:', err);
+    }
     return [...this.items];
   }
 
@@ -310,10 +373,18 @@ export class EasyClipService {
         }
 
         if (nativeImg && !nativeImg.isEmpty()) {
-          const res = clipboard.writeImage(nativeImg);
-          if (res instanceof Promise) await res;
           const size = nativeImg.getSize();
           const buf = nativeImg.toPNG();
+
+          if (typeof ClipboardItem !== 'undefined' && typeof clipboard.write === 'function') {
+            const blob = new Blob([new Uint8Array(buf)], { type: 'image/png' });
+            const cItem = new ClipboardItem({ 'image/png': blob });
+            await clipboard.write([cItem]);
+          } else if (typeof (clipboard as any).writeImage === 'function') {
+            const res = (clipboard as any).writeImage(nativeImg);
+            if (res instanceof Promise) await res;
+          }
+
           this.lastImageHash = `${size.width}x${size.height}_${buf.length}_${buf.subarray(0, 32).toString('hex')}`;
           this.lastText = '';
 

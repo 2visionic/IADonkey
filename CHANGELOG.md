@@ -4,6 +4,16 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.3] - 6. 10. 2026
+### MagicPlan přehled přesahů a hodin, vizuální vyladění karet a tiché OAuth klonování
+- **MagicPlan – Přesahy a přesný poměr hodin (`2h/1h`)**: V kartách úkolů na nástěnce i v Seznamu se u úkolů překračujících plán zobrazují hodiny v oranžové barvě včetně poměru k původnímu plánu (např. `2h/1h`).
+- **MagicPlan – Čistá procenta bez znamének napříč všemi pohledy**: Všechna procenta přesahů na nástěnce, v denním i týdenním plánu, v přetékajících úkolech i v seznamu jsou uváděna jednotně bez znamének (`+`/`-`).
+- **MagicPlan – Přesný výpočet přesahu v týdenním plánu**: Opraven a zpřesněn výpočet procenta u rozpracovaných úkolů překračujících odhad v týdenní časové ose.
+- **MagicPlan – Pozice dílu a obarvení kontextového menu**: V kartách úkolů přesahujících do dalšího týdne je badge dílu (např. `2/2`) umístěn vlevo od avatara zpracovatele. Šipky pro posun uživatele nahoru a dolů v kontextovém menu časové osy mají primární barvu uživatele.
+- **MagicPlan – Vizuální ladění karet a stavů**: V denním plánu je u splněných úkolů zachována ikona typu s diskrétním indikátorem splnění, sjednocena opacita přesahu a opraven podkres zakončení.
+- **Nastavení – Komfortní šířka okna**: Výchozí šířka okna Nastavení byla rozšířena na 1100 px pro pohodlné zobrazení a navigaci v kartách.
+- **GitHub OAuth klonování bez vyskakovacích oken**: Přímé předání GitHub tokenu do procesu klonování repozitářů, které spolehlivě zabraňuje otevírání externího Git Credential Manageru.
+
 ## [2.1.2] - 4. 10. 2026
 ### MagicPlan inline správa osob a kontextové menu, kompaktní režim, sjednocení přepínačů a vyladění Nastavení
 - **MagicPlan – Inline správa osob a kontextové menu v timeline**: Možnost přidávat i odebírat osoby přímo v časové ose, kontextové menu pro posun uživatelů nahoru/dolů, označení „To jsem já / To nejsem já“ a vymazání ukotvené bezprostředně u avataru s inteligentním otevíráním dle volného prostoru.

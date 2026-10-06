@@ -157,7 +157,7 @@ export const PaletteDetailModal: React.FC = () => {
   const filledCount = colors.filter(Boolean).length;
 
   return (
-    <div className="w-full h-full flex flex-col m3-surface-main text-gray-200 select-none overflow-hidden font-sans">
+    <div className="w-full h-full flex flex-col m3-surface-main rounded-none text-gray-200 select-none overflow-hidden font-sans">
       {/* Main Content (scrollable if window height is small, includes Header) */}
       <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5">
         {/* Header */}

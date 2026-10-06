@@ -122,6 +122,7 @@ export class WindowManager {
       x,
       y,
       icon: getAppIcon(),
+      title: 'IADonkey – Spotlight',
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -281,9 +282,9 @@ export class WindowManager {
       : path.join(__dirname, 'preload.js');
 
     this.settingsWindow = new BrowserWindow({
-      width: 960,
+      width: 1100,
       height: 820,
-      minWidth: 800,
+      minWidth: 860,
       minHeight: 660,
       title: 'IADonkey – Nastavení',
       icon: getAppIcon(),
@@ -784,6 +785,7 @@ export class WindowManager {
       y,
       width: barWidth,
       height: barHeight,
+      title: 'IADonkey – PaletteBar',
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -1042,6 +1044,7 @@ export class WindowManager {
       y: displayBounds.y,
       width: displayBounds.width,
       height: displayBounds.height,
+      title: 'IADonkey – QuickCap',
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -1139,6 +1142,7 @@ export class WindowManager {
       y: displayBounds.y,
       width: displayBounds.width,
       height: displayBounds.height - 1,
+      title: 'IADonkey – ScreenRuler',
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -1190,10 +1194,10 @@ export class WindowManager {
       : path.join(__dirname, 'preload.js');
 
     const win = new BrowserWindow({
-      width: 860,
-      height: 580,
-      minWidth: 800,
-      minHeight: 520,
+      width: 940,
+      height: 640,
+      minWidth: 880,
+      minHeight: 590,
       resizable: false,
       frame: false,
       transparent: true,

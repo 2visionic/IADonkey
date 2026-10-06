@@ -5,12 +5,26 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.2';
+export const CURRENT_APP_VERSION = '2.1.3';
 
 /**
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.3',
+    date: '6. 10. 2026',
+    title: 'MagicPlan přehled přesahů a hodin, vizuální vyladění karet a tiché OAuth klonování',
+    highlights: [
+      'MagicPlan – Přesahy a přesný poměr hodin (2h/1h): V kartách úkolů na nástěnce i v Seznamu se u úkolů překračujících plán zobrazují hodiny v oranžové barvě včetně poměru k původnímu plánu (např. 2h/1h).',
+      'MagicPlan – Čistá procenta bez znamének napříč všemi pohledy: Všechna procenta přesahů na nástěnce, v denním i týdenním plánu, v přetékajících úkolech i v seznamu jsou uváděna jednotně bez znamének.',
+      'MagicPlan – Přesný výpočet přesahu v týdenním plánu: Opraven a zpřesněn výpočet procenta u rozpracovaných úkolů překračujících odhad v týdenní časové ose.',
+      'MagicPlan – Pozice dílu a obarvení kontextového menu: V kartách úkolů přesahujících do dalšího týdne je badge dílu (např. 2/2) umístěn vlevo od avatara zpracovatele. Šipky pro posun uživatele nahoru a dolů v kontextovém menu časové osy mají primární barvu uživatele.',
+      'MagicPlan – Vizuální ladění karet a stavů: V denním plánu je u splněných úkolů zachována ikona typu s diskrétním indikátorem splnění, sjednocena opacita přesahu a opraven podkres zakončení.',
+      'Nastavení – Komfortní šířka okna: Výchozí šířka okna Nastavení byla rozšířena na 1100 px pro pohodlné zobrazení a navigaci v kartách.',
+      'GitHub OAuth klonování bez vyskakovacích oken: Přímé předání GitHub tokenu do procesu klonování repozitářů, které spolehlivě zabraňuje otevírání externího Git Credential Manageru.',
+    ],
+  },
   {
     version: '2.1.2',
     date: '4. 10. 2026',
@@ -530,7 +544,16 @@ export const CHANGELOG_HISTORY: VersionEntry[] = [
  * Zde se průběžně zapisují novinky pro budoucí verzi.
  * Po dokončení releasu se tyto položky přesunou přímo pod vydávanou verzi a toto pole se vyprázdní.
  */
-export const UPCOMING_CHANGELOG: string[] = [];
+export const UPCOMING_CHANGELOG: string[] = [
+  'Instalátor – Sjednocené pozadí a borderless styl: Sjednocení odstínu pozadí celého okna (#121319) napříč postranním panelem, obsahem, hlavičkou i patičkou; odstranění bočního i horního divideru pro čistý borderless vizuál se zachováním oddělovače patičky.',
+  'Instalátor – Zvětšení výšky okna: Zvětšení výchozí výšky instalačního okna i náhledu v Nastavení o 50 px (na 640 px) pro vyšší komfort zobrazení.',
+  'Instalátor – Moderní UI checkboxy: Náhrada systémových checkboxů za vyladěné komponenty s plynulými animacemi, zaoblenými rohy a indigo indikátorem výběru.',
+  'Okna s vlastní horní lištou – Odstranění horního zaoblení obsahu: Odstranění nechtěného horního border radiusu (28 px z třídy m3-surface-main) u obsahu a záhlaví navazujícího na WindowTitleBar. Vertikální posuvník (scrollbar) tak nyní u pravého okraje začíná přesně v rovině bez vizuálního vykousnutí nebo odskoku.',
+  'MagicPlan – Pozice ikony kritické priority na kartách úkolů: Na kartách úkolů (Nástěnka a přetékající úkoly pod plánem) byla ikona kritické priority přesunuta mezi název typu úkolu a čip zadavatele. Ikona a název typu požadavku tak zůstávají těsně u sebe a nevzniká nežádoucí zobrazení dvou ikon těsně za sebou.',
+  'MagicPlan – Integrace denních worklogů z MLogu (Logs.aspx): Automatické načítání reálně odpracovaných hodin pro dny od pondělí do dnešního dne. Reálný čas se sumarizuje a zaokrouhluje na celých 0,5 h; úkoly odpracované mimo plán se automaticky založí jako splněné. V časové ose se v minulých dnech servisy řadí na vyhrazené poslední 3 h (s přetékáním do dalších dnů a vzájemným doplňováním volného času s vývojem dle stanovených priorit).',
+  'MagicPlan – Podkresové zelené vyplnění šířky dle worklogu: U dosud nesplněných úkolů s vykázaným worklogem se pozadí karty proporcionálně podbarvuje zelenou barvou úspěchu podle procenta odpracování (např. 1 h ze 4 h = 25 % zeleně; u rozdělených dílů v timeline se procento počítá přesně na délku daného bloku, např. 1 h odpracováno v dílu 1/2 o délce 3 h z celkových 4 h = 33 % šířky).',
+  'MagicPlan – Zobrazení přepáleného času (červený podkres zprava): U hotových úkolů, kde reálný čas z worklogu přesáhl původní odhad z plánu (např. T792571: odhad 1 h, skutečnost 2 h), se rozdíl vizualizuje jako červený podkres z pravé strany karty (50 % červeně) a v záhlaví se zobrazí údaj o překročení (+50 %).',
+];
 
 export function getLatestRelease(): VersionEntry {
   return CHANGELOG_HISTORY[0];

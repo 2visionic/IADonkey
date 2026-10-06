@@ -21,6 +21,7 @@ import { notificationService } from './notificationService';
 import { easyClipService } from './easyClipService';
 import { pasteService } from './pasteService';
 import { MagicPlanService } from './magicPlanService';
+import { windowDragService } from './windowDragService';
 
 app.name = 'IADonkey';
 if (process.platform === 'win32') {
@@ -1595,8 +1596,10 @@ function setupIpcHandlers() {
       };
     }
     const sender = event.sender;
+    const githubToken = getActiveGitHubToken(config?.github);
     return runMultiRepoClone({
       ...params,
+      githubToken,
       onProgress: (data) => {
         if (!sender.isDestroyed()) {
           sender.send('magicgate-clone-progress', data);
@@ -1949,6 +1952,8 @@ function setupIpcHandlers() {
       return { success: false, targetPath: '', error: 'Chybí URL repozitáře nebo cílová složka.' };
     }
 
+    const githubToken = getActiveGitHubToken(config?.github);
+
     return new Promise((resolve) => {
       // Determine folder name from repository url
       const cleanUrl = repoUrl.trim().replace(/\.git$/i, '');
@@ -1956,7 +1961,21 @@ function setupIpcHandlers() {
       const repoName = parts[parts.length - 1] || 'repository';
       const targetPath = path.join(targetDir, repoName);
 
-      const args = ['clone'];
+      const authArgs: string[] = [];
+      if (githubToken) {
+        try {
+          const parsed = new URL(repoUrl);
+          if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+            const basicAuth = Buffer.from(`x-access-token:${githubToken}`).toString('base64');
+            const origin = `${parsed.protocol}//${parsed.host}`;
+            authArgs.push('-c', `http.${origin}/.extraheader=AUTHORIZATION: basic ${basicAuth}`);
+          }
+        } catch {
+          // Omit if invalid URL or SSH
+        }
+      }
+
+      const args = [...authArgs, 'clone'];
       if (recursive) {
         args.push('--recursive');
       }
@@ -1964,12 +1983,24 @@ function setupIpcHandlers() {
 
       const gitProcess = spawn('git', args, {
         cwd: targetDir,
-        shell: true,
+        shell: false,
         windowsHide: true,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
       });
 
       let stdout = '';
       let stderr = '';
+
+      const sanitizeOutput = (text: string) => {
+        if (!text) return text;
+        let res = text;
+        if (githubToken) {
+          res = res.split(githubToken).join('[REDACTED]');
+          const basicAuth = Buffer.from(`x-access-token:${githubToken}`).toString('base64');
+          res = res.split(basicAuth).join('[REDACTED]');
+        }
+        return res;
+      };
 
       gitProcess.stdout.on('data', (data) => {
         stdout += data.toString();
@@ -1981,7 +2012,7 @@ function setupIpcHandlers() {
 
       gitProcess.on('close', (code) => {
         if (code === 0) {
-          resolve({ success: true, targetPath, output: stdout });
+          resolve({ success: true, targetPath, output: sanitizeOutput(stdout) });
         } else {
           const combinedErr = stderr || stdout || `Příkaz git clone selhal s kódem ${code}`;
           const isAlreadyExists =
@@ -1999,7 +2030,7 @@ function setupIpcHandlers() {
             resolve({
               success: false,
               targetPath,
-              error: combinedErr,
+              error: sanitizeOutput(combinedErr),
             });
           }
         }
@@ -2009,7 +2040,7 @@ function setupIpcHandlers() {
         resolve({
           success: false,
           targetPath,
-          error: err.message || 'Nepodařilo se spustit příkaz git. Ujistěte se, že máte Git nainstalovaný a v systémové cestě PATH.',
+          error: sanitizeOutput(err.message) || 'Nepodařilo se spustit příkaz git. Ujistěte se, že máte Git nainstalovaný a v systémové cestě PATH.',
         });
       });
     });
@@ -2263,13 +2294,7 @@ function setupIpcHandlers() {
   ipcMain.handle('maximize-window', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return false;
-    if (win.isMaximized()) {
-      win.unmaximize();
-      return false;
-    } else {
-      win.maximize();
-      return true;
-    }
+    return windowDragService.handleMaximizeToggle(win);
   });
 
   ipcMain.handle('is-window-maximized', (event) => {
@@ -2696,6 +2721,7 @@ app.whenReady().then(async () => {
 
   const initialConfig = store.getConfig();
   notificationService.init(initialConfig);
+  windowDragService.init();
   diagnosticsService.setOnCrashCallback((action, error) => {
     const errorMsg = error instanceof Error ? error.message : String(error?.message || error || 'Neznámá chyba');
     notificationService.show({

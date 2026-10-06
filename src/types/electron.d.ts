@@ -176,6 +176,20 @@ declare global {
       isWindowMaximized?: () => Promise<boolean>;
       closeWindow?: () => Promise<void>;
       onWindowMaximizeChanged?: (callback: (isMaximized: boolean) => void) => () => void;
+      onWindowSnapChanged?: (callback: (snapState: 'left' | 'right' | null) => void) => () => void;
+      startWindowDrag?: (data: {
+        screenX: number;
+        screenY: number;
+        gripRatioX: number;
+        gripOffsetY: number;
+        isMaximized: boolean;
+        allowMaximize?: boolean;
+      }) => Promise<void>;
+      moveWindowDrag?: (data: {
+        screenX: number;
+        screenY: number;
+      }) => Promise<{ snapZone: 'top' | 'left' | 'right' | null }>;
+      endWindowDrag?: (data: { screenX: number; screenY: number }) => Promise<void>;
 
       // Splash Screen API
       getSplashStatus?: () => Promise<{ percent: number; text: string }>;

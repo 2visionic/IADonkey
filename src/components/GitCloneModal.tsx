@@ -821,7 +821,7 @@ export const GitCloneModal: React.FC<GitCloneModalProps> = ({
 
   if (isStandaloneWindow) {
     return (
-      <main className="w-full h-full m3-surface-main text-gray-200 flex flex-col justify-between select-none overflow-hidden font-sans">
+      <main className="w-full h-full m3-surface-main rounded-none text-gray-200 flex flex-col justify-between select-none overflow-hidden font-sans">
         {content}
       </main>
     );

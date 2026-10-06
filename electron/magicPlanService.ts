@@ -37,6 +37,26 @@ function normalizeStr(str: string): string {
     .trim();
 }
 
+function matchesPersonName(planNameOrClean: string, worklogName: string): boolean {
+  if (!planNameOrClean || !worklogName) return false;
+  const pNorm = normalizeStr(planNameOrClean);
+  const wNorm = normalizeStr(worklogName);
+  if (pNorm === wNorm || pNorm.includes(wNorm) || wNorm.includes(pNorm)) return true;
+  const pTokens = pNorm.split(/\s+/).filter(Boolean).sort().join(' ');
+  const wTokens = wNorm.split(/\s+/).filter(Boolean).sort().join(' ');
+  return pTokens === wTokens;
+}
+
+interface WorklogParsedItem {
+  reqId: string;
+  taskId: string;
+  title: string;
+  project: string;
+  isService: boolean;
+  isDev: boolean;
+  hours: number;
+}
+
 export interface MagicPlanQueryLog {
   id: string;
   timestamp: string;
@@ -359,7 +379,8 @@ export class MagicPlanService {
       ? config.magicplan.userColumns.map((u) => u.trim()).filter(Boolean)
       : (config.magicplan?.userColumn?.trim() ? [config.magicplan.userColumn.trim()] : []);
 
-    const currentKey = JSON.stringify({ urls, users: userColumns });
+    const worklogUrl = config.magicplan?.worklogUrl ?? 'http://mlog/Logs.aspx';
+    const currentKey = JSON.stringify({ urls, users: userColumns, worklogUrl });
     // If user configuration changed from what was previously stored, clear old user data
     if (this.currentUserConfigKey && this.currentUserConfigKey !== currentKey) {
       this.clearData();
@@ -543,6 +564,29 @@ export class MagicPlanService {
         throw new Error('Nelze se připojit k žádné ze zadaných URL adres plánu.');
       }
 
+      // 2b. Fetch and integrate worklogs from MLog Logs.aspx
+      const worklogBase = planConfig.worklogUrl !== undefined
+        ? planConfig.worklogUrl.trim()
+        : 'http://mlog/Logs.aspx';
+
+      if (worklogBase && combinedDays.length > 0) {
+        try {
+          await this.fetchAndApplyWorklogs(
+            worklogBase,
+            combinedDays,
+            allMyTasks,
+            allAvailablePersons,
+            userColumns,
+            linkWithTaskManager,
+            mlogBaseUrl,
+            mlogTaskPrefix,
+            mlogRequestPrefix
+          );
+        } catch (wlErr: any) {
+          console.warn('[MagicPlan] Chyba načtení worklogu:', wlErr?.message || wlErr);
+        }
+      }
+
       allAvailablePersons.sort((a, b) => (a.name || a.id || '').localeCompare(b.name || b.id || '', 'cs'));
       const myTasks = this.deduplicateTasks(allMyTasks);
       const unassignedTasks = this.deduplicateTasks(allUnassignedTasks);
@@ -639,7 +683,9 @@ export class MagicPlanService {
    * Fetches HTML from internal URL using Chromium net.fetch with NTLM credentials,
    * falling back to Windows PowerShell Invoke-WebRequest if needed.
    */
-  private async fetchHtmlWithCredentials(url: string): Promise<string> {
+  private async fetchHtmlWithCredentials(url: string, validator?: (html: string) => boolean): Promise<string> {
+    const isValid = validator || ((text: string) => Boolean(text && (text.includes('class="plan"') || text.includes('TitleHeading') || text.includes('Denní přehled MLog') || text.includes('<table'))));
+
     // 1. Try Chromium net.fetch (handles Windows Integrated Authentication natively)
     try {
       const response = await net.fetch(url, {
@@ -653,7 +699,7 @@ export class MagicPlanService {
 
       if (response.ok) {
         const text = await response.text();
-        if (text && text.includes('class="plan"')) {
+        if (text && isValid(text)) {
           return text;
         }
       }
@@ -669,7 +715,7 @@ export class MagicPlanService {
         timeout: 10000,
         encoding: 'utf-8',
       });
-      if (curlOut && curlOut.includes('class="plan"')) {
+      if (curlOut && isValid(curlOut)) {
         return curlOut;
       }
     } catch (err) {
@@ -687,11 +733,283 @@ export class MagicPlanService {
       throw new Error(`PowerShell fetch failed: ${stderr}`);
     }
 
-    if (!stdout || !stdout.includes('class="plan"')) {
-      throw new Error('Server vrátil neúplná nebo prázdná data plánu');
+    if (!stdout || !isValid(stdout)) {
+      throw new Error('Server vrátil neúplná nebo prázdná data');
     }
 
     return stdout;
+  }
+
+  /**
+   * Parses worklog entries from MLog Logs.aspx HTML
+   */
+  private parseWorklogHtml(html: string): Map<string, WorklogParsedItem[]> {
+    const result = new Map<string, WorklogParsedItem[]>();
+    if (!html) return result;
+
+    const userSections = html.split(/<h1[^>]*>/i);
+    for (let i = 1; i < userSections.length; i++) {
+      const sec = userSections[i];
+      const nameMatch = sec.match(/^([^<]+)<\/h1>/i);
+      if (!nameMatch) continue;
+      const userName = decodeHtmlEntities(nameMatch[1]).trim();
+      if (!userName || userName.toLowerCase().includes('denní přehled')) continue;
+
+      const tableMatch = sec.match(/<table[^>]*>([\s\S]*?)<\/table>/i);
+      if (!tableMatch) continue;
+
+      const trMatches = tableMatch[1].match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+      const userTasks: WorklogParsedItem[] = [];
+
+      for (let r = 1; r < trMatches.length - 1; r += 2) {
+        const tr1 = trMatches[r];
+        const tr2 = trMatches[r + 1];
+        if (!tr1 || !tr2) break;
+
+        const isService = /class=["'][^"']*service[^"']*["']/i.test(tr1);
+        const isDev = /class=["'][^"']*dev[^"']*["']/i.test(tr1);
+
+        const rMatch = tr1.match(/mlog:\/\/(R\d+)/i) || tr1.match(/>(R\d+)<\/a>/i);
+        const reqId = rMatch ? rMatch[1] : '';
+
+        const strongMatch = tr1.match(/<strong[^>]*>([\s\S]*?)<\/strong>/i);
+        const title = strongMatch ? decodeHtmlEntities(strongMatch[1].replace(/<[^>]+>/g, '')).trim() : '';
+
+        const projMatch = tr1.match(/<\/strong>\s*-\s*([^<]+)/i);
+        const project = projMatch ? decodeHtmlEntities(projMatch[1]).trim() : '';
+
+        const tdMatches2 = tr2.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [];
+        let hours = 0;
+        if (tdMatches2.length >= 2) {
+          const hText = tdMatches2[1].replace(/<[^>]+>/g, '').replace('h', '').replace(',', '.').trim();
+          hours = parseFloat(hText) || 0;
+        }
+
+        const tMatch = tr2.match(/mlog:\/\/(T\d+)/i) || tr2.match(/\((T\d+)\)/i);
+        const taskId = tMatch ? tMatch[1] : '';
+
+        userTasks.push({ reqId, taskId, title, project, isService, isDev, hours });
+      }
+
+      if (userTasks.length > 0) {
+        result.set(userName, userTasks);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Fetches worklogs from Logs.aspx for days from Monday to current day,
+   * aggregates hours per person and task, rounds to 0.5h, and reconciles with allMyTasks.
+   */
+  private async fetchAndApplyWorklogs(
+    worklogBaseUrl: string,
+    combinedDays: PlanDayInfo[],
+    allMyTasks: PlanTaskItem[],
+    allAvailablePersons: PlanPersonInfo[],
+    userColumns: string[] = [],
+    linkWithTaskManager: boolean = true,
+    mlogBaseUrl?: string,
+    mlogTaskPrefix: string = 'T',
+    mlogRequestPrefix: string = 'R'
+  ): Promise<void> {
+    if (!worklogBaseUrl || combinedDays.length === 0) return;
+
+    const todayIdx = combinedDays.findIndex((d) => d.isToday);
+    const targetDays = (todayIdx >= 0 && todayIdx < 5)
+      ? combinedDays.slice(0, todayIdx + 1)
+      : combinedDays.slice(0, 5);
+
+    if (targetDays.length === 0) return;
+
+    const dailyResults = await Promise.all(
+      targetDays.map(async (day) => {
+        try {
+          const [y, m, dNum] = day.date.split('-');
+          const dateParam = `${dNum}.${m}.${y}`;
+          const sep = worklogBaseUrl.includes('?') ? '&' : '?';
+          const url = `${worklogBaseUrl}${sep}Date=${dateParam}`;
+          const html = await this.fetchHtmlWithCredentials(url, (t) => Boolean(t && (t.includes('TitleHeading') || t.includes('table'))));
+          return { date: day.date, usersMap: this.parseWorklogHtml(html) };
+        } catch (err: any) {
+          console.warn(`[MagicPlan] Chyba načtení worklogu pro ${day.date}:`, err?.message || err);
+          return { date: day.date, usersMap: new Map<string, WorklogParsedItem[]>() };
+        }
+      })
+    );
+
+    // Aggregate worklog items across all days per person
+    const aggregatedByUser = new Map<string, Map<string, {
+      reqId: string;
+      taskId: string;
+      title: string;
+      project: string;
+      isService: boolean;
+      isDev: boolean;
+      totalRawHours: number;
+    }>>();
+
+    for (const dayRes of dailyResults) {
+      for (const [wUser, items] of dayRes.usersMap.entries()) {
+        let userTasksMap = aggregatedByUser.get(wUser);
+        if (!userTasksMap) {
+          userTasksMap = new Map();
+          aggregatedByUser.set(wUser, userTasksMap);
+        }
+
+        for (const item of items) {
+          const taskKey = item.taskId || item.reqId || item.title;
+          if (!taskKey) continue;
+
+          const existing = userTasksMap.get(taskKey);
+          if (!existing) {
+            userTasksMap.set(taskKey, {
+              reqId: item.reqId,
+              taskId: item.taskId,
+              title: item.title,
+              project: item.project,
+              isService: item.isService,
+              isDev: item.isDev,
+              totalRawHours: item.hours,
+            });
+          } else {
+            existing.totalRawHours += item.hours;
+            if (!existing.reqId && item.reqId) existing.reqId = item.reqId;
+            if (!existing.taskId && item.taskId) existing.taskId = item.taskId;
+            if (!existing.title && item.title) existing.title = item.title;
+            if (!existing.project && item.project) existing.project = item.project;
+            if (item.isService) existing.isService = true;
+          }
+        }
+      }
+    }
+
+    // Helper to verify if person is included in the plan / userColumns
+    const isUserMonitored = (wUser: string, person?: PlanPersonInfo): boolean => {
+      if (userColumns.length === 0) return true;
+
+      // 1. Direct check of wUser against userColumns
+      for (const uCol of userColumns) {
+        if (!uCol) continue;
+        if (matchesPersonName(uCol, wUser)) return true;
+        const normU = normalizeStr(uCol);
+        const normW = normalizeStr(wUser);
+        if (normU === normW || normW.includes(normU) || normU.includes(normW)) return true;
+      }
+
+      // 2. Check if matched person matches any userColumn
+      if (person) {
+        for (const uCol of userColumns) {
+          if (!uCol) continue;
+          const normU = normalizeStr(uCol);
+          if (person.id && normalizeStr(person.id) === normU) return true;
+          if (person.shortcut && normalizeStr(person.shortcut) === normU) return true;
+          if (person.name && (normalizeStr(person.name) === normU || matchesPersonName(person.name, uCol))) return true;
+          if (person.cleanName && (normalizeStr(person.cleanName) === normU || matchesPersonName(person.cleanName, uCol))) return true;
+        }
+      }
+
+      // 3. Check if any existing task in allMyTasks belongs to this user
+      if (allMyTasks.some((t) => {
+        if (person && t.userId && person.id && t.userId === person.id) return true;
+        return matchesPersonName(t.userName, wUser) || (person && (matchesPersonName(t.userName, person.name) || matchesPersonName(t.userName, person.cleanName || '')));
+      })) {
+        return true;
+      }
+
+      return false;
+    };
+
+    // Now reconcile with allMyTasks
+    for (const [wUser, taskMap] of aggregatedByUser.entries()) {
+      const matchedPerson = allAvailablePersons.find(
+        (p) =>
+          matchesPersonName(p.cleanName || '', wUser) ||
+          matchesPersonName(p.name || '', wUser)
+      );
+
+      // Strictly skip any persons that are not part of the monitored plan!
+      if (!isUserMonitored(wUser, matchedPerson)) {
+        continue;
+      }
+
+      for (const [, wTask] of taskMap.entries()) {
+        const roundedHours = Math.max(0.5, Math.round(wTask.totalRawHours * 2) / 2);
+
+        const existingTask = allMyTasks.find((t) => {
+          if (matchedPerson) {
+            const isUserMatch =
+              t.userId === matchedPerson.id ||
+              matchesPersonName(t.userName, matchedPerson.cleanName || matchedPerson.name) ||
+              matchesPersonName(t.userName, wUser);
+            if (!isUserMatch) return false;
+          } else {
+            if (!matchesPersonName(t.userName, wUser)) return false;
+          }
+
+          if (wTask.taskId && t.taskIdentifier && t.taskIdentifier.toUpperCase() === wTask.taskId.toUpperCase()) {
+            return true;
+          }
+          if (wTask.reqId && t.requirementId && t.requirementId.toUpperCase() === wTask.reqId.toUpperCase()) {
+            return true;
+          }
+          if (wTask.title && t.title && normalizeStr(t.title) === normalizeStr(wTask.title)) {
+            return true;
+          }
+          return false;
+        });
+
+        if (existingTask) {
+          const isTaskSolvedInPlan = Boolean(existingTask.isCompleted || existingTask.isSolved);
+          if (isTaskSolvedInPlan) {
+            existingTask.isCompleted = true;
+            existingTask.isSolved = true;
+            if (!existingTask.estimatedHours) {
+              existingTask.estimatedHours = existingTask.totalHours;
+            }
+            existingTask.totalHours = roundedHours;
+            existingTask.worklogHours = roundedHours;
+          } else {
+            // U nevyřešeného požadavku počítáme reálný worklog bez zaokrouhlování
+            existingTask.worklogHours = Math.round(wTask.totalRawHours * 100) / 100;
+          }
+          if (wTask.isService) existingTask.taskType = 'service';
+          else if (wTask.isDev) existingTask.taskType = 'dev';
+          if (!existingTask.project && wTask.project) existingTask.project = wTask.project;
+          if (!existingTask.title && wTask.title) existingTask.title = wTask.title;
+          if (!existingTask.requirementId && wTask.reqId) existingTask.requirementId = wTask.reqId;
+          if (!existingTask.taskIdentifier && wTask.taskId) existingTask.taskIdentifier = wTask.taskId;
+        } else {
+          const code = wTask.taskId || wTask.reqId || '';
+          let taskUrl = '';
+          if (linkWithTaskManager && mlogBaseUrl && code) {
+            const numOnly = code.replace(/\D/g, '');
+            const prefix = code.startsWith('T') ? mlogTaskPrefix : mlogRequestPrefix;
+            taskUrl = `${mlogBaseUrl.replace(/\/+$/, '')}/${prefix}${numOnly}`;
+          }
+
+          const newTask: PlanTaskItem = {
+            taskId: `wl-${wTask.taskId || wTask.reqId || Math.random().toString(36).slice(2, 8)}`,
+            requirementId: wTask.reqId || undefined,
+            taskIdentifier: wTask.taskId || undefined,
+            title: wTask.title || (wTask.reqId ? `${wTask.reqId}: Úkol z worklogu` : 'Úkol z worklogu'),
+            project: wTask.project || '',
+            userId: matchedPerson?.id || '',
+            userName: matchedPerson?.name || wUser,
+            totalHours: roundedHours,
+            worklogHours: roundedHours,
+            isPinned: false,
+            isSolved: true,
+            isCompleted: true,
+            taskType: wTask.isService ? 'service' : 'dev',
+            dates: targetDays.map((d) => d.date),
+            url: taskUrl || undefined,
+          };
+          allMyTasks.push(newTask);
+        }
+      }
+    }
   }
 
   /**
@@ -1153,6 +1471,7 @@ export class MagicPlanService {
         userId: userId || columnUserId || '',
         userName,
         totalHours,
+        estimatedHours: totalHours,
         isPinned: pinState === 'pinned',
         isSolved: classNames.includes('solved') || pinState === 'solved',
         taskType,
@@ -1238,6 +1557,9 @@ export class MagicPlanService {
         // Keep highest totalHours if slice had partial
         if (t.totalHours > existing.totalHours) {
           existing.totalHours = t.totalHours;
+        }
+        if (t.estimatedHours && (!existing.estimatedHours || t.estimatedHours > existing.estimatedHours)) {
+          existing.estimatedHours = t.estimatedHours;
         }
         if (typeof t.topPx === 'number') {
           if (typeof existing.topPx !== 'number' || t.topPx < existing.topPx) {

@@ -18,6 +18,10 @@ import {
 } from '../utils/colorMaster';
 import { applyPrimaryColor, applyActionsColor } from '../utils/theme';
 
+type PaletteListItem =
+  | { type: 'add' }
+  | { type: 'palette'; palette: ColorPalette };
+
 interface SearchSpotlightProps {
   items: LauncherItem[];
   mlogBaseUrl?: string;
@@ -485,11 +489,20 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     };
   }, []);
 
-  const filteredPalettes = useMemo(() => {
+  const paletteListItems = useMemo<PaletteListItem[]>(() => {
     if (!isPaletteMode) return [];
     const q = query.trim().toLowerCase();
-    if (!q) return palettes;
-    return palettes.filter((p) => p.name.toLowerCase().includes(q));
+    const matched = !q ? palettes : palettes.filter((p) => p.name.toLowerCase().includes(q));
+    const showAdd = !q || matched.length === 0;
+
+    const items: PaletteListItem[] = [];
+    if (showAdd) {
+      items.push({ type: 'add' });
+    }
+    for (const p of matched) {
+      items.push({ type: 'palette', palette: p });
+    }
+    return items;
   }, [isPaletteMode, query, palettes]);
 
   useEffect(() => {
@@ -508,7 +521,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
       if (item.type === 'image') {
         return (
-          'obrázek image foto screenshot snímek'.includes(q) ||
+          'obrázek image foto screenshot snímek výstřižek vystrizek vstrih clip'.includes(q) ||
           Boolean(item.width && item.height && `${item.width}x${item.height}`.includes(q))
         );
       }
@@ -2255,7 +2268,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
 
       // Palette list navigation
-      const totalPaletteItems = 1 + filteredPalettes.length;
+      const totalPaletteItems = paletteListItems.length;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setPaletteSelectedIndex((prev) => (totalPaletteItems > 0 ? (prev + 1) % totalPaletteItems : 0));
@@ -2264,11 +2277,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         setPaletteSelectedIndex((prev) => (totalPaletteItems > 0 ? (prev - 1 + totalPaletteItems) % totalPaletteItems : 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (paletteSelectedIndex === 0) {
+        const selectedItem = paletteListItems[paletteSelectedIndex];
+        if (selectedItem?.type === 'add') {
           setIsCreatingPalette(true);
-          setQuery('');
-        } else {
-          const chosen = filteredPalettes[paletteSelectedIndex - 1];
+          if (!query.trim()) {
+            setQuery('');
+          }
+        } else if (selectedItem?.type === 'palette') {
+          const chosen = selectedItem.palette;
           if (chosen) {
             setIsRevealed(false);
             window.electronAPI?.resetAndHideSpotlight?.();
@@ -2288,13 +2304,11 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         return;
       } else if (e.key === 'Delete') {
         e.preventDefault();
-        if (paletteSelectedIndex > 0) {
-          const chosen = filteredPalettes[paletteSelectedIndex - 1];
-          if (chosen) {
-            handleDeletePalette(chosen.id);
-            if (paletteSelectedIndex >= totalPaletteItems - 1) {
-              setPaletteSelectedIndex(Math.max(0, paletteSelectedIndex - 1));
-            }
+        const selectedItem = paletteListItems[paletteSelectedIndex];
+        if (selectedItem?.type === 'palette') {
+          handleDeletePalette(selectedItem.palette.id);
+          if (paletteSelectedIndex >= totalPaletteItems - 1) {
+            setPaletteSelectedIndex(Math.max(0, paletteSelectedIndex - 1));
           }
         }
         return;
@@ -3326,7 +3340,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                     {/* Icon or Image Thumbnail */}
                     <div className="shrink-0 mt-0.5">
                       {isImage ? (
-                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-black/40 shadow-inner flex items-center justify-center">
+                        <div className="w-9 h-9 rounded-lg overflow-hidden bg-black/40 border border-white/10 shadow-inner flex items-center justify-center">
                           {item.dataUrl ? (
                             <img
                               src={item.dataUrl}
@@ -3334,7 +3348,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <span className="material-symbols-outlined text-2xl text-rose-400">
+                            <span className="material-symbols-outlined text-base text-rose-400">
                               image
                             </span>
                           )}
@@ -3520,47 +3534,54 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               ref={listRef}
               className="max-h-[400px] overflow-y-auto space-y-1.5 px-2 py-1 focus:outline-none relative"
             >
-              {/* Item 0: + Přidat novou paletu */}
-              <div
-                data-selected={paletteSelectedIndex === 0}
-                onClick={() => {
-                  setIsCreatingPalette(true);
-                  setQuery('');
-                  inputRef.current?.focus();
-                }}
-                className={`relative flex items-center px-3.5 py-3 rounded-2xl cursor-pointer transition-all duration-150 gap-3.5 overflow-hidden ${
-                  paletteSelectedIndex === 0
-                    ? 'bg-rose-500/20 text-white shadow-none'
-                    : 'm3-item-card text-gray-300'
-                }`}
-              >
-                <div
-                  className={`w-[3px] h-7 rounded-full shrink-0 transition-all ${
-                    paletteSelectedIndex === 0 ? 'bg-rose-500 opacity-100 scale-y-100' : 'bg-transparent opacity-0 scale-y-50'
-                  }`}
-                />
-                <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors shrink-0 ${
-                    paletteSelectedIndex === 0 ? 'bg-rose-500 text-white shadow-md' : 'bg-white/[0.05] text-rose-400'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-lg">add</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-white">Přidat novou paletu</div>
-                  <div className="text-[11px] text-gray-400">Založit novou paletu a otevřít lištu pro výběr barev</div>
-                </div>
-                <div className="shrink-0 flex items-center gap-1.5">
-                  <kbd className="px-2 py-0.5 bg-white/[0.08] text-gray-300 rounded-full font-mono text-[10px]">
-                    Enter
-                  </kbd>
-                </div>
-              </div>
+              {/* Palette List Items */}
+              {paletteListItems.map((item, idx) => {
+                const isSelected = paletteSelectedIndex === idx;
 
-              {/* Items 1..n: Existing Palettes */}
-              {filteredPalettes.map((pal, idx) => {
-                const itemIndex = idx + 1;
-                const isSelected = paletteSelectedIndex === itemIndex;
+                if (item.type === 'add') {
+                  return (
+                    <div
+                      key="add-new-palette"
+                      data-selected={isSelected}
+                      onClick={() => {
+                        setIsCreatingPalette(true);
+                        if (!query.trim()) {
+                          setQuery('');
+                        }
+                        inputRef.current?.focus();
+                      }}
+                      className={`relative flex items-center px-3.5 py-3 rounded-2xl cursor-pointer transition-all duration-150 gap-3.5 overflow-hidden ${
+                        isSelected
+                          ? 'bg-rose-500/20 text-white shadow-none'
+                          : 'm3-item-card text-gray-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-[3px] h-7 rounded-full shrink-0 transition-all ${
+                          isSelected ? 'bg-rose-500 opacity-100 scale-y-100' : 'bg-transparent opacity-0 scale-y-50'
+                        }`}
+                      />
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+                          isSelected ? 'bg-rose-500 text-white shadow-md' : 'bg-white/[0.05] text-rose-400'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-lg">add</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-white">Přidat novou paletu</div>
+                        <div className="text-[11px] text-gray-400">Založit novou paletu a otevřít lištu pro výběr barev</div>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        <kbd className="px-2 py-0.5 bg-white/[0.08] text-gray-300 rounded-full font-mono text-[10px]">
+                          Enter
+                        </kbd>
+                      </div>
+                    </div>
+                  );
+                }
+
+                const pal = item.palette;
                 const validColors = pal.colors ? pal.colors.filter(Boolean) : [];
 
                 return (
@@ -3683,7 +3704,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                     <span className="text-white">Vytvořit a otevřít</span>
                   </span>
                 </>
-              ) : paletteSelectedIndex === 0 ? (
+              ) : paletteListItems[paletteSelectedIndex]?.type === 'add' ? (
                 <span className="text-xs font-semibold flex items-center gap-1.5">
                   <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-rose-400 rounded-full font-mono text-[9px] leading-none select-none">
                     Enter

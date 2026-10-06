@@ -7,6 +7,7 @@ import { ChangelogModal } from './ChangelogModal';
 import { WhatsNewModal } from './WhatsNewModal';
 import { SearchItemsViewerModal } from './SearchItemsViewerModal';
 import { DataSourcesGuideModal } from './DataSourcesGuideModal';
+import { InstallerWizard } from './InstallerWizard';
 import { SEARCH_ENGINES } from '../constants/searchEngines';
 import { getDynamicSnippets } from '../utils/snippets';
 import { MaterialIcon } from './MaterialIcon';
@@ -71,28 +72,43 @@ const ColorPickerSection: React.FC<ColorPickerSectionProps> = ({
             />
           </div>
           <div className="flex flex-col">
-            <span className="font-mono text-sm text-white font-semibold">
-              {currentPreset?.name || effectiveColor.toUpperCase()}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-sm text-white font-semibold">
+                {currentPreset?.name || effectiveColor.toUpperCase()}
+              </span>
+              {currentPreset?.isDefault && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/10 text-gray-300">
+                  Výchozí
+                </span>
+              )}
+            </div>
             <span className="text-xs text-gray-400">Vybraný odstín</span>
           </div>
         </div>
 
-        {/* 10 Preset quick colors (right) */}
+        {/* Preset quick colors (right) */}
         <div className="flex items-center gap-2 flex-wrap">
           {APP_COLOR_PRESETS.map((preset) => (
-            <button
-              key={preset.hex}
-              type="button"
-              onClick={() => onColorChange(preset.hex)}
-              title={preset.name}
-              className={`w-7 h-7 rounded-full transition transform hover:scale-110 flex items-center justify-center cursor-pointer shadow-sm ${
-                effectiveColor.toLowerCase() === preset.hex.toLowerCase()
-                  ? 'ring-2 ring-white ring-offset-2 ring-offset-[#181920]'
-                  : 'opacity-70 hover:opacity-100'
-              }`}
-              style={{ backgroundColor: preset.hex }}
-            />
+            <React.Fragment key={preset.hex}>
+              <button
+                type="button"
+                onClick={() => onColorChange(preset.hex)}
+                title={preset.isDefault ? `${preset.name} (Výchozí barva)` : preset.name}
+                className={`w-7 h-7 rounded-full transition transform hover:scale-110 flex items-center justify-center cursor-pointer shadow-sm relative ${
+                  effectiveColor.toLowerCase() === preset.hex.toLowerCase()
+                    ? 'ring-2 ring-white ring-offset-2 ring-offset-[#181920]'
+                    : 'opacity-70 hover:opacity-100'
+                }`}
+                style={{ backgroundColor: preset.hex }}
+              >
+                {preset.isDefault && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/90 shadow-sm pointer-events-none" />
+                )}
+              </button>
+              {preset.isDefault === 'secondary' && (
+                <div className="w-px h-4 bg-white/10 mx-0.5" />
+              )}
+            </React.Fragment>
           ))}
           <button
             type="button"
@@ -252,6 +268,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [showItemsViewer, setShowItemsViewer] = useState(false);
   const [showDataSourcesGuide, setShowDataSourcesGuide] = useState(false);
+  const [showInstallerPreview, setShowInstallerPreview] = useState(false);
   const [isRecordingHotkey, setIsRecordingHotkey] = useState(false);
   const [recordedModifiers, setRecordedModifiers] = useState<string[]>([]);
   const [hotkeyError, setHotkeyError] = useState<string | null>(null);
@@ -2027,12 +2044,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     items: [],
   };
 
-  const handleSave = (customConfig?: AppConfig) => {
-    const toSave = customConfig || formData;
-    onSaveConfig(toSave);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingConfigRef = useRef<AppConfig | null>(null);
+
+  const performSave = useCallback((configToSave: AppConfig) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    pendingConfigRef.current = null;
+    onSaveConfig(configToSave);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 2500);
-  };
+  }, [onSaveConfig]);
+
+  const handleSave = useCallback((customConfig?: AppConfig, immediate: boolean = false) => {
+    const toSave = customConfig || formData;
+    pendingConfigRef.current = toSave;
+
+    if (immediate) {
+      performSave(toSave);
+      return;
+    }
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      if (pendingConfigRef.current) {
+        performSave(pendingConfigRef.current);
+      }
+    }, 1200);
+  }, [formData, performSave]);
+
+  // Flush any pending debounced config on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current && pendingConfigRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        onSaveConfig(pendingConfigRef.current);
+      }
+    };
+  }, [onSaveConfig]);
 
   const handleBanItem = (itemToBan: LauncherItem) => {
     const banlist = formData.banlist || [];
@@ -7648,6 +7702,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </span>
                   </div>
 
+                  {/* URL adresa worklogu (MLog Logs.aspx) */}
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-xs font-medium text-gray-300 block">URL adresa denního worklogu (MLog Logs.aspx)</label>
+                    <input
+                      type="text"
+                      value={formData.magicplan?.worklogUrl ?? 'http://mlog/Logs.aspx'}
+                      onChange={(e) => {
+                        const updated = {
+                          ...formData,
+                          magicplan: {
+                            ...formData.magicplan,
+                            worklogUrl: e.target.value,
+                          },
+                        };
+                        setFormData(updated);
+                        handleSave(updated);
+                      }}
+                      placeholder="http://mlog/Logs.aspx"
+                      className="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:border-cyan-500 outline-none font-mono"
+                    />
+                    <span className="text-[11px] text-gray-400 block">
+                      Dotaz se provádí automaticky pro dny od pondělí do dnešního dne (s parametrem <code className="text-cyan-300">?Date=DD.MM.YYYY</code>) pro načtení a sumarizaci reálně odpracovaných hodin, zaokrouhlení na celých 0,5h a doplnění úkolů mimo plán.
+                    </span>
+                  </div>
+
                   {/* Nastavení lidí (uživatelů) - vlastní celý řádek */}
                   <div className="space-y-2 md:col-span-2">
                     <label className="text-xs font-medium text-gray-300 block">Sledované osoby (sloupce)</label>
@@ -9025,9 +9104,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 />
                               </div>
                               <div className="flex flex-col">
-                                <span className="font-mono text-sm text-white font-semibold">
-                                  {currentPreset?.name || effectiveColor.toUpperCase()}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono text-sm text-white font-semibold">
+                                    {currentPreset?.name || effectiveColor.toUpperCase()}
+                                  </span>
+                                  {currentPreset?.isDefault && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/10 text-gray-300">
+                                      Výchozí
+                                    </span>
+                                  )}
+                                </div>
                                 <span className="text-xs text-gray-400">Vybraný odstín</span>
                               </div>
                             </div>
@@ -9035,18 +9121,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             {/* Preset quick colors (right) */}
                             <div className="flex items-center gap-2 flex-wrap">
                               {APP_COLOR_PRESETS.map((preset) => (
-                                <button
-                                  key={preset.hex}
-                                  type="button"
-                                  onClick={() => handleColorChange(preset.hex)}
-                                  title={preset.name}
-                                  className={`w-7 h-7 rounded-full transition transform hover:scale-110 flex items-center justify-center cursor-pointer shadow-sm ${
-                                    effectiveColor.toLowerCase() === preset.hex.toLowerCase()
-                                      ? 'ring-2 ring-white ring-offset-2 ring-offset-[#181920]'
-                                      : 'opacity-70 hover:opacity-100'
-                                  }`}
-                                  style={{ backgroundColor: preset.hex }}
-                                />
+                                <React.Fragment key={preset.hex}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleColorChange(preset.hex)}
+                                    title={preset.isDefault ? `${preset.name} (Výchozí barva)` : preset.name}
+                                    className={`w-7 h-7 rounded-full transition transform hover:scale-110 flex items-center justify-center cursor-pointer shadow-sm relative ${
+                                      effectiveColor.toLowerCase() === preset.hex.toLowerCase()
+                                        ? 'ring-2 ring-white ring-offset-2 ring-offset-[#181920]'
+                                        : 'opacity-70 hover:opacity-100'
+                                    }`}
+                                    style={{ backgroundColor: preset.hex }}
+                                  >
+                                    {preset.isDefault && (
+                                      <span className="w-1.5 h-1.5 rounded-full bg-white/90 shadow-sm pointer-events-none" />
+                                    )}
+                                  </button>
+                                  {preset.isDefault === 'secondary' && (
+                                    <div className="w-px h-4 bg-white/10 mx-0.5" />
+                                  )}
+                                </React.Fragment>
                               ))}
                               <button
                                 type="button"
@@ -11360,6 +11454,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span>Zobrazit Release notes</span>
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => setShowInstallerPreview(true)}
+                    className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer"
+                    title="Otevře instalátor aplikace v testovacím režimu náhledu (bez zápisu do systému)"
+                  >
+                    <span className="material-symbols-outlined text-base text-emerald-400">install_desktop</span>
+                    <span>Test instalačního průvodce</span>
+                  </button>
+
                   {/* GitHub clone simulation dropdown */}
                   <div className="relative w-full" data-sim-dropdown>
                     <button
@@ -12126,6 +12230,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           magicGateEnabled={formData.extensions?.magicgate !== false}
           githubEnabled={formData.extensions?.github !== false}
         />
+      )}
+
+      {/* Installer Wizard Preview Modal */}
+      {showInstallerPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 window-modal-overlay">
+          <div className="w-[940px] h-[640px] max-w-full max-h-full rounded-[28px] overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+            <InstallerWizard previewMode={true} onClose={() => setShowInstallerPreview(false)} />
+          </div>
+        </div>
       )}
     </div>
   );
