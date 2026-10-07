@@ -663,14 +663,6 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
           </div>
         </div>
       </div>
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white text-xs cursor-pointer"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* Hlavní obsah - Seznam karet */}
       <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar">
