@@ -56,6 +56,14 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
     - Implementace servisy pro volání `https://frog.magicware.cz/api/v1/sub-requirements` a načítání uživatelů (`/api/v1/users`).
     - Spotlight dialog pro příkaz `/task` (název, závažnost, zkratka řešitele např. MCH, projekt).
 
+- [ ] **6. MagicGate: Oprava stahování packages při rekurzivním klonování repozitářů**
+  - **Popis**: Při rekurzivním klonování sekčních repozitářů v MagicGate (volba `--recursive`) se nestáhnou balíčky/packages (submoduly repozitáře).
+  - **Klíčové body k analýze a realizaci**:
+    - **Propagace autentizace do submodulů**: Při klonování s GitHub tokenem přes `-c http.${origin}/.extraheader=...` se autentizační hlavička v `git clone --recursive` nepředává automaticky do git submodulů klonovaných v subprocesech. Ověřit a doplnit explicitní `git submodule update --init --recursive` s předáním auth hlaviček pro všechny domény submodulů.
+    - **Konfigurace a flagy**: Doplnit konfiguraci pro submoduly (např. `submodule.recurse true` nebo předání do kontextu repozitáře).
+    - **NuGet / packages závislosti**: Prověřit, zda projekt nepoužívá specifické packages úložiště / NuGet balíčky, a zajistit jejich správné stažení po naklonování repozitáře.
+    - **Diagnostický log**: Rozšířit logování výstupu klonování v `GitCloneModal`, aby bylo zřetelně vidět volání a výsledek stahování jednotlivých submodulů a packages.
+
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
 *(Žádné úkoly nečekají na revizi)*
