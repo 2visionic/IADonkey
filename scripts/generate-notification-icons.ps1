@@ -15,7 +15,7 @@ $symbols = @(
   @{ name = 'error'; symbol = 'error'; color = '#ef4444' },
   @{ name = 'test'; symbol = 'notifications_active'; color = '#ffffff' },
   @{ name = 'feedback-bug'; symbol = 'bug_report'; color = '#f43f5e' },
-  @{ name = 'feedback-idea'; symbol = 'lightbulb'; color = '#f59e0b' },
+  @{ name = 'feedback-idea'; symbol = 'lightbulb'; color = '#a855f7' },
   @{ name = 'feedback-other'; symbol = 'chat'; color = '#0ea5e9' },
   @{ name = 'feedback-resolved'; symbol = 'check_circle'; color = '#10b981' }
 )
