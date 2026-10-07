@@ -1,6 +1,6 @@
 {
-  "version": "2.1.6",
-  "releaseNotes": "• Zpětná vazba: Nový interní systém pro sběr námětů a chyb se síťovou složkou a segmentovanými přepínači.\n• Vyhledávání & Screenshoty: Celořádkový vyhledávací panel na circle ikonu a spolehlivé vkládání screenshotů (Ctrl+V).\n• MagicPlan: Real timeline log v denním pohledu s transparentními překryvy a informačním tooltipem.\n• Nastavení & UI: Plný soulad s Material 3, reaktivní detekce složky a sjednocená borderless tlačítka.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.6/IADonkey-Setup-2.1.6.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.6/IADonkey-2.1.6.zip"
+  "version": "2.1.7",
+  "releaseNotes": "• Zpětná vazba & Notifikace: Striktní pravidla doručování – vývojář dostává upozornění na nové podněty, běžný uživatel na změny stavů jím zadaných podnětů.\n• Nastavení notifikací: Možnost kdykoliv vypnout a zapnout notifikace zpětné vazby v záložce Notifikace i Systém.\n• Ikony & Vizuál: Unikátní ikony pro chyby, nápady i vyřešené podněty. Odstraněny zbytečné bordery a dividery.\n• Vývojářský režim: Striktní respektování deaktivačního stavu bez vynucování přes běhové prostředí.\n• Přepínače & Mazání: Segmentovaný přepínač priorit a spolehlivé mazání podnětů.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.7/IADonkey-Setup-2.1.7.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.7/IADonkey-2.1.7.zip"
 }

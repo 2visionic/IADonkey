@@ -3964,14 +3964,24 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                                   if (taskLabel) {
                                                     const matchedTask = tasks.find(
                                                       (t) =>
-                                                        t.id === taskLabel ||
+                                                        t.taskId === taskLabel ||
+                                                        t.taskIdentifier === taskLabel ||
                                                         t.requirementId === taskLabel ||
                                                         (entry.reqId && t.requirementId === entry.reqId)
                                                     );
                                                     if (matchedTask) {
                                                       onOpenTask(matchedTask);
-                                                    } else if (onOpenCodeLink) {
-                                                      onOpenCodeLink(taskLabel);
+                                                    } else {
+                                                      const tmUrl = getTaskManagerUrl(taskLabel);
+                                                      if (tmUrl) {
+                                                        if (window.electronAPI?.openExternal) {
+                                                          window.electronAPI.openExternal(tmUrl);
+                                                        } else {
+                                                          window.open(tmUrl, '_blank');
+                                                        }
+                                                      } else {
+                                                        navigator.clipboard.writeText(taskLabel);
+                                                      }
                                                     }
                                                   }
                                                 }}
@@ -4901,7 +4911,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
               '';
             const matchedTask = tasks.find(
               (t) =>
-                (taskLabel && (t.id === taskLabel || t.requirementId === taskLabel)) ||
+                (taskLabel && (t.taskId === taskLabel || t.taskIdentifier === taskLabel || t.requirementId === taskLabel)) ||
                 (hoveredTimelineEntry.entry.reqId && t.requirementId === hoveredTimelineEntry.entry.reqId)
             );
             const displayTitle =

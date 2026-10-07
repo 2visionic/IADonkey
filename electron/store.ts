@@ -88,6 +88,7 @@ const DEFAULT_CONFIG: AppConfig = {
     notifyTaskChanges: true,
     notifyQueueTasks: true,
     linkWithTaskManager: true,
+  },
   notifications: {
     enabled: true,
     silent: false,

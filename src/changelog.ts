@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.6';
+export const CURRENT_APP_VERSION = '2.1.7';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,18 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.7',
+    date: '8. 10. 2026',
+    title: 'Notifikace zpětné vazby, striktní role vývojář/uživatel, přepínače v Nastavení a UI optimalizace',
+    highlights: [
+      'Zpětná vazba – Striktní pravidla doručování notifikací: Notifikace o nově založených podnětech chodí výhradně uživatelům v aktivním vývojářském režimu. Běžným uživatelům chodí pouze notifikace o změnách stavu jejich vlastních podnětů (rozpracováno, odloženo, vyřešeno ve verzi).',
+      'Zpětná vazba – Přepínač notifikací v Nastavení: Možnost kdykoliv vypnout a zapnout oznámení pro zpětnou vazbu přímo v záložce Notifikace i na kartě Zpětné vazby v záložce Systém.',
+      'Zpětná vazba – Vizuální ikony notifikací podle typu: Bannery Windows zobrazují ikonu dle typu záznamu (chyba, nápad s fialovou ikonou, vyřešeno se zeleným checkmarkem) pro okamžitý přehled bez nutnosti číst celý text.',
+      'Zpětná vazba – Striktní respektování vývojářského režimu: Odstraněno automatické vnucování vývojářského režimu v běhovém prostředí. Přepínač „Uživatel / DEV“ se v okně zobrazuje pouze a výhradně při aktivním vývojářském režimu, jinak je skryt a okno je v uživatelském pohledu.',
+      'Zpětná vazba – Segmentované přepínače a oprava mazání: Volba priority podnětu (Nízká / Střední / Vysoká / Kritická) formou přehledného přepínače bez borderů, odstraněny nadbytečné oddělovače a opraveno spolehlivé mazání podnětů ze sdíleného síťového disku.',
+    ],
+  },
   {
     version: '2.1.6',
     date: '7. 10. 2026',

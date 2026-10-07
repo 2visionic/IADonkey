@@ -30,25 +30,11 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
     - **Reprezentace zástupců**: Miniatury ikon s badge indikátorem, tooltip s plným názvem a akcí, rychlé spuštění přes klávesy (např. 1–9 nebo Alt+1–9).
     - **Datový model & Konfigurace**: Ukládání seznamu zástupců v konfiguraci aplikace (`pinnedShortcuts: { id, name, icon, action, location, settings }[]`).
 
-- [ ] **3. Analýza funkce „Odeslat zpětnou vazbu“ (Feedback / Hlášení problémů)**
-  - **Popis**: Návrh mechanismu pro jednoduché a rychlé odeslání uživatelské zpětné vazby, nápadů na vylepšení nebo nahlášení chyb přímo z aplikace IADonkey.
-  - **K zamyšlení & Technická / UX analýza**:
-    - **Uživatelské rozhraní**:
-      - Modální okno nebo dedikovaná sekce v Nastavení (záložka Nápověda / Systém) a rychlá volba v tray menu i Spotlightu (`/feedback`, `/zpetnavazba`).
-      - Typ zpětné vazby: výběr kategorie (Chyba / Nápad na vylepšení / Dotaz / Jiné).
-      - Textové pole pro popis + volitelné zadání kontaktního e-mailu / uživatele.
-    - **Přílohy a diagnostická data**:
-      - Možnost přiložit snímek obrazovky (přímé napojení na QuickCap snipper).
-      - Volitelné automatické připojení systémových diagnostických informací (verze IADonkey, verze Windows, anonymizovaný výpis posledních událostí z Action Logu / Crashlogu).
-    - **Backend & Způsob doručení**:
-      - Odeslání přes interní API / Helpdesk (např. MLog API jako požadavek Rxxxx), GitHub Issues REST API, nebo centrální webhook (Slack/Teams/e-mail).
-      - Ošetření offline stavu (uložení do fronty k odeslání po obnovení připojení).
-
-- [ ] **4. MagicPlan: Integrace zobrazení víkendů**
+- [ ] **3. MagicPlan: Integrace zobrazení víkendů**
   - **Popis**: Zobrazení víkendových dnů v plánu, defaultně indikovaných jako 8h volno.
   - **Požadavky**: Údaje o volnu/kapacitě přebírat dynamicky z dat plánu (ne hardcoded).
 
-- [ ] **5. Integrace MLog Frog API: Zakládání úkolů přes příkaz `/task` ve Spotlightu**
+- [ ] **4. Integrace MLog Frog API: Zakládání úkolů přes příkaz `/task` ve Spotlightu**
   - **Popis**: Využití nového moderního REST API serveru MLogu („Frog“ – Vladimír Tintěra) pro rychlé zakládání úkolů přímo ze Spotlight dialogu s následným otevřením přes `LinkOpenner`.
   - **Odkaz na analýzu**: [Technická analýza Frog MLog API](docs/frog-mlog-api-analyza.md)
   - **Klíčové kroky**:
@@ -56,7 +42,7 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
     - Implementace servisy pro volání `https://frog.magicware.cz/api/v1/sub-requirements` a načítání uživatelů (`/api/v1/users`).
     - Spotlight dialog pro příkaz `/task` (název, závažnost, zkratka řešitele např. MCH, projekt).
 
-- [ ] **6. MagicGate: Oprava stahování packages při rekurzivním klonování repozitářů**
+- [ ] **5. MagicGate: Oprava stahování packages při rekurzivním klonování repozitářů**
   - **Popis**: Při rekurzivním klonování sekčních repozitářů v MagicGate (volba `--recursive`) se nestáhnou balíčky/packages (submoduly repozitáře).
   - **Klíčové body k analýze a realizaci**:
     - **Propagace autentizace do submodulů**: Při klonování s GitHub tokenem přes `-c http.${origin}/.extraheader=...` se autentizační hlavička v `git clone --recursive` nepředává automaticky do git submodulů klonovaných v subprocesech. Ověřit a doplnit explicitní `git submodule update --init --recursive` s předáním auth hlaviček pro všechny domény submodulů.
@@ -64,15 +50,8 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
     - **NuGet / packages závislosti**: Prověřit, zda projekt nepoužívá specifické packages úložiště / NuGet balíčky, a zajistit jejich správné stažení po naklonování repozitáře.
     - **Diagnostický log**: Rozšířit logování výstupu klonování v `GitCloneModal`, aby bylo zřetelně vidět volání a výsledek stahování jednotlivých submodulů a packages.
 
+---
+
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
 *(Žádné úkoly nečekají na revizi)*
-
-
-
-
-
-
-
-
-

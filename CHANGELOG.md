@@ -4,6 +4,14 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.7] - 8. 10. 2026
+### Notifikace zpětné vazby, striktní role vývojář/uživatel, přepínače v Nastavení a UI optimalizace
+- **Zpětná vazba – Striktní pravidla doručování notifikací**: Notifikace o nově založených podnětech chodí výhradně uživatelům v aktivním vývojářském režimu. Běžným uživatelům chodí pouze notifikace o změnách stavu jejich vlastních podnětů (rozpracováno, odloženo, vyřešeno ve verzi).
+- **Zpětná vazba – Přepínač notifikací v Nastavení**: Možnost kdykoliv vypnout a zapnout oznámení pro zpětnou vazbu přímo v záložce Notifikace i na kartě Zpětné vazby v záložce Systém.
+- **Zpětná vazba – Vizuální ikony notifikací podle typu**: Bannery Windows zobrazují ikonu dle typu záznamu (chyba, nápad s fialovou ikonou, vyřešeno se zeleným checkmarkem) pro okamžitý přehled bez nutnosti číst celý text.
+- **Zpětná vazba – Striktní respektování vývojářského režimu**: Odstraněno automatické vnucování vývojářského režimu v běhovém prostředí. Přepínač „Uživatel / DEV“ se v okně zobrazuje pouze a výhradně při aktivním vývojářském režimu, jinak je skryt a okno je v uživatelském pohledu.
+- **Zpětná vazba – Segmentované přepínače a oprava mazání**: Volba priority podnětu (Nízká / Střední / Vysoká / Kritická) formou přehledného přepínače bez borderů, odstraněny nadbytečné oddělovače a opraveno spolehlivé mazání podnětů ze sdíleného síťového disku.
+
 ## [2.1.6] - 7. 10. 2026
 ### Zpětná vazba a nápady se sdílenou síťovou složkou, MagicPlan Real timeline a designové sjednocení
 - **Zpětná vazba – Interní sdílený systém**: Možnost zadávat podněty, návrhy na vylepšení a hlásit chyby s automatickým atomickým ukládáním do jednotlivých JSON a PNG souborů na síťový disk bez rizika souběhových kolizí.

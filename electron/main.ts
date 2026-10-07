@@ -1429,8 +1429,8 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('feedback-get-clipboard-image', () => {
-    const img = clipboard.readImage();
-    if (!img.isEmpty()) {
+    const img = (clipboard as any).readImage?.();
+    if (img && !img.isEmpty()) {
       return img.toDataURL();
     }
     return null;
