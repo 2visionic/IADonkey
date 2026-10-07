@@ -529,64 +529,41 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                 </span>
               )}
             </div>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {sharedFolder ? (
-                <span className="truncate max-w-[360px] inline-block font-mono text-[11px]" title={sharedFolder}>
-                  Složka: {sharedFolder}
-                </span>
-              ) : (
-                <span className="text-amber-400">Složka není nastavena (ukládá se lokálně)</span>
-              )}
-            </p>
           </div>
         </div>
 
         {/* Tlačítka v záhlaví */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Tlačítka dostupná pokud je povolen DEV režim */}
+          {/* Přepínač Uživatel / DEV dostupný pokud je povolen DEV režim */}
           {isDevAvailable && (
-            <>
-              {/* Tlačítko změny složky */}
+            <div className="flex items-center gap-1 p-1 bg-white/[0.04] rounded-full shrink-0">
               <button
                 type="button"
-                onClick={handleSelectFolder}
-                className="h-[38px] px-3.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-xs font-medium text-gray-300 hover:text-white flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
-                title="Změnit cílovou sdílenou složku pro feedback"
+                onClick={() => setMode('user')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+                  mode === 'user'
+                    ? 'm3-primary-pill text-white shadow-md'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="Pohled běžného uživatele"
               >
-                <span className="material-symbols-outlined text-base text-amber-400">folder_open</span>
-                <span>Složka</span>
+                <span className="material-symbols-outlined text-[15px]">person</span>
+                <span>Uživatel</span>
               </button>
-
-              {/* Přepínač Uživatel / DEV (segmented switch ve stejném stylu jako chyby / nápady / dotazy) */}
-              <div className="flex items-center gap-1 p-1 bg-white/[0.04] rounded-full shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setMode('user')}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
-                    mode === 'user'
-                      ? 'm3-primary-pill text-white shadow-md'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
-                  }`}
-                  title="Pohled běžného uživatele"
-                >
-                  <span className="material-symbols-outlined text-[15px]">person</span>
-                  <span>Uživatel</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode('dev')}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
-                    mode === 'dev'
-                      ? 'bg-amber-500/25 text-amber-200 font-semibold shadow-md'
-                      : 'text-gray-400 hover:text-amber-300 hover:bg-white/5'
-                  }`}
-                  title="Vývojářský pohled se správou všech podnětů"
-                >
-                  <span className={`material-symbols-outlined text-[15px] ${mode === 'dev' ? 'text-amber-300' : 'text-amber-400/80'}`}>terminal</span>
-                  <span>DEV</span>
-                </button>
-              </div>
-            </>
+              <button
+                type="button"
+                onClick={() => setMode('dev')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+                  mode === 'dev'
+                    ? 'bg-amber-500/25 text-amber-200 font-semibold shadow-md'
+                    : 'text-gray-400 hover:text-amber-300 hover:bg-white/5'
+                }`}
+                title="Vývojářský pohled se správou všech podnětů"
+              >
+                <span className={`material-symbols-outlined text-[15px] ${mode === 'dev' ? 'text-amber-300' : 'text-amber-400/80'}`}>terminal</span>
+                <span>DEV</span>
+              </button>
+            </div>
           )}
 
           {/* Obnovit (zarovnáno přesně na h-[38px] w-[38px]) */}
