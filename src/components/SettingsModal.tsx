@@ -11032,7 +11032,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         handleSave(updated);
                       }}
                       placeholder="např. Jan Novák"
-                      className="w-full max-w-md h-[38px] px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-500 text-sm focus:border-indigo-500 outline-none transition"
+                      className="w-full h-[38px] px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-500 text-sm focus:border-indigo-500 outline-none transition"
                     />
                   </div>
 
