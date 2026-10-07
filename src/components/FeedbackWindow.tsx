@@ -1006,16 +1006,11 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                           ? 'Ve zpracování'
                           : item.status === 'postponed'
                           ? 'Odloženo'
+                          : item.targetVersion
+                          ? `Hotovo (${item.targetVersion})`
                           : 'Hotovo'}
                       </span>
                     </span>
-
-                    {/* Zobrazení verze u dokončeného */}
-                    {item.status === 'resolved' && item.targetVersion && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-200">
-                        Verze: {item.targetVersion}
-                      </span>
-                    )}
 
                     {/* Indikátor screenshotu */}
                     {item.hasScreenshot && (
@@ -1282,7 +1277,9 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                       ? 'Ve zpracování'
                       : detailItem.status === 'postponed'
                       ? 'Odloženo'
-                      : 'Vyřešeno'}
+                      : detailItem.targetVersion
+                      ? `Hotovo (${detailItem.targetVersion})`
+                      : 'Hotovo'}
                   </span>
                 </span>
 
