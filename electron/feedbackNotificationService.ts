@@ -92,8 +92,11 @@ export class FeedbackNotificationService {
       targetVersion: item.targetVersion,
     });
 
+    // Založení: chodí POUZE pro vývojáře a NIKDY pro vlastní vytvořený feedback
     if (this.isDevelopMode() && item.status === 'new') {
-      this.notifyNewFeedbackForDeveloper(item);
+      if (!this.isOwnFeedback(item)) {
+        this.notifyNewFeedbackForDeveloper(item);
+      }
     }
   }
 
@@ -116,9 +119,9 @@ export class FeedbackNotificationService {
       targetVersion: item.targetVersion,
     });
 
+    // Změna stavu: chodí POUZE pro konkrétního uživatele (autora daného feedbacku)
     if (prevStatus && prevStatus !== item.status) {
-      const isDev = this.isDevelopMode();
-      if (!isDev || this.isOwnFeedback(item)) {
+      if (this.isOwnFeedback(item)) {
         this.notifyStatusChangeForUser(item, prevStatus);
       }
     }
@@ -139,7 +142,6 @@ export class FeedbackNotificationService {
   }
 
   public isDevelopMode(): boolean {
-    if (!app.isPackaged) return true;
     const config = this.store?.getConfig();
     return Boolean(config?.developMode);
   }
@@ -260,8 +262,11 @@ export class FeedbackNotificationService {
             targetVersion: item.targetVersion,
           });
 
+          // Založení: chodí POUZE pro vývojáře a NIKDY pro vlastní podnět
           if (isDev && item.status === 'new') {
-            this.notifyNewFeedbackForDeveloper(item);
+            if (!this.isOwnFeedback(item)) {
+              this.notifyNewFeedbackForDeveloper(item);
+            }
           }
         } else {
           // Existující feedback - kontrola změny stavu
@@ -278,7 +283,8 @@ export class FeedbackNotificationService {
               targetVersion: item.targetVersion,
             });
 
-            if (!isDev || this.isOwnFeedback(item)) {
+            // Změna stavu: chodí POUZE pro konkrétního uživatele (autora daného feedbacku)
+            if (this.isOwnFeedback(item)) {
               this.notifyStatusChangeForUser(item, oldStatus);
             }
           }
