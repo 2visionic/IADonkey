@@ -1052,11 +1052,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Developer mode state & easter egg click counter
   const [isDevelop, setIsDevelop] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('iadonkey_develop_mode') === 'true' || Boolean(config?.developMode);
-    } catch {
-      return Boolean(config?.developMode);
-    }
+      if (localStorage.getItem('iadonkey_develop_mode') === 'false') return false;
+      if (localStorage.getItem('iadonkey_develop_mode') === 'true') return true;
+    } catch {}
+    return Boolean(config?.developMode);
   });
+
+  useEffect(() => {
+    if (config?.developMode !== undefined) {
+      try {
+        if (localStorage.getItem('iadonkey_develop_mode') === 'false') {
+          setIsDevelop(false);
+          return;
+        }
+        if (localStorage.getItem('iadonkey_develop_mode') === 'true') {
+          setIsDevelop(true);
+          return;
+        }
+      } catch {}
+      setIsDevelop(Boolean(config.developMode));
+    }
+  }, [config?.developMode]);
   const versionClickCountRef = useRef(0);
   const versionClickTimerRef = useRef<any>(null);
   const [developUnlockMessage, setDevelopUnlockMessage] = useState<string | null>(null);

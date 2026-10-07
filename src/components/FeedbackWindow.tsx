@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AppConfig, FeedbackItem, FeedbackPriority, FeedbackStatus, FeedbackType } from '../types';
-import { CURRENT_APP_VERSION, IS_DEV } from '../changelog';
+import { CURRENT_APP_VERSION } from '../changelog';
 
 interface FeedbackWindowProps {
   config: AppConfig;
@@ -13,29 +13,70 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
   onSaveConfig,
   initialMode = 'user',
 }) => {
+  const [localDevMode, setLocalDevMode] = useState<boolean>(() => {
+    try {
+      if (localStorage.getItem('iadonkey_develop_mode') === 'false') return false;
+      if (localStorage.getItem('iadonkey_develop_mode') === 'true') return true;
+    } catch {}
+    return Boolean(config?.developMode);
+  });
+
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'iadonkey_develop_mode') {
+        setLocalDevMode(e.newValue === 'true');
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  useEffect(() => {
+    if (config?.developMode === false) {
+      setLocalDevMode(false);
+      try {
+        localStorage.setItem('iadonkey_develop_mode', 'false');
+      } catch {}
+    } else if (config?.developMode === true) {
+      setLocalDevMode(true);
+      try {
+        localStorage.setItem('iadonkey_develop_mode', 'true');
+      } catch {}
+    }
+  }, [config?.developMode]);
+
+  const isDevAvailable = useMemo(() => {
+    try {
+      if (localStorage.getItem('iadonkey_develop_mode') === 'false') return false;
+      if (localStorage.getItem('iadonkey_develop_mode') === 'true') return true;
+    } catch {}
+    if (config?.developMode === false) return false;
+    if (config?.developMode === true) return true;
+    return localDevMode;
+  }, [config?.developMode, localDevMode]);
+
   const [mode, setMode] = useState<'user' | 'dev'>(() => {
+    let devAllowed = false;
+    try {
+      if (localStorage.getItem('iadonkey_develop_mode') === 'false') devAllowed = false;
+      else if (localStorage.getItem('iadonkey_develop_mode') === 'true') devAllowed = true;
+      else devAllowed = Boolean(config?.developMode);
+    } catch {
+      devAllowed = Boolean(config?.developMode);
+    }
+    if (!devAllowed) return 'user';
+
     const urlParams = new URLSearchParams(window.location.search);
     const m = urlParams.get('mode');
     if (m === 'dev' || m === 'user') return m;
     return initialMode;
   });
 
-  const isDevAvailable = useMemo(() => {
-    if (IS_DEV) return true;
-    if (initialMode === 'dev' || mode === 'dev') return true;
-    try {
-      if (localStorage.getItem('iadonkey_develop_mode') === 'true') return true;
-    } catch {}
-    if (config?.developMode) return true;
-    try {
-      const sp = new URLSearchParams(window.location.search);
-      if (sp.get('mode') === 'dev') return true;
-      const hash = window.location.hash;
-      const qIdx = hash.indexOf('?');
-      if (qIdx !== -1 && new URLSearchParams(hash.slice(qIdx + 1)).get('mode') === 'dev') return true;
-    } catch {}
-    return false;
-  }, [initialMode, mode]);
+  useEffect(() => {
+    if (!isDevAvailable && mode === 'dev') {
+      setMode('user');
+    }
+  }, [isDevAvailable, mode]);
 
   const [items, setItems] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,11 +149,15 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
   useEffect(() => {
     if (window.electronAPI?.onFeedbackModeChanged) {
       const unsub = window.electronAPI.onFeedbackModeChanged((newMode) => {
+        if (newMode === 'dev' && !isDevAvailable) {
+          setMode('user');
+          return;
+        }
         setMode(newMode);
       });
       return () => unsub();
     }
-  }, []);
+  }, [isDevAvailable]);
 
   // Výběr sdílené složky
   const handleSelectFolder = async () => {

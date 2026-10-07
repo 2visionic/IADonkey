@@ -310,8 +310,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
   };
 
-  const openFeedback = async (mode: 'user' | 'dev' = 'user') => {
+  const openFeedback = async (requestedMode: 'user' | 'dev' = 'user') => {
     try {
+      const isDevActive =
+        typeof localStorage !== 'undefined' && localStorage.getItem('iadonkey_develop_mode') === 'false'
+          ? false
+          : Boolean(config?.developMode) ||
+            (typeof localStorage !== 'undefined' && localStorage.getItem('iadonkey_develop_mode') === 'true');
+      const mode = requestedMode === 'dev' && !isDevActive ? 'user' : requestedMode;
       if (window.electronAPI?.openFeedbackWindow) {
         await window.electronAPI.openFeedbackWindow(mode);
       }
@@ -1238,8 +1244,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
 
       const isDevelopMode =
-        IS_DEV ||
-        (typeof localStorage !== 'undefined' && localStorage.getItem('iadonkey_develop_mode') === 'true');
+        typeof localStorage !== 'undefined' && localStorage.getItem('iadonkey_develop_mode') === 'false'
+          ? false
+          : Boolean(config?.developMode) ||
+            (typeof localStorage !== 'undefined' && localStorage.getItem('iadonkey_develop_mode') === 'true');
       if (isDevelopMode) {
         const fbDevShortcuts = ['/feedback-dev', '/feedback dev', '/zpetnavazba-dev'];
         if (

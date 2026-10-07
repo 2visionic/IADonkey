@@ -1358,7 +1358,9 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('open-feedback-window', async (_event, mode?: 'user' | 'dev') => {
-    await windowManager.openFeedbackWindow(mode);
+    const config = store.getConfig();
+    const effectiveMode = mode === 'dev' && !config.developMode ? 'user' : (mode || 'user');
+    await windowManager.openFeedbackWindow(effectiveMode);
     return true;
   });
 
@@ -1563,7 +1565,9 @@ function setupIpcHandlers() {
             } else if (type === 'magicPlan') {
               windowManager.openMagicPlanWindow();
             } else if (type === 'feedback') {
-              windowManager.openFeedbackWindow(subType === 'dev' ? 'dev' : 'user');
+              const currentCfg = store.getConfig();
+              const effectiveMode = subType === 'dev' && currentCfg.developMode ? 'dev' : 'user';
+              windowManager.openFeedbackWindow(effectiveMode);
             } else {
               windowManager.showSpotlight();
             }

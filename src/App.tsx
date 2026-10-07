@@ -167,16 +167,23 @@ export const App: React.FC = () => {
   });
 
   const [feedbackInitialMode] = useState<'user' | 'dev'>(() => {
+    let devAllowed = false;
+    try {
+      if (localStorage.getItem('iadonkey_develop_mode') === 'true') devAllowed = true;
+      else if (localStorage.getItem('iadonkey_develop_mode') === 'false') devAllowed = false;
+    } catch {}
     const hash = window.location.hash;
     const qIndex = hash.indexOf('?');
     if (qIndex !== -1) {
       const sp = new URLSearchParams(hash.slice(qIndex + 1));
-      return (sp.get('mode') as 'user' | 'dev') || 'user';
+      const m = (sp.get('mode') as 'user' | 'dev') || 'user';
+      return m === 'dev' && !devAllowed ? 'user' : m;
     }
     const search = window.location.search;
     if (search) {
       const sp = new URLSearchParams(search);
-      return (sp.get('mode') as 'user' | 'dev') || 'user';
+      const m = (sp.get('mode') as 'user' | 'dev') || 'user';
+      return m === 'dev' && !devAllowed ? 'user' : m;
     }
     return 'user';
   });
@@ -323,6 +330,9 @@ export const App: React.FC = () => {
             try {
               if (localStorage.getItem('iadonkey_develop_mode') === 'true' && !cfg.developMode) {
                 effectiveCfg = { ...cfg, developMode: true };
+                window.electronAPI.saveConfig(effectiveCfg).catch(() => {});
+              } else if (localStorage.getItem('iadonkey_develop_mode') === 'false' && cfg.developMode) {
+                effectiveCfg = { ...cfg, developMode: false };
                 window.electronAPI.saveConfig(effectiveCfg).catch(() => {});
               }
             } catch {}
