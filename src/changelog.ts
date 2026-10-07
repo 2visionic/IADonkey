@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.8';
+export const CURRENT_APP_VERSION = '2.1.6';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -14,37 +14,18 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
   {
-    version: '2.1.8',
-    date: '7. 10. 2026',
-    title: 'Zpětná vazba – Segmentované přepínače, celořádkové vyhledávání, spolehlivé vkládání screenshotů a designové vyladění',
-    highlights: [
-      'Zpětná vazba – Segmentované přepínače (switche): Výběr typu hlášení v liště i ve formuláři nové připomínky i volba priority jsou nyní řešeny pomocí čistých plně zaoblených přepínačů bez rušivých ohraničení.',
-      'Zpětná vazba – Celořádkový vyhledávací panel: Kliknutím na kruhovou ikonu lupy se otevře plovoucí vyhledávací pole překrývající celý řádek nástrojů s možností okamžitého vymazání a zavření křížkem nebo klávesou Escape.',
-      'Zpětná vazba – Nativní vkládání screenshotů (Ctrl+V): Integrována nativní podpora schránky Electronu zachycující bitmapy z Windows Výstřižků i klávesy PrintScreen s novým tlačítkem „Vložit ze schránky“.',
-      'Zpětná vazba – DEV režim a přepínač zobrazení: Tlačítko pro změnu síťové složky a přepínač DEV/uživatelského pohledu se zobrazují výhradně při spuštění ve vývojářském režimu.',
-      'Nastavení – Dynamická detekce složky a designový soulad: Tlačítko otevření zpětné vazby v Nastavení se zobrazuje reaktivně ihned po vyplnění složky, tlačítko Procházet má neutrální podbarvení s primární ikonou a bílým textem v souladu s UI standardem a pole pro jméno autora je přehledně umístěno nad výběrem složky.',
-    ],
-  },
-  {
-    version: '2.1.7',
-    date: '7. 10. 2026',
-    title: 'Interní systém pro zpětnou vazbu a nápady (Feedback), podpora síťového disku a vývojářský režim',
-    highlights: [
-      'Zpětná vazba – Interní sdílený systém: Možnost zadávat podněty, návrhy na vylepšení a hlásit chyby s automatickým atomickým ukládáním do jednotlivých JSON a PNG souborů na síťový disk bez rizika souběhových kolizí.',
-      'Zpětná vazba – Režim uživatele i vývojáře: Uživatelé mohou zakládat podněty, vkládat screenshoty ze schránky (Ctrl+V) a upravovat/mazat své záznamy ve stavu Nové. Vývojářský režim nabízí kompletní správu všech úkolů, řízení priorit, změnu stavů na Ve zpracování, Odloženo a Vyřešeno s plánováním verzí a exportem pro TODO.md.',
-      'Zpětná vazba – Příkazy Spotlightu a rychlé vyhledávání: Okamžité otevření přes lomítkové příkazy /feedback, /zpetnavazba, /napady, /chyba nebo vyhledáním klíčových slov přímo v liště Spotlight.',
-      'Vizuální styl a design guideline: Sjednocené zarovnání ovládací lišty, konzistentní rozměr tlačítek (38px), čisté Material 3 pill záložky bez uskakování a ikony Google Material Symbols místo emoji.',
-      'Nastavení – Konfigurace složky a autora: V sekci Nastavení -> Systém lze jednoduše vybrat cestu ke sdílené síťové složce a zadat výchozí jméno autora v přesném souladu s UI standardem.',
-    ],
-  },
-  {
     version: '2.1.6',
     date: '7. 10. 2026',
-    title: 'MagicPlan Real timeline log v denním pohledu, transparentní překryvy a oprava notifikací plánu',
+    title: 'Zpětná vazba a nápady se sdílenou síťovou složkou, MagicPlan Real timeline a designové sjednocení',
     highlights: [
+      'Zpětná vazba – Interní sdílený systém: Možnost zadávat podněty, návrhy na vylepšení a hlásit chyby s automatickým atomickým ukládáním do jednotlivých JSON a PNG souborů na síťový disk bez rizika souběhových kolizí.',
+      'Zpětná vazba – Režim uživatele i vývojáře: Uživatelé mohou zakládat podněty, vkládat screenshoty ze schránky (Ctrl+V i přímým tlačítkem) a upravovat/mazat své záznamy ve stavu Nové. Vývojářský režim nabízí kompletní správu všech úkolů, řízení priorit, změnu stavů na Ve zpracování, Odloženo a Vyřešeno s plánováním verzí a exportem pro TODO.md.',
+      'Zpětná vazba – Segmentované přepínače a celořádkové hledání: Volba typu hlášení i priorit je řešena plně zaoblenými přepínači bez borderů. Kliknutí na kruhovou ikonu lupy otevře vyhledávací pole překrývající celý řádek s možností rychlého zavření křížkem i klávesou Escape.',
+      'Zpětná vazba – Příkazy Spotlightu a rychlé vyhledávání: Okamžité otevření přes lomítkové příkazy /feedback, /zpetnavazba, /napady, /chyba nebo vyhledáním klíčových slov přímo v liště Spotlight.',
+      'Nastavení – Konfigurace složky, autora a UI soulad: Reaktivní zobrazení tlačítka pro otevření zpětné vazby ihned po zadání složky, pole pro jméno autora umístěno nad výběrem složky a tlačítko Procházet sjednoceno do neutrálního stylu s primární ikonou.',
       'MagicPlan – Real timeline log v denním pohledu: Kliknutím na progress bar worklogu nebo na postranní ikonu napravo se u daného uživatele zobrazí chronologická časová osa odpracovaných intervalů z MLogu.',
       'MagicPlan – Jednořádkové zobrazení s překryvy a opacitou: Všechny časové intervaly leží v jednom řádku. Pozadí bloků má opacitu 0.6, takže se při souběžném logování vrstvy transparentně složí a indikují překryv, zatímco text zůstává s plnou ostrostí (1.0).',
-      'MagicPlan – Přesná osa 100 % šířky dne: Časová osa se dynamicky vymezuje od prvního začátku po poslední konec logování v daný den, tvořící čistých 100 % šířky bez rušivých prázdných okrajů a bez záhlaví.',
+      'MagicPlan – Přesná osa 100 % šířky dne: Časová osa se dynamicky vymezuje od prvního začátku po poslední konec logování v denní ose, tvořící čistých 100 % šířky bez rušivých prázdných okrajů a bez záhlaví.',
       'MagicPlan – Plovoucí informační tooltip: Při najetí myši na libovolný úsek se zobrazí plovoucí tooltip v jednotném guideline designu aplikace (časy od–do, hodiny, typ vývoj/servis, název úkolu, projekt, kód úkolu a možnost přímého otevření).',
       'MagicPlan – Párování na odkaz úkolu a spolehlivé notifikace: Podpora pro nový odkaz na nadřazený úkol v HTML buňce MLogu a oprava filtru řešitele zajišťující spolehlivé odesílání notifikací při navýšení i snížení plánu hodin.',
     ],
