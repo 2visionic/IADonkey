@@ -557,20 +557,35 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                 <span>Složka</span>
               </button>
 
-              {/* Přepínač DEV / Uživatel (standardní switch z design guidelines) */}
-              <label className="flex items-center gap-2 cursor-pointer select-none shrink-0 px-1.5" title="Přepnout zobrazení: Uživatel / DEV">
-                <span className={`text-xs font-medium transition ${mode === 'user' ? 'text-white' : 'text-gray-400'}`}>Uživatel</span>
-                <div className="relative inline-flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={mode === 'dev'}
-                    onChange={(e) => setMode(e.target.checked ? 'dev' : 'user')}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600" />
-                </div>
-                <span className={`text-xs font-medium transition ${mode === 'dev' ? 'text-indigo-400 font-semibold' : 'text-gray-400'}`}>DEV</span>
-              </label>
+              {/* Přepínač Uživatel / DEV (segmented switch ve stejném stylu jako chyby / nápady / dotazy) */}
+              <div className="flex items-center gap-1 p-1 bg-white/[0.04] rounded-full shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMode('user')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+                    mode === 'user'
+                      ? 'm3-primary-pill text-white shadow-md'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
+                  title="Pohled běžného uživatele"
+                >
+                  <span className="material-symbols-outlined text-[15px]">person</span>
+                  <span>Uživatel</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('dev')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+                    mode === 'dev'
+                      ? 'm3-primary-pill text-white shadow-md'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
+                  title="Vývojářský pohled se správou všech podnětů"
+                >
+                  <span className="material-symbols-outlined text-[15px]">terminal</span>
+                  <span>DEV</span>
+                </button>
+              </div>
             </>
           )}
 
@@ -875,9 +890,10 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
             <button
               type="button"
               onClick={handleSelectFolder}
-              className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-white font-medium cursor-pointer"
+              className="h-[38px] px-4 rounded-full bg-red-500/20 hover:bg-red-500/30 text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 mx-auto"
             >
-              Zvolit jinou složku
+              <span className="material-symbols-outlined text-base">folder_open</span>
+              <span>Zvolit jinou složku</span>
             </button>
           </div>
         ) : filteredItems.length === 0 ? (
@@ -895,9 +911,10 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
               <button
                 type="button"
                 onClick={handleOpenCreate}
-                className="mt-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition cursor-pointer"
+                className="mt-2 h-[38px] px-5 rounded-full m3-primary-pill text-white text-xs font-semibold shadow-md hover:brightness-110 transition flex items-center gap-1.5 cursor-pointer"
               >
-                + Přidat první připomínku
+                <span className="material-symbols-outlined text-base">add</span>
+                <span>Přidat první připomínku</span>
               </button>
             )}
           </div>
