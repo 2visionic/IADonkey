@@ -1379,6 +1379,7 @@ function setupIpcHandlers() {
     const targetFolder = params?.folderPath || config.feedback?.sharedFolder || feedbackService.getDefaultFolderPath();
     const res = await feedbackService.createFeedback(targetFolder, params.data, params.screenshotBase64);
     if (res.success && res.item) {
+      // Notifikace o založení se řídí pravidlem: pouze pro vývojáře, nikdy běžnému uživateli
       feedbackNotificationService.onFeedbackCreated(res.item);
     }
     return res;

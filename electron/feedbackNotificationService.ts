@@ -119,8 +119,9 @@ export class FeedbackNotificationService {
       targetVersion: item.targetVersion,
     });
 
-    // Změna stavu: chodí POUZE pro konkrétního uživatele (autora daného feedbacku)
-    if (prevStatus && prevStatus !== item.status) {
+    // Změna stavu: vývojáři NECHODÍ, chodí POUZE běžnému uživateli pro jím založené feedbacky
+    const isDev = this.isDevelopMode();
+    if (!isDev && prevStatus && prevStatus !== item.status) {
       if (this.isOwnFeedback(item)) {
         this.notifyStatusChangeForUser(item, prevStatus);
       }
@@ -283,8 +284,8 @@ export class FeedbackNotificationService {
               targetVersion: item.targetVersion,
             });
 
-            // Změna stavu: chodí POUZE pro konkrétního uživatele (autora daného feedbacku)
-            if (this.isOwnFeedback(item)) {
+            // Změna stavu: vývojáři NECHODÍ, chodí POUZE běžnému uživateli pro jím založené feedbacky
+            if (!isDev && this.isOwnFeedback(item)) {
               this.notifyStatusChangeForUser(item, oldStatus);
             }
           }
