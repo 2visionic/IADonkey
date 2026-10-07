@@ -235,17 +235,30 @@ export class FeedbackService {
   }
 
   /**
-   * Vrátí aktuální verzi aplikace z package.json nebo default.
+   * Vrátí aktuální verzi aplikace z Electron app, package.json nebo default.
    */
   public getCurrentVersion(): string {
     try {
-      const pkgPath = path.join(__dirname, '..', 'package.json');
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-        return pkg.version || '1.0.0';
+      if (app && typeof app.getVersion === 'function') {
+        const v = app.getVersion();
+        if (v && v !== '0.0.0') return v;
       }
     } catch {}
-    return '1.0.0';
+
+    try {
+      const candidates = [
+        path.join(process.cwd(), 'package.json'),
+        path.join(__dirname, '..', 'package.json'),
+        path.join(__dirname, 'package.json'),
+      ];
+      for (const p of candidates) {
+        if (fs.existsSync(p)) {
+          const pkg = JSON.parse(fs.readFileSync(p, 'utf-8'));
+          if (pkg.version) return pkg.version;
+        }
+      }
+    } catch {}
+    return '2.1.6';
   }
 
   /**
@@ -253,10 +266,10 @@ export class FeedbackService {
    */
   public getNextVersion(currentVersion?: string): string {
     const v = currentVersion || this.getCurrentVersion();
-    const clean = v.replace(/^v/, '');
+    const clean = v.replace(/^v/, '').trim();
     const parts = clean.split('.').map((p) => parseInt(p, 10));
 
-    if (parts.length === 3 && !parts.some(isNaN)) {
+    if (parts.length >= 3 && !parts.slice(0, 3).some(isNaN)) {
       return `v${parts[0]}.${parts[1]}.${parts[2] + 1}`;
     }
     return `v${clean}.1`;

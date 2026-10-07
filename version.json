@@ -1,6 +1,6 @@
 {
-  "version": "2.1.6",
-  "releaseNotes": "• MagicPlan: Real timeline log v denním pohledu na kliknutí na worklog bar nebo postranní ikonu.\n• MagicPlan: Všechny časové úseky na jednom řádku včetně transparentního překrývání (opacity 0.6 pozadí, 1.0 text).\n• MagicPlan: Plynulá časová osa od prvního začátku po poslední konec logování (100% šířka dne).\n• MagicPlan: Bohatý plovoucí tooltip s detaily úseku podle guideline designu a proklikem do úkolu.\n• MagicPlan: Oprava párování na samostatný odkaz úkolu z MLogu a spolehlivé notifikace navýšení plánu hodin.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.6/IADonkey-Setup-2.1.6.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.6/IADonkey-2.1.6.zip"
+  "version": "2.1.7",
+  "releaseNotes": "• Zpětná vazba: Nový interní systém pro sběr námětů a hlášení chyb se sdílenou síťovou složkou.\n• Režim uživatele i vývojáře: Podpora vkládání screenshotů (Ctrl+V), správa priorit, stavů a plánování cílové verze.\n• Spotlight & zkratky: Spuštění přes /feedback, /zpetnavazba, /napady, /chyba i běžné fulltextové vyhledávání.\n• Vizuální standard: Plný soulad s Material 3, sjednocené ovládací lišty (38px) a Google Material Symbols.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.7/IADonkey-Setup-2.1.7.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.7/IADonkey-2.1.7.zip"
 }

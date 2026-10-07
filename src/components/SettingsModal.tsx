@@ -11031,7 +11031,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           handleSave(updated);
                         }}
                         placeholder="Výchozí: interní data složka nebo zadejte síťovou složku..."
-                        className="flex-1 h-[38px] px-3.5 bg-white/5 border border-white/10 rounded-full text-white placeholder-gray-500 text-xs focus:outline-none focus:border-amber-400/50 transition font-mono"
+                        className="flex-1 h-[38px] px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-500 text-sm focus:border-indigo-500 outline-none font-mono"
                       />
                       <button
                         type="button"
@@ -11051,9 +11051,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             }
                           }
                         }}
-                        className="h-[38px] px-4 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-full text-[13px] font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                        className="h-[38px] px-3.5 border border-indigo-500/40 hover:border-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 hover:text-white rounded-lg text-[13px] font-medium transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
                       >
-                        <span className="material-symbols-outlined text-base text-amber-400">folder_open</span>
+                        <span className="material-symbols-outlined text-[18px] leading-none">folder_open</span>
                         <span>Procházet...</span>
                       </button>
                       {formData.feedback?.sharedFolder && (
@@ -11070,10 +11070,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             setFormData(updated);
                             handleSave(updated);
                           }}
-                          className="h-[38px] px-3 bg-white/[0.06] hover:bg-rose-500/20 text-gray-400 hover:text-rose-300 rounded-full transition cursor-pointer flex items-center justify-center shrink-0"
+                          className="w-[38px] h-[38px] flex items-center justify-center text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-lg transition cursor-pointer shrink-0"
                           title="Obnovit výchozí umístění"
                         >
-                          <span className="material-symbols-outlined text-base">close</span>
+                          <span className="material-symbols-outlined text-[18px] leading-none">delete</span>
                         </button>
                       )}
                     </div>
@@ -11100,7 +11100,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         handleSave(updated);
                       }}
                       placeholder="např. Jan Novák"
-                      className="w-full max-w-md h-[38px] px-3.5 bg-white/5 border border-white/10 rounded-full text-white placeholder-gray-500 text-xs focus:outline-none focus:border-amber-400/50 transition"
+                      className="w-full max-w-md h-[38px] px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-500 text-sm focus:border-indigo-500 outline-none transition"
                     />
                   </div>
                 </div>

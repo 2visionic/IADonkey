@@ -4,6 +4,14 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.7] - 7. 10. 2026
+### Interní systém pro zpětnou vazbu a nápady (Feedback), podpora síťového disku a vývojářský režim
+- **Zpětná vazba – Interní sdílený systém**: Možnost zadávat podněty, návrhy na vylepšení a hlásit chyby s automatickým atomickým ukládáním do jednotlivých JSON a PNG souborů na síťový disk bez rizika souběhových kolizí.
+- **Zpětná vazba – Režim uživatele i vývojáře**: Uživatelé mohou zakládat podněty, vkládat screenshoty ze schránky (Ctrl+V) a upravovat/mazat své záznamy ve stavu Nové. Vývojářský režim nabízí kompletní správu všech úkolů, řízení priorit, změnu stavů na Ve zpracování, Odloženo a Vyřešeno s plánováním verzí a exportem pro TODO.md.
+- **Zpětná vazba – Příkazy Spotlightu a rychlé vyhledávání**: Okamžité otevření přes lomítkové příkazy /feedback, /zpetnavazba, /napady, /chyba nebo vyhledáním klíčových slov přímo v liště Spotlight.
+- **Vizuální styl a design guideline**: Sjednocené zarovnání ovládací lišty, konzistentní rozměr tlačítek (38px), čisté Material 3 pill záložky bez uskakování a ikony Google Material Symbols místo emoji.
+- **Nastavení – Konfigurace složky a autora**: V sekci Nastavení -> Systém lze jednoduše vybrat cestu ke sdílené síťové složce a zadat výchozí jméno autora v přesném souladu s UI standardem.
+
 ## [2.1.6] - 7. 10. 2026
 ### MagicPlan Real timeline log v denním pohledu, transparentní překryvy a oprava notifikací plánu
 - **MagicPlan – Real timeline log v denním pohledu**: Kliknutím na progress bar worklogu nebo na postranní ikonu napravo se u daného uživatele zobrazí chronologická časová osa odpracovaných intervalů z MLogu.
