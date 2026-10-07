@@ -513,7 +513,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
       {/* Horní ovládací lišta */}
       <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between gap-4 bg-[#12131a]/90 backdrop-blur-md shrink-0 min-h-[68px]">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-indigo-500/15 flex items-center justify-center text-indigo-400 shrink-0">
+          <div className={`w-10 h-10 rounded-full ${mode === 'dev' ? 'bg-amber-500/15 text-amber-400' : 'bg-indigo-500/15 text-indigo-400'} flex items-center justify-center shrink-0`}>
             <span className="material-symbols-outlined text-2xl">
               {mode === 'dev' ? 'terminal' : 'rate_review'}
             </span>
@@ -577,12 +577,12 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                   onClick={() => setMode('dev')}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
                     mode === 'dev'
-                      ? 'm3-primary-pill text-white shadow-md'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-amber-500/25 text-amber-200 font-semibold shadow-md'
+                      : 'text-gray-400 hover:text-amber-300 hover:bg-white/5'
                   }`}
                   title="Vývojářský pohled se správou všech podnětů"
                 >
-                  <span className="material-symbols-outlined text-[15px]">terminal</span>
+                  <span className={`material-symbols-outlined text-[15px] ${mode === 'dev' ? 'text-amber-300' : 'text-amber-400/80'}`}>terminal</span>
                   <span>DEV</span>
                 </button>
               </div>
