@@ -631,62 +631,102 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
           <button
             type="button"
             onClick={() => setStatusFilter('all')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer ${
               statusFilter === 'all'
                 ? 'm3-primary-pill text-white shadow-md'
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <span>Vše</span>
-            <span className="text-[10px] opacity-80 font-mono">({counts.all})</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono leading-none transition ${
+                statusFilter === 'all'
+                  ? 'bg-white/20 text-white font-semibold'
+                  : 'bg-white/[0.08] text-gray-400'
+              }`}
+            >
+              {counts.all}
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('new')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer ${
               statusFilter === 'new'
                 ? 'bg-amber-500/25 text-amber-200 shadow-md'
                 : 'text-gray-400 hover:text-amber-300 hover:bg-white/5'
             }`}
           >
             <span>Nové</span>
-            <span className="text-[10px] opacity-80 font-mono">({counts.new})</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono leading-none transition ${
+                statusFilter === 'new'
+                  ? 'bg-amber-500/30 text-amber-100 font-semibold'
+                  : 'bg-white/[0.08] text-gray-400'
+              }`}
+            >
+              {counts.new}
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('in_progress')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer ${
               statusFilter === 'in_progress'
                 ? 'bg-indigo-500/25 text-indigo-200 shadow-md'
                 : 'text-gray-400 hover:text-indigo-300 hover:bg-white/5'
             }`}
           >
             <span>Ve zpracování</span>
-            <span className="text-[10px] opacity-80 font-mono">({counts.in_progress})</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono leading-none transition ${
+                statusFilter === 'in_progress'
+                  ? 'bg-indigo-500/30 text-indigo-100 font-semibold'
+                  : 'bg-white/[0.08] text-gray-400'
+              }`}
+            >
+              {counts.in_progress}
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('postponed')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer ${
               statusFilter === 'postponed'
                 ? 'bg-white/15 text-white shadow-md'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
             }`}
           >
             <span>Odloženo</span>
-            <span className="text-[10px] opacity-80 font-mono">({counts.postponed})</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono leading-none transition ${
+                statusFilter === 'postponed'
+                  ? 'bg-white/20 text-white font-semibold'
+                  : 'bg-white/[0.08] text-gray-400'
+              }`}
+            >
+              {counts.postponed}
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('resolved')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer ${
               statusFilter === 'resolved'
                 ? 'bg-emerald-500/25 text-emerald-200 shadow-md'
                 : 'text-gray-400 hover:text-emerald-300 hover:bg-white/5'
             }`}
           >
             <span>Hotovo</span>
-            <span className="text-[10px] opacity-80 font-mono">({counts.resolved})</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono leading-none transition ${
+                statusFilter === 'resolved'
+                  ? 'bg-emerald-500/30 text-emerald-100 font-semibold'
+                  : 'bg-white/[0.08] text-gray-400'
+              }`}
+            >
+              {counts.resolved}
+            </span>
           </button>
         </div>
 
