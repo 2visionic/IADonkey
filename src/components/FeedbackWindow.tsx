@@ -330,6 +330,8 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
 
   // Změna priority vývojářem
   const handleUpdatePriority = async (item: FeedbackItem, newPriority: FeedbackPriority) => {
+    if (item.priority === newPriority) return;
+    setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, priority: newPriority } : it)));
     const updated: FeedbackItem = {
       ...item,
       priority: newPriority,
@@ -1067,17 +1069,57 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                     {/* Dev ovládání stavu */}
                     {mode === 'dev' ? (
                       <>
-                        {/* Změna priority */}
-                        <select
-                          value={item.priority}
-                          onChange={(e) => handleUpdatePriority(item, e.target.value as FeedbackPriority)}
-                          className="h-[28px] px-2.5 rounded-full bg-white/[0.06] hover:bg-white/[0.1] text-[11px] text-zinc-200 cursor-pointer outline-none transition"
-                        >
-                          <option value="low">Nízká</option>
-                          <option value="normal">Normální</option>
-                          <option value="high">Vysoká</option>
-                          <option value="critical">Kritická</option>
-                        </select>
+                        {/* Přepínač priority (switch) */}
+                        <div className="flex items-center p-0.5 bg-white/[0.04] rounded-full">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdatePriority(item, 'low')}
+                            className={`h-[24px] px-2 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
+                              item.priority === 'low'
+                                ? 'bg-white/20 text-white shadow-sm'
+                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+                            }`}
+                            title="Nízká priorita"
+                          >
+                            Nízká
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdatePriority(item, 'normal')}
+                            className={`h-[24px] px-2 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
+                              item.priority === 'normal'
+                                ? 'm3-primary-pill text-white shadow-sm'
+                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+                            }`}
+                            title="Normální priorita"
+                          >
+                            Normální
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdatePriority(item, 'high')}
+                            className={`h-[24px] px-2 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
+                              item.priority === 'high'
+                                ? 'bg-amber-500/25 text-amber-200 shadow-sm'
+                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+                            }`}
+                            title="Vysoká priorita"
+                          >
+                            Vysoká
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdatePriority(item, 'critical')}
+                            className={`h-[24px] px-2 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
+                              item.priority === 'critical'
+                                ? 'bg-rose-500/25 text-rose-200 shadow-sm'
+                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+                            }`}
+                            title="Kritická priorita"
+                          >
+                            Kritická
+                          </button>
+                        </div>
 
                         {/* Přepínání stavů */}
                         {item.status === 'new' && (
