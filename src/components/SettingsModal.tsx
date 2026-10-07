@@ -11078,9 +11078,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             }
                           }
                         }}
-                        className="h-[38px] px-4 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 hover:text-white rounded-full text-[13px] font-medium transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                        className="h-[38px] px-4 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-full text-[13px] font-medium transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
                       >
-                        <span className="material-symbols-outlined text-[18px] leading-none">folder_open</span>
+                        <span className="material-symbols-outlined text-[18px] text-indigo-400 leading-none">folder_open</span>
                         <span>Procházet...</span>
                       </button>
                       {Boolean(formData.feedback?.sharedFolder) && (
