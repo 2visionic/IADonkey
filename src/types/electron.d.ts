@@ -290,6 +290,7 @@ declare global {
       getFeedbackScreenshot?: (params: { folderPath?: string; filename: string }) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
       getFeedbackNextVersion?: (currentVer?: string) => Promise<string>;
       selectFeedbackFolder?: () => Promise<string | null>;
+      getClipboardImage?: () => Promise<string | null>;
       onFeedbackModeChanged?: (callback: (mode: 'user' | 'dev') => void) => () => void;
     };
   }

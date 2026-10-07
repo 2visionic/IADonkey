@@ -1,6 +1,6 @@
 {
-  "version": "2.1.7",
-  "releaseNotes": "• Zpětná vazba: Nový interní systém pro sběr námětů a hlášení chyb se sdílenou síťovou složkou.\n• Režim uživatele i vývojáře: Podpora vkládání screenshotů (Ctrl+V), správa priorit, stavů a plánování cílové verze.\n• Spotlight & zkratky: Spuštění přes /feedback, /zpetnavazba, /napady, /chyba i běžné fulltextové vyhledávání.\n• Vizuální standard: Plný soulad s Material 3, sjednocené ovládací lišty (38px) a Google Material Symbols.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.7/IADonkey-Setup-2.1.7.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.7/IADonkey-2.1.7.zip"
+  "version": "2.1.8",
+  "releaseNotes": "• Zpětná vazba: Segmentované přepínače pro typ i prioritu bez rušivých borderů.\n• Vyhledávání: Celořádkový vyhledávací panel na rozklik circle ikony lupy.\n• Screenshoty: Spolehlivé nativní vkládání ze schránky (Ctrl+V) a tlačítko pro vložení.\n• Nastavení & DEV: Dynamická detekce složky, fullrounded tlačítka a omezení dev prvků.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.8/IADonkey-Setup-2.1.8.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.8/IADonkey-2.1.8.zip"
 }

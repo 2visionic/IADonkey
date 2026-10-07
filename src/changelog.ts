@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.7';
+export const CURRENT_APP_VERSION = '2.1.8';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,18 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.8',
+    date: '7. 10. 2026',
+    title: 'Zpětná vazba – Segmentované přepínače, celořádkové vyhledávání, spolehlivé vkládání screenshotů a designové vyladění',
+    highlights: [
+      'Zpětná vazba – Segmentované přepínače (switche): Výběr typu hlášení v liště i ve formuláři nové připomínky i volba priority jsou nyní řešeny pomocí čistých plně zaoblených přepínačů bez rušivých ohraničení.',
+      'Zpětná vazba – Celořádkový vyhledávací panel: Kliknutím na kruhovou ikonu lupy se otevře plovoucí vyhledávací pole překrývající celý řádek nástrojů s možností okamžitého vymazání a zavření křížkem nebo klávesou Escape.',
+      'Zpětná vazba – Nativní vkládání screenshotů (Ctrl+V): Integrována nativní podpora schránky Electronu zachycující bitmapy z Windows Výstřižků i klávesy PrintScreen s novým tlačítkem „Vložit ze schránky“.',
+      'Zpětná vazba – DEV režim a přepínač zobrazení: Tlačítko pro změnu síťové složky a přepínač DEV/uživatelského pohledu se zobrazují výhradně při spuštění ve vývojářském režimu.',
+      'Nastavení – Dynamická detekce složky a designový soulad: Tlačítko otevření zpětné vazby v Nastavení se zobrazuje reaktivně ihned po vyplnění složky, tlačítka pro procházení a smazání cesty jsou plně zaoblena a pole pro jméno autora je přehledně umístěno nad výběrem složky.',
+    ],
+  },
   {
     version: '2.1.7',
     date: '7. 10. 2026',

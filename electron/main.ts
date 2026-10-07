@@ -1412,6 +1412,14 @@ function setupIpcHandlers() {
     return null;
   });
 
+  ipcMain.handle('feedback-get-clipboard-image', () => {
+    const img = clipboard.readImage();
+    if (!img.isEmpty()) {
+      return img.toDataURL();
+    }
+    return null;
+  });
+
   ipcMain.handle('get-config', () => {
     return store.getConfig();
   });

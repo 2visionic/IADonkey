@@ -4,6 +4,14 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.8] - 7. 10. 2026
+### Zpětná vazba – Segmentované přepínače, celořádkové vyhledávání, spolehlivé vkládání screenshotů a designové vyladění
+- **Zpětná vazba – Segmentované přepínače (switche)**: Výběr typu hlášení v liště i ve formuláři nové připomínky i volba priority jsou nyní řešeny pomocí čistých plně zaoblených přepínačů bez rušivých ohraničení.
+- **Zpětná vazba – Celořádkový vyhledávací panel**: Kliknutím na kruhovou ikonu lupy se otevře plovoucí vyhledávací pole překrývající celý řádek nástrojů s možností okamžitého vymazání a zavření křížkem nebo klávesou Escape.
+- **Zpětná vazba – Nativní vkládání screenshotů (Ctrl+V)**: Integrována nativní podpora schránky Electronu zachycující bitmapy z Windows Výstřižků i klávesy PrintScreen s novým tlačítkem „Vložit ze schránky“.
+- **Zpětná vazba – DEV režim a přepínač zobrazení**: Tlačítko pro změnu síťové složky a přepínač DEV/uživatelského pohledu se zobrazují výhradně při spuštění ve vývojářském režimu.
+- **Nastavení – Dynamická detekce složky a designový soulad**: Tlačítko otevření zpětné vazby v Nastavení se zobrazuje reaktivně ihned po vyplnění složky, tlačítka pro procházení a smazání cesty jsou plně zaoblena a pole pro jméno autora je přehledně umístěno nad výběrem složky.
+
 ## [2.1.7] - 7. 10. 2026
 ### Interní systém pro zpětnou vazbu a nápady (Feedback), podpora síťového disku a vývojářský režim
 - **Zpětná vazba – Interní sdílený systém**: Možnost zadávat podněty, návrhy na vylepšení a hlásit chyby s automatickým atomickým ukládáním do jednotlivých JSON a PNG souborů na síťový disk bez rizika souběhových kolizí.

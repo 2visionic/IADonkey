@@ -446,6 +446,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('feedback-get-next-version', currentVer),
   selectFeedbackFolder: (): Promise<string | null> =>
     ipcRenderer.invoke('feedback-select-folder'),
+  getClipboardImage: (): Promise<string | null> =>
+    ipcRenderer.invoke('feedback-get-clipboard-image'),
   onFeedbackModeChanged: (callback: (mode: 'user' | 'dev') => void) => {
     const handler = (_event: any, mode: 'user' | 'dev') => callback(mode);
     ipcRenderer.on('feedback-mode-changed', handler);

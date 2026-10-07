@@ -28,6 +28,8 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
   const [statusFilter, setStatusFilter] = useState<FeedbackStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<FeedbackType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [prioritySort, setPrioritySort] = useState<'none' | 'desc'>('none');
 
   // Modální okna a detaily
@@ -334,25 +336,91 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
     setTimeout(() => setCopiedNotification(null), 3000);
   };
 
-  // Vložení screenshotu ze schránky (Ctrl+V) ve formuláři
-  const handlePasteScreenshot = (e: React.ClipboardEvent) => {
-    const clipItems = e.clipboardData?.items;
-    if (!clipItems) return;
-
-    for (let i = 0; i < clipItems.length; i++) {
-      if (clipItems[i].type.indexOf('image') !== -1) {
-        const file = clipItems[i].getAsFile();
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            setFormScreenshot(event.target?.result as string);
-          };
-          reader.readAsDataURL(file);
-          e.preventDefault();
-          break;
+  // Globální a spolehlivé vkládání screenshotu ze schránky (Ctrl+V) ve formuláři
+  const processClipboardForImage = useCallback(async (clipboardData?: DataTransfer | null) => {
+    // 1. Zkusíme standardní DataTransfer položky (ze syntetického paste eventu)
+    if (clipboardData?.items) {
+      for (let i = 0; i < clipboardData.items.length; i++) {
+        const item = clipboardData.items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              if (event.target?.result) {
+                setFormScreenshot(event.target.result as string);
+              }
+            };
+            reader.readAsDataURL(file);
+            return true;
+          }
         }
       }
     }
+
+    // 2. Přímé nativní čtení z Electron schránky (podporuje DIB / bitmapy z Windows Výstřižků a PrtScn)
+    if (window.electronAPI?.getClipboardImage) {
+      try {
+        const dataUrl = await window.electronAPI.getClipboardImage();
+        if (dataUrl) {
+          setFormScreenshot(dataUrl);
+          return true;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 3. Fallback přes browser Clipboard API
+    if (navigator.clipboard?.read) {
+      try {
+        const clipItems = await navigator.clipboard.read();
+        for (const cItem of clipItems) {
+          for (const t of cItem.types) {
+            if (t.startsWith('image/')) {
+              const blob = await cItem.getType(t);
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                if (event.target?.result) {
+                  setFormScreenshot(event.target.result as string);
+                }
+              };
+              reader.readAsDataURL(blob);
+              return true;
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return false;
+  }, []);
+
+  // Globální listener Ctrl+V pro otevřený modal
+  useEffect(() => {
+    if (!isCreateOpen) return;
+
+    const handleGlobalPaste = async (e: ClipboardEvent) => {
+      const activeTag = (document.activeElement as HTMLElement)?.tagName;
+      const isInput = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
+
+      const handled = await processClipboardForImage(e.clipboardData);
+      if (handled && !isInput) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => {
+      window.removeEventListener('paste', handleGlobalPaste);
+    };
+  }, [isCreateOpen, processClipboardForImage]);
+
+  // Ruční vložení kliknutím na tlačítko schránky
+  const handlePasteFromClipboardButton = async () => {
+    await processClipboardForImage(null);
   };
 
   // Výběr souboru obrázku
@@ -429,7 +497,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
       {/* Horní ovládací lišta */}
       <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between gap-4 bg-[#12131a]/90 backdrop-blur-md shrink-0 min-h-[68px]">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400 shrink-0">
+          <div className="w-10 h-10 rounded-full bg-indigo-500/15 flex items-center justify-center text-indigo-400 shrink-0">
             <span className="material-symbols-outlined text-2xl">
               {mode === 'dev' ? 'terminal' : 'rate_review'}
             </span>
@@ -440,7 +508,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                 {mode === 'dev' ? 'Správce zpětné vazby' : 'Zpětná vazba a nápady'}
               </h1>
               {mode === 'dev' && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300">
                   DEV MODE
                 </span>
               )}
@@ -459,33 +527,35 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
 
         {/* Tlačítka v záhlaví */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Tlačítko změny složky */}
-          <button
-            type="button"
-            onClick={handleSelectFolder}
-            className="h-[38px] px-3.5 rounded-full border border-white/10 hover:border-white/20 bg-white/[0.04] hover:bg-white/[0.08] text-xs font-medium text-gray-300 hover:text-white flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
-            title="Změnit cílovou sdílenou složku pro feedback"
-          >
-            <span className="material-symbols-outlined text-base text-amber-400">folder_open</span>
-            <span>Složka</span>
-          </button>
+          {/* Tlačítka dostupná pouze pokud je povolen DEV režim */}
+          {(initialMode === 'dev' || new URLSearchParams(window.location.search).get('mode') === 'dev') && (
+            <>
+              {/* Tlačítko změny složky */}
+              <button
+                type="button"
+                onClick={handleSelectFolder}
+                className="h-[38px] px-3.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-xs font-medium text-gray-300 hover:text-white flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
+                title="Změnit cílovou sdílenou složku pro feedback"
+              >
+                <span className="material-symbols-outlined text-base text-amber-400">folder_open</span>
+                <span>Složka</span>
+              </button>
 
-          {/* Přepínač Dev / User pohledu pro vývojáře */}
-          <button
-            type="button"
-            onClick={() => setMode(mode === 'dev' ? 'user' : 'dev')}
-            className={`h-[38px] px-3.5 rounded-full border text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 ${
-              mode === 'dev'
-                ? 'bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25'
-                : 'bg-white/[0.04] border-white/10 text-gray-300 hover:text-white hover:bg-white/[0.08]'
-            }`}
-            title="Přepnout zobrazení pro vývojáře / běžného uživatele"
-          >
-            <span className="material-symbols-outlined text-base">
-              {mode === 'dev' ? 'person' : 'code'}
-            </span>
-            <span>{mode === 'dev' ? 'Pohled uživatele' : 'DEV pohled'}</span>
-          </button>
+              {/* Přepínač DEV pohled (standardní switch z design guidelines) */}
+              <label className="flex items-center gap-2 cursor-pointer select-none shrink-0 px-1.5" title="Přepnout zobrazení pro vývojáře">
+                <span className="text-xs text-gray-400 font-medium">DEV</span>
+                <div className="relative inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={mode === 'dev'}
+                    onChange={(e) => setMode(e.target.checked ? 'dev' : 'user')}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600" />
+                </div>
+              </label>
+            </>
+          )}
 
           {/* Obnovit (zarovnáno přesně na h-[38px] w-[38px]) */}
           <button
@@ -538,8 +608,8 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
       )}
 
       {/* Filtrovací lišta */}
-      <div className="px-6 py-3 border-b border-white/[0.06] bg-[#12131a]/60 flex items-center justify-between gap-4 flex-wrap shrink-0">
-        {/* Status filtry - Material 3 pill bar */}
+      <div className="relative px-6 py-3 border-b border-white/[0.06] bg-[#12131a]/60 flex items-center justify-between gap-4 flex-wrap shrink-0 min-h-[62px]">
+        {/* Status filtry - Material 3 pill bar (bez borderů) */}
         <div className="flex items-center gap-1.5 p-1 bg-white/[0.04] rounded-full w-fit shrink-0">
           <button
             type="button"
@@ -558,7 +628,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
             onClick={() => setStatusFilter('new')}
             className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
               statusFilter === 'new'
-                ? 'bg-amber-500/25 text-amber-200 border border-amber-500/30 shadow-md'
+                ? 'bg-amber-500/25 text-amber-200 shadow-md'
                 : 'text-gray-400 hover:text-amber-300 hover:bg-white/5'
             }`}
           >
@@ -570,7 +640,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
             onClick={() => setStatusFilter('in_progress')}
             className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
               statusFilter === 'in_progress'
-                ? 'bg-indigo-500/25 text-indigo-200 border border-indigo-500/30 shadow-md'
+                ? 'bg-indigo-500/25 text-indigo-200 shadow-md'
                 : 'text-gray-400 hover:text-indigo-300 hover:bg-white/5'
             }`}
           >
@@ -594,7 +664,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
             onClick={() => setStatusFilter('resolved')}
             className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
               statusFilter === 'resolved'
-                ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-500/30 shadow-md'
+                ? 'bg-emerald-500/25 text-emerald-200 shadow-md'
                 : 'text-gray-400 hover:text-emerald-300 hover:bg-white/5'
             }`}
           >
@@ -603,34 +673,71 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
           </button>
         </div>
 
-        {/* Vyhledávací pole + typový filtr + řazení dle priority */}
-        <div className="flex items-center gap-2 flex-1 justify-end max-w-lg">
-          {/* Typ filtru */}
-          <div className="relative shrink-0">
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as any)}
-              className="h-[38px] pl-3.5 pr-8 rounded-full border border-white/10 bg-white/[0.04] text-xs text-gray-300 focus:outline-none focus:border-indigo-500 cursor-pointer appearance-none transition"
+        {/* Pravé nástroje: Typový filtr jako switch + řazení dle priority + circle tlačítko vyhledávání */}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* Výběr typu pomocí switche (segmented switch, bez borderů) */}
+          <div className="flex items-center gap-1 p-1 bg-white/[0.04] rounded-full shrink-0">
+            <button
+              type="button"
+              onClick={() => setTypeFilter('all')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition cursor-pointer ${
+                typeFilter === 'all'
+                  ? 'm3-primary-pill text-white shadow-md'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
             >
-              <option value="all">Všechny typy</option>
-              <option value="bug">Chyba</option>
-              <option value="idea">Nápad</option>
-              <option value="other">Dotaz / Jiné</option>
-            </select>
-            <span className="material-symbols-outlined text-sm text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-              expand_more
-            </span>
+              Všechny typy
+            </button>
+            <button
+              type="button"
+              onClick={() => setTypeFilter('bug')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+                typeFilter === 'bug'
+                  ? 'bg-rose-500/25 text-rose-200 shadow-md'
+                  : 'text-gray-400 hover:text-rose-300 hover:bg-white/5'
+              }`}
+              title="Chyby"
+            >
+              <span className="material-symbols-outlined text-[15px]">bug_report</span>
+              <span>Chyby</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTypeFilter('idea')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+                typeFilter === 'idea'
+                  ? 'bg-purple-500/25 text-purple-200 shadow-md'
+                  : 'text-gray-400 hover:text-purple-300 hover:bg-white/5'
+              }`}
+              title="Nápady"
+            >
+              <span className="material-symbols-outlined text-[15px]">lightbulb</span>
+              <span>Nápady</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTypeFilter('other')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer ${
+                typeFilter === 'other'
+                  ? 'bg-sky-500/25 text-sky-200 shadow-md'
+                  : 'text-gray-400 hover:text-sky-300 hover:bg-white/5'
+              }`}
+              title="Dotazy a jiné"
+            >
+              <span className="material-symbols-outlined text-[15px]">chat</span>
+              <span>Dotazy</span>
+            </button>
           </div>
 
-          {/* Řazení dle priority pro dev */}
+          {/* Řazení dle priority pro dev (bez borderu, fullrounded) */}
           {mode === 'dev' && (
             <button
               type="button"
               onClick={() => setPrioritySort(prioritySort === 'desc' ? 'none' : 'desc')}
-              className={`h-[38px] px-3.5 rounded-full border text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 ${
+              className={`h-[38px] px-3.5 rounded-full text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 ${
                 prioritySort === 'desc'
-                  ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-300'
-                  : 'bg-white/[0.04] border-white/10 text-gray-400 hover:text-white'
+                  ? 'bg-indigo-500/25 text-indigo-300 shadow-sm'
+                  : 'bg-white/[0.04] text-gray-400 hover:text-white hover:bg-white/[0.08]'
               }`}
               title="Řadit podle priority (Kritická -> Nízká)"
             >
@@ -639,29 +746,62 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
             </button>
           )}
 
-          {/* Hledání */}
-          <div className="relative flex-1 min-w-[180px]">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-              search
-            </span>
+          {/* Circle ikona vyhledávání */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsSearchOpen(true);
+              setTimeout(() => searchInputRef.current?.focus(), 50);
+            }}
+            className={`w-[38px] h-[38px] rounded-full flex items-center justify-center transition cursor-pointer shrink-0 ${
+              searchQuery
+                ? 'bg-indigo-500/25 text-indigo-300 shadow-sm'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] text-gray-400 hover:text-white'
+            }`}
+            title={searchQuery ? `Aktivní hledání: "${searchQuery}"` : 'Hledat v připomínkách'}
+          >
+            <span className="material-symbols-outlined text-[18px]">search</span>
+          </button>
+        </div>
+
+        {/* Vyhledávací input překrývající celý řádek s circle křížkem */}
+        {isSearchOpen && (
+          <div className="absolute inset-0 bg-[#12131a] flex items-center px-6 z-20 gap-3 animate-fade-in">
+            <span className="material-symbols-outlined text-gray-400 text-lg">search</span>
             <input
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Hledat v připomínkách..."
-              className="w-full h-[38px] pl-9 pr-8 rounded-full border border-white/10 bg-white/[0.04] text-xs text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition"
+              placeholder="Hledat v připomínkách (název, popis, autor, verze)..."
+              className="flex-1 h-[38px] bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 outline-none transition"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setIsSearchOpen(false);
+                }
+              }}
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs cursor-pointer"
+                className="w-[38px] h-[38px] rounded-full bg-white/[0.04] hover:bg-white/[0.08] flex items-center justify-center text-gray-400 hover:text-white transition cursor-pointer shrink-0"
+                title="Vymazat hledání"
               >
-                <span className="material-symbols-outlined text-sm">close</span>
+                <span className="material-symbols-outlined text-sm">backspace</span>
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(false)}
+              className="w-[38px] h-[38px] rounded-full bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-gray-300 hover:text-white transition cursor-pointer shrink-0"
+              title="Zavřít hledání (Esc)"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Hlavní obsah - Seznam karet */}
@@ -730,10 +870,10 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
                         item.type === 'bug'
-                          ? 'bg-red-500/15 text-red-300 border border-red-500/30'
+                          ? 'bg-red-500/20 text-red-300'
                           : item.type === 'idea'
-                          ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
-                          : 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+                          ? 'bg-purple-500/20 text-purple-300'
+                          : 'bg-blue-500/20 text-blue-300'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[13px]">
@@ -750,12 +890,12 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
                         item.priority === 'critical'
-                          ? 'bg-rose-500/25 text-rose-300 border border-rose-500/40 animate-pulse'
+                          ? 'bg-rose-500/25 text-rose-300 animate-pulse'
                           : item.priority === 'high'
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          ? 'bg-amber-500/20 text-amber-300'
                           : item.priority === 'low'
-                          ? 'bg-white/5 text-gray-400 border border-white/5'
-                          : 'bg-white/10 text-gray-300 border border-white/10'
+                          ? 'bg-white/5 text-gray-400'
+                          : 'bg-white/10 text-gray-300'
                       }`}
                       title={`Priorita: ${
                         item.priority === 'critical'
@@ -791,12 +931,12 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 ${
                         item.status === 'new'
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          ? 'bg-amber-500/20 text-amber-300'
                           : item.status === 'in_progress'
-                          ? 'bg-indigo-500/25 text-indigo-300 border border-indigo-500/40 animate-pulse'
+                          ? 'bg-indigo-500/25 text-indigo-300 animate-pulse'
                           : item.status === 'postponed'
-                          ? 'bg-zinc-700/30 text-zinc-400 border border-zinc-700/40'
-                          : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          ? 'bg-zinc-700/30 text-zinc-400'
+                          : 'bg-emerald-500/20 text-emerald-300'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[12px]">
@@ -821,7 +961,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
 
                     {/* Zobrazení verze u dokončeného */}
                     {item.status === 'resolved' && item.targetVersion && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-500/30">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-200">
                         Verze: {item.targetVersion}
                       </span>
                     )}
@@ -883,7 +1023,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                         <select
                           value={item.priority}
                           onChange={(e) => handleUpdatePriority(item, e.target.value as FeedbackPriority)}
-                          className="px-2 py-0.5 rounded-lg border border-white/10 bg-[#1e202d] text-[11px] text-zinc-200 cursor-pointer"
+                          className="h-[28px] px-2.5 rounded-full border border-white/10 bg-[#1e202d] text-[11px] text-zinc-200 cursor-pointer outline-none transition"
                         >
                           <option value="low">Nízká</option>
                           <option value="normal">Normální</option>
@@ -896,7 +1036,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                           <button
                             type="button"
                             onClick={() => handleUpdateStatus(item, 'in_progress')}
-                            className="px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/30 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                            className="h-[28px] px-3 rounded-full bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition"
                             title="Nastavit stav Ve zpracování"
                           >
                             <span className="material-symbols-outlined text-[13px]">pending</span>
@@ -909,7 +1049,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                             <button
                               type="button"
                               onClick={() => handleOpenResolveDialog(item)}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                              className="h-[28px] px-3 rounded-full bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition"
                               title="Označit jako hotovo a nastavit verzi"
                             >
                               <span className="material-symbols-outlined text-[13px]">check</span>
@@ -918,7 +1058,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                             <button
                               type="button"
                               onClick={() => handleUpdateStatus(item, 'postponed')}
-                              className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[11px] font-semibold cursor-pointer"
+                              className="h-[28px] px-3 rounded-full bg-white/10 hover:bg-white/15 text-zinc-300 text-[11px] font-semibold cursor-pointer transition"
                               title="Odložit řešení"
                             >
                               Odložit
@@ -930,7 +1070,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                           <button
                             type="button"
                             onClick={() => handleUpdateStatus(item, 'in_progress')}
-                            className="px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/30 text-[11px] font-semibold cursor-pointer"
+                            className="h-[28px] px-3 rounded-full bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 text-[11px] font-semibold cursor-pointer transition"
                           >
                             Vrátit do zpracování
                           </button>
@@ -940,7 +1080,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                           <button
                             type="button"
                             onClick={() => handleUpdateStatus(item, 'in_progress')}
-                            className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-[11px] cursor-pointer"
+                            className="h-[28px] px-3 rounded-full bg-white/10 hover:bg-white/15 text-zinc-300 hover:text-white text-[11px] cursor-pointer transition"
                             title="Znovu otevřít"
                           >
                             Znovu otevřít
@@ -951,7 +1091,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                         <button
                           type="button"
                           onClick={() => handleCopyToClipboard(item)}
-                          className="p-1 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition cursor-pointer"
+                          className="w-[28px] h-[28px] rounded-full hover:bg-white/10 text-zinc-400 hover:text-white flex items-center justify-center transition cursor-pointer"
                           title="Zkopírovat jako úkol do schránky (TODO.md formát)"
                         >
                           <span className="material-symbols-outlined text-sm">content_copy</span>
@@ -961,7 +1101,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                         <button
                           type="button"
                           onClick={() => handleDelete(item)}
-                          className="p-1 rounded-lg hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition cursor-pointer"
+                          className="w-[28px] h-[28px] rounded-full hover:bg-red-500/20 text-zinc-500 hover:text-red-400 flex items-center justify-center transition cursor-pointer"
                           title="Smazat feedback"
                         >
                           <span className="material-symbols-outlined text-sm">delete</span>
@@ -975,7 +1115,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                             <button
                               type="button"
                               onClick={() => handleOpenEdit(item)}
-                              className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                              className="h-[28px] px-3 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition"
                               title="Upravit svůj požadavek"
                             >
                               <span className="material-symbols-outlined text-[13px]">edit</span>
@@ -984,7 +1124,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                             <button
                               type="button"
                               onClick={() => handleDelete(item)}
-                              className="p-1 rounded-lg hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition cursor-pointer"
+                              className="w-[28px] h-[28px] rounded-full hover:bg-red-500/20 text-zinc-500 hover:text-red-400 flex items-center justify-center transition cursor-pointer"
                               title="Smazat svůj požadavek"
                             >
                               <span className="material-symbols-outlined text-sm">delete</span>
@@ -1200,7 +1340,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                   <button
                     type="button"
                     onClick={() => handleCopyToClipboard(detailItem)}
-                    className="px-3 py-1.5 rounded-xl border border-white/10 hover:border-white/20 bg-white/[0.03] hover:bg-white/[0.08] text-xs font-medium text-zinc-300 flex items-center gap-1.5 transition cursor-pointer"
+                    className="h-[38px] px-4 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-xs font-medium text-zinc-300 flex items-center gap-1.5 transition cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-sm">content_copy</span>
                     <span>Zkopírovat do TODO</span>
@@ -1262,7 +1402,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
       {isCreateOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
-          onPaste={handlePasteScreenshot}
+          onPaste={(e) => processClipboardForImage(e.clipboardData)}
         >
           <div className="w-full max-w-xl max-h-[90vh] bg-[#14151f] border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-zoom-in">
             <div className="px-6 py-4 border-b border-white/[0.08] flex items-center justify-between bg-[#181a26]">
@@ -1280,66 +1420,66 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
             </div>
 
             <form onSubmit={handleSubmitForm} className="p-6 overflow-y-auto space-y-4 custom-scrollbar">
-              {/* Typ feedbacku (3 přepínače s Material Symbols) */}
+              {/* Typ feedbacku (switch přepínač bez borderů) */}
               <div>
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
                   Typ hlášení
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="p-1 bg-white/[0.04] rounded-full flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => setFormType('bug')}
-                    className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${
+                    className={`flex-1 py-1.5 px-3 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                       formType === 'bug'
-                        ? 'bg-rose-500/20 border-rose-500/40 text-rose-200 shadow-sm'
-                        : 'bg-white/[0.02] border-white/10 text-gray-400 hover:text-white hover:bg-white/[0.05]'
+                        ? 'bg-rose-500/25 text-rose-200 shadow-md'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-base text-rose-400">bug_report</span>
+                    <span className="material-symbols-outlined text-[16px] text-rose-400">bug_report</span>
                     <span>Chyba</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setFormType('idea')}
-                    className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${
+                    className={`flex-1 py-1.5 px-3 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                       formType === 'idea'
-                        ? 'bg-purple-500/20 border-purple-500/40 text-purple-200 shadow-sm'
-                        : 'bg-white/[0.02] border-white/10 text-gray-400 hover:text-white hover:bg-white/[0.05]'
+                        ? 'bg-purple-500/25 text-purple-200 shadow-md'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-base text-purple-400">lightbulb</span>
+                    <span className="material-symbols-outlined text-[16px] text-purple-400">lightbulb</span>
                     <span>Nápad</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setFormType('other')}
-                    className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${
+                    className={`flex-1 py-1.5 px-3 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                       formType === 'other'
-                        ? 'bg-sky-500/20 border-sky-500/40 text-sky-200 shadow-sm'
-                        : 'bg-white/[0.02] border-white/10 text-gray-400 hover:text-white hover:bg-white/[0.05]'
+                        ? 'bg-sky-500/25 text-sky-200 shadow-md'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-base text-sky-400">chat</span>
+                    <span className="material-symbols-outlined text-[16px] text-sky-400">chat</span>
                     <span>Dotaz / Jiné</span>
                   </button>
                 </div>
               </div>
 
-              {/* Priorita (uživatel si volí a jasně vidí zvolenou prioritu) */}
+              {/* Priorita (switch přepínač bez borderů) */}
               <div>
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
                   Priorita
                 </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="p-1 bg-white/[0.04] rounded-full flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => setFormPriority('low')}
-                    className={`py-2 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    className={`flex-1 py-1.5 px-2.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                       formPriority === 'low'
-                        ? 'bg-white/15 border-white/30 text-white shadow-sm'
-                        : 'bg-white/[0.02] border-white/10 text-gray-400 hover:text-white hover:bg-white/[0.05]'
+                        ? 'bg-white/20 text-white shadow-md'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
                     <span className="material-symbols-outlined text-[15px] leading-none text-gray-400">arrow_downward</span>
@@ -1349,23 +1489,23 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                   <button
                     type="button"
                     onClick={() => setFormPriority('normal')}
-                    className={`py-2 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    className={`flex-1 py-1.5 px-2.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                       formPriority === 'normal'
-                        ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-200 shadow-sm'
-                        : 'bg-white/[0.02] border-white/10 text-gray-400 hover:text-white hover:bg-white/[0.05]'
+                        ? 'm3-primary-pill text-white shadow-md'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[15px] leading-none text-indigo-400">remove</span>
+                    <span className="material-symbols-outlined text-[15px] leading-none text-indigo-300">remove</span>
                     <span>Normální</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setFormPriority('high')}
-                    className={`py-2 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    className={`flex-1 py-1.5 px-2.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                       formPriority === 'high'
-                        ? 'bg-amber-500/20 border-amber-500/40 text-amber-200 shadow-sm'
-                        : 'bg-white/[0.02] border-white/10 text-gray-400 hover:text-white hover:bg-white/[0.05]'
+                        ? 'bg-amber-500/25 text-amber-200 shadow-md'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
                     <span className="material-symbols-outlined text-[15px] leading-none text-amber-400">arrow_upward</span>
@@ -1375,10 +1515,10 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                   <button
                     type="button"
                     onClick={() => setFormPriority('critical')}
-                    className={`py-2 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    className={`flex-1 py-1.5 px-2.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                       formPriority === 'critical'
-                        ? 'bg-rose-500/25 border-rose-500/40 text-rose-200 shadow-sm'
-                        : 'bg-white/[0.02] border-white/10 text-gray-400 hover:text-white hover:bg-white/[0.05]'
+                        ? 'bg-rose-500/25 text-rose-200 shadow-md'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
                     <span className="material-symbols-outlined text-[15px] leading-none text-rose-400">priority_high</span>
@@ -1448,23 +1588,34 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                     <button
                       type="button"
                       onClick={() => setFormScreenshot(null)}
-                      className="absolute top-2 right-2 px-3 py-1.5 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-semibold flex items-center gap-1 shadow cursor-pointer transition"
+                      className="absolute top-2 right-2 px-3 py-1.5 rounded-full bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-semibold flex items-center gap-1 shadow cursor-pointer transition"
                     >
                       <span className="material-symbols-outlined text-sm">delete</span>
                       <span>Odstranit</span>
                     </button>
                   </div>
                 ) : (
-                  <div className="border border-dashed border-white/15 rounded-xl p-4 flex flex-col items-center justify-center gap-2 bg-white/[0.01]">
+                  <div className="border border-dashed border-white/15 rounded-xl p-4 flex flex-col items-center justify-center gap-2.5 bg-white/[0.01]">
                     <span className="material-symbols-outlined text-2xl text-gray-500">add_photo_alternate</span>
                     <p className="text-xs text-gray-400 text-center">
-                      Stiskněte <strong className="text-white">Ctrl+V</strong> pro vložení snímku ze schránky nebo:
+                      Stiskněte <strong className="text-white">Ctrl+V</strong> pro vložení snímku ze schránky nebo použijte tlačítka:
                     </p>
-                    <label className="h-[34px] px-3.5 rounded-full border border-indigo-500/40 hover:border-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 hover:text-white text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer">
-                      <span className="material-symbols-outlined text-base">folder_open</span>
-                      <span>Vybrat soubor obrázku</span>
-                      <input type="file" accept="image/*" onChange={handleFileInput} className="hidden" />
-                    </label>
+                    <div className="flex items-center gap-2 flex-wrap justify-center">
+                      <button
+                        type="button"
+                        onClick={handlePasteFromClipboardButton}
+                        className="h-[34px] px-3.5 rounded-full bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 hover:text-white text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer"
+                        title="Vložit obrázek přímo ze schránky systému"
+                      >
+                        <span className="material-symbols-outlined text-base">content_paste</span>
+                        <span>Vložit ze schránky (Ctrl+V)</span>
+                      </button>
+                      <label className="h-[34px] px-3.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 hover:text-white text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer">
+                        <span className="material-symbols-outlined text-base">folder_open</span>
+                        <span>Vybrat soubor</span>
+                        <input type="file" accept="image/*" onChange={handleFileInput} className="hidden" />
+                      </label>
+                    </div>
                   </div>
                 )}
               </div>
