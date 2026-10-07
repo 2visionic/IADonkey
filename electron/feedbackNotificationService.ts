@@ -25,8 +25,6 @@ export class FeedbackNotificationService {
   private timer: NodeJS.Timeout | null = null;
   private fsWatcher: fs.FSWatcher | null = null;
   private knownFeedbacks: Map<string, CachedFeedbackState> = new Map();
-  private locallyCreatedIds: Set<string> = new Set();
-  private locallyUpdatedIds: Set<string> = new Set();
   private isInitialScanDone = false;
   private currentWatchedFolder: string | null = null;
   private isScanning = false;
@@ -38,19 +36,20 @@ export class FeedbackNotificationService {
 
   public start(): void {
     this.stop();
-    // První načtení se zpožděním 3 sekundy po startu aplikace
+
+    // První načtení hned 1 sekundu po startu
     setTimeout(() => {
       this.scanFeedbacks().catch((err) => {
         console.error('[FeedbackNotificationService] Initial scan error:', err);
       });
-    }, 3000);
+    }, 1000);
 
-    // Periodická kontrola každých 25 sekund (pro spolehlivou detekci i na síťových discích / UNC cestách)
+    // Periodická kontrola každých 10 sekund (pro spolehlivou detekci na síťových discích / UNC cestách)
     this.timer = setInterval(() => {
       this.scanFeedbacks().catch((err) => {
         console.error('[FeedbackNotificationService] Periodic scan error:', err);
       });
-    }, 25000);
+    }, 10000);
 
     this.setupFsWatcher();
   }
@@ -75,8 +74,13 @@ export class FeedbackNotificationService {
     this.start();
   }
 
-  public recordLocalCreation(item: FeedbackItem): void {
-    this.locallyCreatedIds.add(item.id);
+  /**
+   * Vyvoláno ihned při vytvoření feedbacku v aplikaci.
+   * U vývojáře IHNED odešle notifikaci bez jakéhokoliv filtrování na stejnou osobu.
+   */
+  public onFeedbackCreated(item: FeedbackItem): void {
+    console.log('[FeedbackNotificationService] onFeedbackCreated:', item.id, item.title, 'author:', item.author);
+
     this.knownFeedbacks.set(item.id, {
       status: item.status,
       updatedAt: item.updatedAt,
@@ -87,10 +91,20 @@ export class FeedbackNotificationService {
       priority: item.priority,
       targetVersion: item.targetVersion,
     });
+
+    if (this.isDevelopMode() && item.status === 'new') {
+      this.notifyNewFeedbackForDeveloper(item);
+    }
   }
 
-  public recordLocalUpdate(item: FeedbackItem): void {
-    this.locallyUpdatedIds.add(item.id);
+  /**
+   * Vyvoláno ihned při aktualizaci feedbacku v aplikaci.
+   */
+  public onFeedbackUpdated(item: FeedbackItem): void {
+    console.log('[FeedbackNotificationService] onFeedbackUpdated:', item.id, item.title, 'status:', item.status);
+    const prev = this.knownFeedbacks.get(item.id);
+    const prevStatus = prev?.status;
+
     this.knownFeedbacks.set(item.id, {
       status: item.status,
       updatedAt: item.updatedAt,
@@ -101,6 +115,13 @@ export class FeedbackNotificationService {
       priority: item.priority,
       targetVersion: item.targetVersion,
     });
+
+    if (prevStatus && prevStatus !== item.status) {
+      const isDev = this.isDevelopMode();
+      if (!isDev || this.isOwnFeedback(item)) {
+        this.notifyStatusChangeForUser(item, prevStatus);
+      }
+    }
   }
 
   private getTargetFolder(): string {
@@ -163,7 +184,7 @@ export class FeedbackNotificationService {
             this.scanFeedbacks().catch((err) => {
               console.error('[FeedbackNotificationService] Watch scan error:', err);
             });
-          }, 1000);
+          }, 800);
         }
       });
     } catch (err) {
@@ -208,6 +229,7 @@ export class FeedbackNotificationService {
           });
         }
         this.isInitialScanDone = true;
+        console.log('[FeedbackNotificationService] Initial scan completed, indexed items:', items.length);
         return;
       }
 
@@ -217,44 +239,41 @@ export class FeedbackNotificationService {
         const prev = this.knownFeedbacks.get(item.id);
 
         if (!prev) {
-          // Zbrusu nový feedback
-          const isLocal = this.locallyCreatedIds.has(item.id);
-          this.locallyCreatedIds.delete(item.id);
+          // Zbrusu nový feedback nalezený na disku (např. z jiného PC)
+          this.knownFeedbacks.set(item.id, {
+            status: item.status,
+            updatedAt: item.updatedAt,
+            title: item.title,
+            author: item.author,
+            authorHost: item.authorHost,
+            type: item.type,
+            priority: item.priority,
+            targetVersion: item.targetVersion,
+          });
 
-          if (!isLocal) {
-            if (isDev && item.status === 'new') {
-              // Vývojář: nová zpětná vazba od kohokoliv
-              this.notifyNewFeedbackForDeveloper(item);
-            }
+          if (isDev && item.status === 'new') {
+            this.notifyNewFeedbackForDeveloper(item);
           }
         } else {
-          // Existující feedback
-          const isLocalUpdate = this.locallyUpdatedIds.has(item.id);
-          this.locallyUpdatedIds.delete(item.id);
-
+          // Existující feedback - kontrola změny stavu
           if (prev.status !== item.status) {
-            if (!isLocalUpdate) {
-              if (!isDev) {
-                // Běžný uživatel: pouze vlastní zpětné vazby
-                if (this.isOwnFeedback(item)) {
-                  this.notifyStatusChangeForUser(item, prev.status);
-                }
-              }
+            const oldStatus = prev.status;
+            this.knownFeedbacks.set(item.id, {
+              status: item.status,
+              updatedAt: item.updatedAt,
+              title: item.title,
+              author: item.author,
+              authorHost: item.authorHost,
+              type: item.type,
+              priority: item.priority,
+              targetVersion: item.targetVersion,
+            });
+
+            if (!isDev || this.isOwnFeedback(item)) {
+              this.notifyStatusChangeForUser(item, oldStatus);
             }
           }
         }
-
-        // Aktualizujeme stav položky v paměti
-        this.knownFeedbacks.set(item.id, {
-          status: item.status,
-          updatedAt: item.updatedAt,
-          title: item.title,
-          author: item.author,
-          authorHost: item.authorHost,
-          type: item.type,
-          priority: item.priority,
-          targetVersion: item.targetVersion,
-        });
       }
     } finally {
       this.isScanning = false;
@@ -279,6 +298,8 @@ export class FeedbackNotificationService {
     const priorityLabel = this.getPriorityLabel(item.priority);
     const feedbackType = item.type;
 
+    console.log('[FeedbackNotificationService] Notifying developer of new feedback:', item.title, 'author:', item.author, 'priority:', priorityLabel);
+
     notificationService.show({
       type: 'feedback',
       feedbackType,
@@ -291,6 +312,8 @@ export class FeedbackNotificationService {
   }
 
   private notifyStatusChangeForUser(item: FeedbackItem, prevStatus: FeedbackStatus): void {
+    console.log('[FeedbackNotificationService] Notifying status change for user:', item.title, 'new status:', item.status, 'prev status:', prevStatus);
+
     if (item.status === 'in_progress') {
       notificationService.show({
         type: 'feedback',

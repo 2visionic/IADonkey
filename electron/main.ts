@@ -1377,7 +1377,7 @@ function setupIpcHandlers() {
     const targetFolder = params?.folderPath || config.feedback?.sharedFolder || feedbackService.getDefaultFolderPath();
     const res = await feedbackService.createFeedback(targetFolder, params.data, params.screenshotBase64);
     if (res.success && res.item) {
-      feedbackNotificationService.recordLocalCreation(res.item);
+      feedbackNotificationService.onFeedbackCreated(res.item);
     }
     return res;
   });
@@ -1387,7 +1387,7 @@ function setupIpcHandlers() {
     const targetFolder = params?.folderPath || config.feedback?.sharedFolder || feedbackService.getDefaultFolderPath();
     const res = await feedbackService.updateFeedback(targetFolder, params.item, params.screenshotBase64);
     if (res.success && res.item) {
-      feedbackNotificationService.recordLocalUpdate(res.item);
+      feedbackNotificationService.onFeedbackUpdated(res.item);
     }
     return res;
   });
