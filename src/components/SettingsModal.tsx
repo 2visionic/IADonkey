@@ -11013,9 +11013,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                   {/* Author Name - first */}
                   <div className="space-y-1.5 md:col-span-2">
-                    <label className="text-[12px] font-medium text-gray-300 flex items-center justify-between">
-                      <span>Vaše jméno / autor podnětů</span>
-                      <span className="text-[11px] text-gray-400 font-normal">Automaticky se vyplní k vašim požadavkům</span>
+                    <label className="text-[12px] font-medium text-gray-300 block">
+                      Vaše jméno / autor podnětů
                     </label>
                     <input
                       type="text"
@@ -11038,9 +11037,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   {/* Shared folder path - second */}
                   <div className="space-y-1.5 md:col-span-2">
-                    <label className="text-[12px] font-medium text-gray-300 flex items-center justify-between">
-                      <span>Cesta ke sdílené složce (síťový disk)</span>
-                      <span className="text-[11px] text-gray-400 font-normal">např. \\server\share\IADonkey-Feedback</span>
+                    <label className="text-[12px] font-medium text-gray-300 block">
+                      Cesta ke sdílené složce (síťový disk)
                     </label>
                     <div className="flex items-center gap-2">
                       <input
