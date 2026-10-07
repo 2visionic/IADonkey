@@ -316,10 +316,12 @@ export interface NotificationSettings {
   clipboard?: boolean;
   errors?: boolean;
   magicplan?: boolean;
+  feedback?: boolean;
 }
 
 export interface AppConfig {
   hotkey: string;
+  developMode?: boolean;
   sources: DataSource[];
   magicgate: MagicGateSettings;
   mlog?: MlogSettings;

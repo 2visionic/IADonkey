@@ -23,6 +23,7 @@ import { pasteService } from './pasteService';
 import { MagicPlanService } from './magicPlanService';
 import { windowDragService } from './windowDragService';
 import { feedbackService } from './feedbackService';
+import { feedbackNotificationService } from './feedbackNotificationService';
 
 app.name = 'IADonkey';
 if (process.platform === 'win32') {
@@ -1374,13 +1375,21 @@ function setupIpcHandlers() {
   ipcMain.handle('feedback-create', async (_event, params: { folderPath?: string; data: any; screenshotBase64?: string }) => {
     const config = store.getConfig();
     const targetFolder = params?.folderPath || config.feedback?.sharedFolder || feedbackService.getDefaultFolderPath();
-    return await feedbackService.createFeedback(targetFolder, params.data, params.screenshotBase64);
+    const res = await feedbackService.createFeedback(targetFolder, params.data, params.screenshotBase64);
+    if (res.success && res.item) {
+      feedbackNotificationService.recordLocalCreation(res.item);
+    }
+    return res;
   });
 
   ipcMain.handle('feedback-update', async (_event, params: { folderPath?: string; item: any; screenshotBase64?: string }) => {
     const config = store.getConfig();
     const targetFolder = params?.folderPath || config.feedback?.sharedFolder || feedbackService.getDefaultFolderPath();
-    return await feedbackService.updateFeedback(targetFolder, params.item, params.screenshotBase64);
+    const res = await feedbackService.updateFeedback(targetFolder, params.item, params.screenshotBase64);
+    if (res.success && res.item) {
+      feedbackNotificationService.recordLocalUpdate(res.item);
+    }
+    return res;
   });
 
   ipcMain.handle('feedback-delete', async (_event, params: { folderPath?: string; feedbackId: string }) => {
@@ -1488,6 +1497,10 @@ function setupIpcHandlers() {
       });
     }
 
+    if (newConfig.feedback?.sharedFolder !== oldConfig.feedback?.sharedFolder) {
+      feedbackNotificationService.restart();
+    }
+
     // Update notifications service config
     notificationService.updateConfig(newConfig);
 
@@ -1513,6 +1526,7 @@ function setupIpcHandlers() {
         | {
             type?: string;
             subType?: string;
+            feedbackType?: 'bug' | 'idea' | 'other' | 'resolved';
             title?: string;
             body?: string;
             mpSituation?: number;
@@ -1523,6 +1537,7 @@ function setupIpcHandlers() {
       if (typeof payload === 'object' && payload !== null) {
         const type = (payload.type as any) || 'test';
         const subType = payload.subType as any;
+        const feedbackType = (payload as any).feedbackType;
         const title = payload.title || 'Testovací notifikace';
         const body = payload.body || 'Systémové notifikace fungují správně!';
         const mpSituation = payload.mpSituation;
@@ -1531,6 +1546,7 @@ function setupIpcHandlers() {
         return notificationService.show({
           type,
           subType,
+          feedbackType,
           title,
           body,
           isTest: true,
@@ -1542,6 +1558,8 @@ function setupIpcHandlers() {
               diagnosticsService.openCrashLogFolder();
             } else if (type === 'magicPlan') {
               windowManager.openMagicPlanWindow();
+            } else if (type === 'feedback') {
+              windowManager.openFeedbackWindow(subType === 'dev' ? 'dev' : 'user');
             } else {
               windowManager.showSpotlight();
             }
@@ -2942,6 +2960,9 @@ app.whenReady().then(async () => {
 
   magicPlanService = new MagicPlanService(store);
   magicPlanService.start();
+
+  feedbackNotificationService.init(store, windowManager);
+  feedbackNotificationService.start();
 
   const launchDeferredTasks = () => {
     startBackgroundTasks();

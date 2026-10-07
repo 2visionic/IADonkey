@@ -319,10 +319,17 @@ export const App: React.FC = () => {
         try {
           const cfg = await window.electronAPI.getConfig();
           if (cfg) {
-            setConfig(cfg);
-            applyPrimaryColor(cfg.primaryColor);
-            applyActionsColor(cfg.actionsColor);
-            if (!isSettingsView && cfg.lastSeenVersion !== CURRENT_APP_VERSION) {
+            let effectiveCfg = cfg;
+            try {
+              if (localStorage.getItem('iadonkey_develop_mode') === 'true' && !cfg.developMode) {
+                effectiveCfg = { ...cfg, developMode: true };
+                window.electronAPI.saveConfig(effectiveCfg).catch(() => {});
+              }
+            } catch {}
+            setConfig(effectiveCfg);
+            applyPrimaryColor(effectiveCfg.primaryColor);
+            applyActionsColor(effectiveCfg.actionsColor);
+            if (!isSettingsView && effectiveCfg.lastSeenVersion !== CURRENT_APP_VERSION) {
               setShowWhatsNew(true);
             }
           }

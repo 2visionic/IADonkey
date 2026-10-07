@@ -26,6 +26,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
     try {
       if (localStorage.getItem('iadonkey_develop_mode') === 'true') return true;
     } catch {}
+    if (config?.developMode) return true;
     try {
       const sp = new URLSearchParams(window.location.search);
       if (sp.get('mode') === 'dev') return true;

@@ -17,6 +17,7 @@ const ICONS_FILE = path.join(USER_DATA_PATH, 'icons_cache.json');
 
 const DEFAULT_CONFIG: AppConfig = {
   hotkey: 'Ctrl+Alt+Space',
+  developMode: false,
   sources: [],
   magicgate: {
     username: '',

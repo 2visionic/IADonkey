@@ -74,13 +74,15 @@ export type NotificationType =
   | 'clipboard'
   | 'error'
   | 'test'
-  | 'magicPlan';
+  | 'magicPlan'
+  | 'feedback';
 
 export type NotificationSubType = 'dev' | 'service' | 'completed' | 'critical' | 'queue';
 
 export interface ShowNotificationOptions {
   type: NotificationType;
   subType?: NotificationSubType;
+  feedbackType?: 'bug' | 'idea' | 'other' | 'resolved';
   title: string;
   body: string;
   icon?: string;
@@ -97,7 +99,8 @@ const getNotificationIcon = (
   subType?: NotificationSubType,
   mpSituation?: number,
   isCritical?: boolean,
-  taskType?: 'dev' | 'service'
+  taskType?: 'dev' | 'service',
+  feedbackType?: 'bug' | 'idea' | 'other' | 'resolved'
 ): string | undefined => {
   if (type === 'magicPlan') {
     if (mpSituation && mpSituation >= 1 && mpSituation <= 20) {
@@ -148,6 +151,22 @@ const getNotificationIcon = (
   } else if (type === 'test') {
     const p = resolveNotificationIconFile('test.png');
     if (p) return p;
+  } else if (type === 'feedback') {
+    if (feedbackType === 'resolved') {
+      const p = resolveNotificationIconFile('feedback-resolved.png');
+      if (p) return p;
+    } else if (feedbackType === 'bug') {
+      const p = resolveNotificationIconFile('feedback-bug.png');
+      if (p) return p;
+    } else if (feedbackType === 'idea') {
+      const p = resolveNotificationIconFile('feedback-idea.png');
+      if (p) return p;
+    } else if (feedbackType === 'other') {
+      const p = resolveNotificationIconFile('feedback-other.png');
+      if (p) return p;
+    }
+    const def = resolveNotificationIconFile('feedback-other.png');
+    if (def) return def;
   }
 
   return getDefaultIcon();
@@ -255,6 +274,7 @@ export class NotificationService {
       if (options.type === 'clipboard' && notifConfig.clipboard === false) return false;
       if (options.type === 'error' && notifConfig.errors === false) return false;
       if (options.type === 'magicPlan' && notifConfig.magicplan === false) return false;
+      if (options.type === 'feedback' && notifConfig.feedback === false) return false;
     }
 
     // Tichý režim (z konfigurace nebo parametru)
@@ -278,7 +298,14 @@ export class NotificationService {
     try {
       const iconPath =
         options.icon ||
-        getNotificationIcon(options.type, options.subType, options.mpSituation, options.isCritical, options.taskType);
+        getNotificationIcon(
+          options.type,
+          options.subType,
+          options.mpSituation,
+          options.isCritical,
+          options.taskType,
+          options.feedbackType
+        );
       const notification = new Notification({
         title: options.title,
         body: options.body,

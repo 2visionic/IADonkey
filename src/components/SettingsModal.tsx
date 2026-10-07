@@ -484,6 +484,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         update: 'updates',
         clipboard: 'clipboard',
         error: 'errors',
+        feedback: 'feedback',
       };
 
       const nameMap: Record<string, string> = {
@@ -493,6 +494,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         update: 'Nové verze a aktualizace',
         clipboard: 'Kopírování do schránky',
         error: 'Chyby aplikace a pády',
+        feedback: 'Zpětná vazba',
       };
 
       const settingKey = notifKeyMap[typeKey];
@@ -1050,9 +1052,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Developer mode state & easter egg click counter
   const [isDevelop, setIsDevelop] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('iadonkey_develop_mode') === 'true';
+      return localStorage.getItem('iadonkey_develop_mode') === 'true' || Boolean(config?.developMode);
     } catch {
-      return false;
+      return Boolean(config?.developMode);
     }
   });
   const versionClickCountRef = useRef(0);
@@ -1102,6 +1104,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       try {
         localStorage.setItem('iadonkey_develop_mode', 'true');
       } catch {}
+      const updatedCfg = { ...formData, developMode: true };
+      setFormData(updatedCfg);
+      onSaveConfig(updatedCfg);
       setDevelopUnlockMessage(
         'Vývojářský režim byl úspěšně aktivován! V bočním menu se zobrazila nová záložka Vývojář.'
       );
@@ -1126,6 +1131,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     try {
       localStorage.setItem('iadonkey_develop_mode', 'false');
     } catch {}
+    const updatedCfg = { ...formData, developMode: false };
+    setFormData(updatedCfg);
+    onSaveConfig(updatedCfg);
     setActiveTab('system');
     setDevelopUnlockMessage('Vývojářský režim byl deaktivován a skryt.');
     setTimeout(() => {
