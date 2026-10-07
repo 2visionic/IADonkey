@@ -511,7 +511,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
   return (
     <div className="flex flex-col h-full w-full bg-[#0e0f12] text-gray-200 select-none overflow-hidden font-sans">
       {/* Horní ovládací lišta */}
-      <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between gap-4 bg-[#12131a]/90 backdrop-blur-md shrink-0 min-h-[68px]">
+      <div className="px-6 py-4 flex items-center justify-between gap-4 bg-[#12131a]/90 backdrop-blur-md shrink-0 min-h-[68px]">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full ${mode === 'dev' ? 'bg-amber-500/15 text-amber-400' : 'bg-indigo-500/15 text-indigo-400'} flex items-center justify-center shrink-0`}>
             <span className="material-symbols-outlined text-2xl">
@@ -616,7 +616,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
 
       {/* Upozornění na nenastavenou složku */}
       {!sharedFolder && (
-        <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2.5 flex items-center justify-between text-xs text-amber-300">
+        <div className="bg-amber-500/10 px-6 py-2.5 flex items-center justify-between text-xs text-amber-300">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-base">warning</span>
             <span>Není vybrána sdílená síťová složka pro ukládání feedbacku. Záznamy se ukládají lokálně.</span>
@@ -633,14 +633,14 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
 
       {/* Notifikace o zkopírování do schránky */}
       {copiedNotification && (
-        <div className="bg-emerald-500/20 border-b border-emerald-500/30 px-6 py-2 text-xs font-semibold text-emerald-300 flex items-center gap-2 animate-fade-in">
+        <div className="bg-emerald-500/20 px-6 py-2 text-xs font-semibold text-emerald-300 flex items-center gap-2 animate-fade-in">
           <span className="material-symbols-outlined text-base">check_circle</span>
           <span>{copiedNotification}</span>
         </div>
       )}
 
       {/* Filtrovací lišta */}
-      <div className="relative px-6 py-3 border-b border-white/[0.06] bg-[#12131a]/60 flex items-center justify-between gap-4 flex-wrap shrink-0 min-h-[62px]">
+      <div className="relative px-6 py-3 bg-[#12131a]/60 flex items-center justify-between gap-4 flex-wrap shrink-0 min-h-[62px]">
         {/* Status filtry - Material 3 pill bar (bez borderů) */}
         <div className="flex items-center gap-1.5 p-1 bg-white/[0.04] rounded-full w-fit shrink-0">
           <button
@@ -884,7 +884,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
             <span className="text-xs">Načítám připomínky...</span>
           </div>
         ) : error ? (
-          <div className="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs text-center space-y-2">
+          <div className="p-6 rounded-2xl bg-red-500/10 text-red-300 text-xs text-center space-y-2">
             <span className="material-symbols-outlined text-2xl text-red-400">error</span>
             <p className="font-semibold">{error}</p>
             <button
@@ -897,7 +897,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
             </button>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-zinc-500 gap-3 border border-dashed border-white/10 rounded-2xl bg-white/[0.01]">
+          <div className="flex flex-col items-center justify-center py-20 text-zinc-500 gap-3 rounded-2xl bg-white/[0.015]">
             <span className="material-symbols-outlined text-4xl opacity-40">rate_review</span>
             <div className="text-center">
               <p className="text-sm font-semibold text-zinc-300">Žádná zpětná vazba nebyla nalezena</p>
@@ -927,14 +927,14 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
               <div
                 key={item.id}
                 onClick={() => setDetailItem(item)}
-                className={`group p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col gap-2.5 relative ${
+                className={`group p-4 rounded-2xl transition-all duration-200 cursor-pointer flex flex-col gap-2.5 relative shadow-sm hover:shadow-md ${
                   item.status === 'resolved'
-                    ? 'bg-emerald-950/10 border-emerald-500/20 hover:border-emerald-500/40'
+                    ? 'bg-emerald-950/25 hover:bg-emerald-950/40'
                     : item.status === 'in_progress'
-                    ? 'bg-indigo-950/15 border-indigo-500/25 hover:border-indigo-500/45'
+                    ? 'bg-indigo-950/30 hover:bg-indigo-950/45'
                     : item.status === 'postponed'
-                    ? 'bg-zinc-900/40 border-zinc-700/30 hover:border-zinc-600/50 opacity-80'
-                    : 'bg-[#14151e]/80 border-white/[0.08] hover:border-white/[0.18] hover:bg-[#181924]'
+                    ? 'bg-zinc-900/50 hover:bg-zinc-900/70 opacity-80'
+                    : 'bg-[#151622]/90 hover:bg-[#1a1b2a]'
                 }`}
               >
                 {/* Horní řádek: Typ, Priorita, Stav a Datum */}
@@ -1072,7 +1072,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
 
                 {/* Poznámka vývojáře (pokud je) */}
                 {item.devNote && (
-                  <div className="text-[11px] bg-indigo-500/10 border-l-2 border-indigo-400 px-2.5 py-1 text-indigo-200 italic rounded-r">
+                  <div className="text-[11px] bg-indigo-500/10 px-3 py-1.5 text-indigo-200 italic rounded-xl">
                     <span className="font-bold font-sans not-italic text-indigo-300">Vývojář: </span>
                     {item.devNote}
                   </div>
@@ -1080,7 +1080,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
 
                 {/* Spodní lišta akcí */}
                 <div
-                  className="mt-1 pt-2 border-t border-white/[0.06] flex items-center justify-between text-xs text-zinc-400"
+                  className="mt-1 pt-1.5 flex items-center justify-between text-xs text-zinc-400"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-mono">
@@ -1097,7 +1097,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                         <select
                           value={item.priority}
                           onChange={(e) => handleUpdatePriority(item, e.target.value as FeedbackPriority)}
-                          className="h-[28px] px-2.5 rounded-full border border-white/10 bg-[#1e202d] text-[11px] text-zinc-200 cursor-pointer outline-none transition"
+                          className="h-[28px] px-2.5 rounded-full bg-white/[0.06] hover:bg-white/[0.1] text-[11px] text-zinc-200 cursor-pointer outline-none transition"
                         >
                           <option value="low">Nízká</option>
                           <option value="normal">Normální</option>
@@ -1232,19 +1232,19 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
           onClick={() => setDetailItem(null)}
         >
           <div
-            className="w-full max-w-2xl max-h-[85vh] bg-[#14151f] border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-zoom-in"
+            className="w-full max-w-2xl max-h-[85vh] bg-[#14151f] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-zoom-in"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Záhlaví detailu */}
-            <div className="px-6 py-4 border-b border-white/[0.08] flex items-center justify-between bg-[#181a26] flex-wrap gap-2">
+            <div className="px-6 py-4 flex items-center justify-between bg-[#181a26] flex-wrap gap-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1 ${
                     detailItem.type === 'bug'
-                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      ? 'bg-rose-500/20 text-rose-300'
                       : detailItem.type === 'idea'
-                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                      : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                      ? 'bg-purple-500/20 text-purple-300'
+                      : 'bg-sky-500/20 text-sky-300'
                   }`}
                 >
                   <span className="material-symbols-outlined text-sm">
@@ -1257,12 +1257,12 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1 ${
                     detailItem.priority === 'critical'
-                      ? 'bg-rose-500/25 text-rose-300 border border-rose-500/40 animate-pulse'
+                      ? 'bg-rose-500/25 text-rose-300 animate-pulse'
                       : detailItem.priority === 'high'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      ? 'bg-amber-500/20 text-amber-300'
                       : detailItem.priority === 'low'
-                      ? 'bg-white/5 text-gray-400 border border-white/5'
-                      : 'bg-white/10 text-gray-300 border border-white/10'
+                      ? 'bg-white/5 text-gray-400'
+                      : 'bg-white/10 text-gray-300'
                   }`}
                   title={`Priorita: ${detailItem.priority}`}
                 >
@@ -1290,12 +1290,12 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 ${
                     detailItem.status === 'new'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      ? 'bg-amber-500/20 text-amber-300'
                       : detailItem.status === 'in_progress'
-                      ? 'bg-indigo-500/25 text-indigo-300 border border-indigo-500/40'
+                      ? 'bg-indigo-500/25 text-indigo-300'
                       : detailItem.status === 'postponed'
-                      ? 'bg-zinc-700/30 text-zinc-400 border border-zinc-700/40'
-                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      ? 'bg-zinc-700/30 text-zinc-400'
+                      : 'bg-emerald-500/20 text-emerald-300'
                   }`}
                 >
                   <span>
@@ -1336,7 +1336,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
 
               {/* Status & Version alert */}
               {detailItem.status === 'resolved' && (
-                <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs flex items-center justify-between">
+                <div className="p-3.5 rounded-xl bg-emerald-500/15 text-emerald-200 text-xs flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-emerald-400 text-lg">check_circle</span>
                     <div>
@@ -1359,7 +1359,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
               {/* Text popisu */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Popis</label>
-                <div className="p-4 rounded-xl bg-black/40 border border-white/5 text-xs text-zinc-200 leading-relaxed whitespace-pre-wrap select-text">
+                <div className="p-4 rounded-xl bg-black/40 text-xs text-zinc-200 leading-relaxed whitespace-pre-wrap select-text">
                   {detailItem.description || <span className="italic text-zinc-500">Bez textového popisu</span>}
                 </div>
               </div>
@@ -1368,7 +1368,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
               {detailItem.devNote && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Poznámka vývojáře</label>
-                  <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200 italic leading-relaxed select-text">
+                  <div className="p-3.5 rounded-xl bg-indigo-500/10 text-xs text-indigo-200 italic leading-relaxed select-text">
                     {detailItem.devNote}
                   </div>
                 </div>
@@ -1379,13 +1379,13 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Přiložený snímek obrazovky</label>
                   {loadingScreenshot ? (
-                    <div className="h-40 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center text-xs text-zinc-500 gap-2">
+                    <div className="h-40 rounded-xl bg-black/40 flex items-center justify-center text-xs text-zinc-500 gap-2">
                       <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
                       <span>Načítám obrázek...</span>
                     </div>
                   ) : detailScreenshotUrl ? (
                     <div
-                      className="group relative rounded-xl overflow-hidden border border-white/10 bg-black/40 cursor-pointer max-h-72 flex items-center justify-center"
+                      className="group relative rounded-xl overflow-hidden bg-black/40 cursor-pointer max-h-72 flex items-center justify-center"
                       onClick={() => setLightboxImage(detailScreenshotUrl)}
                     >
                       <img
@@ -1399,7 +1399,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3 rounded-xl bg-zinc-900 border border-white/5 text-xs text-zinc-500 italic">
+                    <div className="p-3 rounded-xl bg-zinc-900 text-xs text-zinc-500 italic">
                       Snímek obrazovky se nepodařilo načíst ze souboru.
                     </div>
                   )}
@@ -1408,7 +1408,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
             </div>
 
             {/* Patička detailu */}
-            <div className="px-6 py-3.5 border-t border-white/[0.08] flex items-center justify-between bg-[#181a26]">
+            <div className="px-6 py-3.5 flex items-center justify-between bg-[#181a26]">
               <div className="flex items-center gap-2">
                 {mode === 'dev' && (
                   <button
@@ -1478,8 +1478,8 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
           onPaste={(e) => processClipboardForImage(e.clipboardData)}
         >
-          <div className="w-full max-w-xl max-h-[90vh] bg-[#14151f] border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-zoom-in">
-            <div className="px-6 py-4 border-b border-white/[0.08] flex items-center justify-between bg-[#181a26]">
+          <div className="w-full max-w-xl max-h-[90vh] bg-[#14151f] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-zoom-in">
+            <div className="px-6 py-4 flex items-center justify-between bg-[#181a26]">
               <h2 className="text-base font-bold text-white">
                 {editingItem ? 'Upravit připomínku' : 'Nová připomínka či nápad'}
               </h2>
@@ -1657,7 +1657,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                 </div>
 
                 {formScreenshot ? (
-                  <div className="relative rounded-xl border border-white/10 overflow-hidden bg-black/40 max-h-48 flex items-center justify-center group">
+                  <div className="relative rounded-xl overflow-hidden bg-black/40 max-h-48 flex items-center justify-center group">
                     <img src={formScreenshot} alt="Náhled screenshotu" className="object-contain max-h-48 w-full" />
                     <button
                       type="button"
@@ -1669,7 +1669,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="border border-dashed border-white/15 rounded-xl p-4 flex flex-col items-center justify-center gap-2.5 bg-white/[0.01]">
+                  <div className="rounded-2xl p-4 flex flex-col items-center justify-center gap-2.5 bg-white/[0.02]">
                     <span className="material-symbols-outlined text-2xl text-gray-500">add_photo_alternate</span>
                     <p className="text-xs text-gray-400 text-center">
                       Stiskněte <strong className="text-white">Ctrl+V</strong> pro vložení snímku ze schránky nebo použijte tlačítka:
@@ -1718,7 +1718,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
       {/* DIALOG PRO VYŘEŠENÍ / BUDOUCÍ VERZI (DEV) */}
       {resolvingItem && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="w-full max-w-md bg-[#14151f] border border-emerald-500/30 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4 animate-zoom-in">
+          <div className="w-full max-w-md bg-[#14151f] rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4 animate-zoom-in">
             <div className="flex items-center gap-2 text-emerald-400">
               <span className="material-symbols-outlined text-2xl">task_alt</span>
               <h3 className="text-base font-bold text-white">Označit jako hotovo</h3>
@@ -1784,7 +1784,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
           <img
             src={lightboxImage}
             alt="Zvětšený screenshot"
-            className="max-w-[95vw] max-h-[95vh] object-contain rounded-xl shadow-2xl border border-white/10"
+            className="max-w-[95vw] max-h-[95vh] object-contain rounded-xl shadow-2xl"
           />
         </div>
       )}
