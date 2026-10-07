@@ -1634,6 +1634,20 @@ function setupIpcHandlers() {
         });
       }
 
+      if (payload === 'feedback') {
+        return notificationService.show({
+          type: 'feedback',
+          feedbackType: 'idea',
+          title: 'Zpětná vazba a nápady (test)',
+          body: 'Notifikace zpětné vazby fungují správně.',
+          onClick: () => {
+            const currentCfg = store.getConfig();
+            const effectiveMode = currentCfg.developMode ? 'dev' : 'user';
+            windowManager.openFeedbackWindow(effectiveMode);
+          },
+        });
+      }
+
       return notificationService.show({
         type: 'test',
         title: 'Testovací notifikace',

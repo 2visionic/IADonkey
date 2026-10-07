@@ -88,6 +88,18 @@ const DEFAULT_CONFIG: AppConfig = {
     notifyTaskChanges: true,
     notifyQueueTasks: true,
     linkWithTaskManager: true,
+  notifications: {
+    enabled: true,
+    silent: false,
+    quickCap: true,
+    colorMaster: true,
+    screenRuler: true,
+    syncComplete: true,
+    updates: true,
+    clipboard: true,
+    errors: true,
+    magicplan: true,
+    feedback: true,
   },
   updateUrl: 'https://raw.githubusercontent.com/magicware/IADonkey/main/version.json',
   lastDeclinedVersion: null,
@@ -128,6 +140,13 @@ export class AppStore {
             quickCap: { ...DEFAULT_CONFIG.donkeyTools?.quickCap, ...parsed.donkeyTools?.quickCap },
             screenRuler: { ...DEFAULT_CONFIG.donkeyTools?.screenRuler, ...parsed.donkeyTools?.screenRuler },
             easyClip: { ...DEFAULT_CONFIG.donkeyTools?.easyClip, ...parsed.donkeyTools?.easyClip },
+          };
+        }
+
+        if (parsed.notifications) {
+          cfg.notifications = {
+            ...DEFAULT_CONFIG.notifications,
+            ...parsed.notifications,
           };
         }
       }

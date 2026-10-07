@@ -425,6 +425,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       update: 'updates',
       clipboard: 'clipboard',
       error: 'errors',
+      feedback: 'feedback',
     };
     const settingKey = notifKeyMap[typeKey];
     const isSpecificEnabled = settingKey ? (formData.notifications as any)?.[settingKey] !== false : true;
@@ -10599,6 +10600,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </label>
                       </div>
                     </div>
+
+                    {/* Zpětná vazba a nápady */}
+                    <div className="flex items-center justify-between gap-4 p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.05] transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-base text-indigo-400">rate_review</span>
+                        <div>
+                          <span className="text-xs font-medium text-gray-200 block">Zpětná vazba a nápady</span>
+                          <span className="text-[11px] text-gray-400">Upozornění na změny stavů podnětů (uživatel) a nově zadané podněty (vývojář)</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {isDevelop && (() => {
+                          const status = systemNotifTestStatus['feedback'];
+                          let btnClasses = "w-8 h-8 rounded-full bg-white/[0.05] hover:bg-white/[0.10] text-amber-400";
+                          let icon = "notifications_active";
+                          if (status === 'success') {
+                            btnClasses = "w-8 h-8 rounded-full bg-emerald-500/15 text-emerald-400";
+                            icon = "check";
+                          } else if (status === 'blocked') {
+                            btnClasses = "w-8 h-8 rounded-full bg-rose-500/15 text-rose-400";
+                            icon = "close";
+                          }
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => handleTestSystemNotification('feedback')}
+                              className={`${btnClasses} transition-all duration-200 flex items-center justify-center cursor-pointer select-none shrink-0`}
+                              title="Otestovat notifikaci zpětné vazby"
+                            >
+                              <span className="material-symbols-outlined text-base leading-none">{icon}</span>
+                            </button>
+                          );
+                        })()}
+                        <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={formData.notifications?.feedback !== false}
+                            onChange={(e) => {
+                              const updated = {
+                                ...formData,
+                                notifications: {
+                                  ...formData.notifications,
+                                  enabled: formData.notifications?.enabled ?? true,
+                                  feedback: e.target.checked,
+                                },
+                              };
+                              setFormData(updated);
+                              handleSave(updated);
+                            }}
+                            className="sr-only peer"
+                          />
+                          <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-indigo-600" />
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -11126,6 +11182,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </button>
                       )}
                     </div>
+                  </div>
+
+                  {/* Notifications toggle for feedback */}
+                  <div className="md:col-span-2 pt-3 border-t border-white/5 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2.5">
+                      <span className="material-symbols-outlined text-base text-indigo-400">notifications</span>
+                      <div>
+                        <span className="text-xs font-medium text-gray-200 block">Povolit notifikace zpětné vazby</span>
+                        <span className="text-[11px] text-gray-400">Upozorňovat na změny stavů podnětů (pro uživatele) a nově zadané podněty (pro vývojáře)</span>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={formData.notifications?.feedback !== false}
+                        onChange={(e) => {
+                          const updated = {
+                            ...formData,
+                            notifications: {
+                              ...formData.notifications,
+                              enabled: formData.notifications?.enabled ?? true,
+                              feedback: e.target.checked,
+                            },
+                          };
+                          setFormData(updated);
+                          handleSave(updated);
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-indigo-600" />
+                    </label>
                   </div>
                 </div>
               </div>
