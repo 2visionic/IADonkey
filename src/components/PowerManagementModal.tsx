@@ -43,7 +43,7 @@ export const PowerManagementModal: React.FC<PowerManagementModalProps> = ({ onCl
         >
           <div className="w-16 h-16 rounded-full bg-indigo-600/20 group-hover:bg-indigo-600/40 text-indigo-400 group-hover:text-white border border-indigo-500/30 group-hover:border-indigo-400/60 flex items-center justify-center transition-all duration-200 shadow-md group-hover:scale-105 active:scale-95">
             <span className="material-symbols-outlined text-3xl group-hover:rotate-180 transition-transform duration-500">
-              restart_alt
+              refresh
             </span>
           </div>
           <span className="text-xs font-semibold text-gray-300 group-hover:text-white transition">

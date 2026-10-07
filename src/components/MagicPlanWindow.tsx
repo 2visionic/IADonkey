@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import type { AppConfig, MagicPlanData, PlanTaskItem, PlanDayInfo, MagicPlanSettings, PlanPersonInfo } from '../types';
+import type { AppConfig, MagicPlanData, PlanTaskItem, PlanDayInfo, MagicPlanSettings, PlanPersonInfo, WorklogTimelineEntry } from '../types';
 import { applyPrimaryColor, applyActionsColor } from '../utils/theme';
 
 export const extractPersonNameAndShortcut = (nameOrText?: string): { name: string; shortcut: string } => {
@@ -161,6 +161,29 @@ export const isTaskForUser = (
   return false;
 };
 
+export const isTaskMatchingQuery = (t: PlanTaskItem, query: string): boolean => {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const titleMatch = (t.title || '').toLowerCase().includes(q);
+  const customMatch = (t.customName || '').toLowerCase().includes(q);
+  const reqMatch = (t.requirementId || '').toLowerCase().includes(q);
+  const taskMatch = (t.taskIdentifier || '').toLowerCase().includes(q);
+  const projMatch = (t.project || '').toLowerCase().includes(q);
+  const authorMatch = (t.author || '').toLowerCase().includes(q);
+  const userMatch = (t.userName || '').toLowerCase().includes(q);
+  return Boolean(titleMatch || customMatch || reqMatch || taskMatch || projMatch || authorMatch || userMatch);
+};
+
+export const isTaskMatchingAuthor = (taskAuthor?: string, selectedAuthor?: string | null): boolean => {
+  if (!selectedAuthor) return true;
+  if (!taskAuthor) return false;
+  const tNorm = taskAuthor.trim().toLowerCase();
+  const sNorm = selectedAuthor.trim().toLowerCase();
+  if (tNorm === sNorm) return true;
+  const parts = tNorm.split(/[,/;\s]+/).map((p) => p.trim());
+  return parts.includes(sNorm);
+};
+
 export const comparePlanOrder = (a: PlanTaskItem, b: PlanTaskItem): number => {
   const aDate = a.dates && a.dates.length > 0 ? a.dates[0] : '';
   const bDate = b.dates && b.dates.length > 0 ? b.dates[0] : '';
@@ -309,6 +332,10 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [selectedAuthorFilter, setSelectedAuthorFilter] = useState<string | null>(null);
+  const [authorMenuState, setAuthorMenuState] = useState<{ top: number; right: number } | null>(null);
+  const authorMenuRef = useRef<HTMLDivElement>(null);
+  const authorButtonRef = useRef<HTMLButtonElement>(null);
   const [activeTab, setActiveTab] = useState<'nastenka' | 'timeline' | 'list'>('nastenka');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(() => new Date());
@@ -326,9 +353,13 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         setIsSearchOpen((prev) => !prev);
-      } else if (e.key === 'Escape' && isSearchOpen) {
-        setIsSearchOpen(false);
-        setSearchQuery('');
+      } else if (e.key === 'Escape') {
+        if (authorMenuState) {
+          setAuthorMenuState(null);
+        } else if (isSearchOpen) {
+          setIsSearchOpen(false);
+          setSearchQuery('');
+        }
       } else if (e.key === 'F5') {
         e.preventDefault();
         handleRefresh();
@@ -336,7 +367,25 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSearchOpen]);
+  }, [isSearchOpen, authorMenuState]);
+
+  // Close author filter context menu on click outside
+  useEffect(() => {
+    if (!authorMenuState) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        authorMenuRef.current &&
+        !authorMenuRef.current.contains(target) &&
+        authorButtonRef.current &&
+        !authorButtonRef.current.contains(target)
+      ) {
+        setAuthorMenuState(null);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [authorMenuState]);
   
   // Synchronize dynamic primary and actions colors from configuration
   useEffect(() => {
@@ -687,34 +736,72 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
     return list;
   }, [myTasks, showOnlyMyTasks, currentUser, availablePersons]);
 
-  // Filtering by search query
-  const filteredMyTasks = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return userFilteredMyTasks;
-    return userFilteredMyTasks.filter((t) => {
-      const titleMatch = (t.title || '').toLowerCase().includes(q);
-      const customMatch = (t.customName || '').toLowerCase().includes(q);
-      const reqMatch = (t.requirementId || '').toLowerCase().includes(q);
-      const taskMatch = (t.taskIdentifier || '').toLowerCase().includes(q);
-      const projMatch = (t.project || '').toLowerCase().includes(q);
-      const authorMatch = (t.author || '').toLowerCase().includes(q);
-      return titleMatch || customMatch || reqMatch || taskMatch || projMatch || authorMatch;
+  // Unique authors (zadavatelé) extracted from the current plan
+  const uniqueAuthors = useMemo(() => {
+    const allTasks = [...(data?.myTasks || []), ...(data?.unassignedTasks || [])];
+    const authorCounts = new Map<string, number>();
+
+    for (const t of allTasks) {
+      if (!t.author) continue;
+      const authorRaw = t.author.trim();
+      if (!authorRaw) continue;
+
+      const codes = authorRaw.split(/[,/]+/).map((s) => s.trim()).filter(Boolean);
+      if (codes.length === 0 && authorRaw) {
+        codes.push(authorRaw);
+      }
+
+      for (const code of codes) {
+        authorCounts.set(code, (authorCounts.get(code) || 0) + 1);
+      }
+    }
+
+    const list = Array.from(authorCounts.entries()).map(([code, count]) => {
+      const p = availablePersons.find(
+        (x) =>
+          (x.shortcut && x.shortcut.trim().toLowerCase() === code.toLowerCase()) ||
+          String(x.id).trim().toLowerCase() === code.toLowerCase() ||
+          (x.name && x.name.trim().toLowerCase() === code.toLowerCase())
+      );
+
+      let displayName = code;
+      if (p) {
+        const clean = p.cleanName || p.name.replace(/\s*\([^)]*\)/g, '').trim();
+        displayName = clean ? `${clean} (${code})` : code;
+      }
+
+      return {
+        code,
+        displayName,
+        count,
+      };
     });
-  }, [userFilteredMyTasks, searchQuery]);
+
+    return list.sort((a, b) => a.displayName.localeCompare(b.displayName, 'cs'));
+  }, [data, availablePersons]);
+
+  // Filtering by search query & author filter
+  const filteredMyTasks = useMemo(() => {
+    let list = userFilteredMyTasks;
+    if (selectedAuthorFilter) {
+      list = list.filter((t) => isTaskMatchingAuthor(t.author, selectedAuthorFilter));
+    }
+    if (searchQuery.trim()) {
+      list = list.filter((t) => isTaskMatchingQuery(t, searchQuery));
+    }
+    return list;
+  }, [userFilteredMyTasks, selectedAuthorFilter, searchQuery]);
 
   const filteredQueueTasks = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return queueTasks;
-    return queueTasks.filter((t) => {
-      const titleMatch = (t.title || '').toLowerCase().includes(q);
-      const customMatch = (t.customName || '').toLowerCase().includes(q);
-      const reqMatch = (t.requirementId || '').toLowerCase().includes(q);
-      const taskMatch = (t.taskIdentifier || '').toLowerCase().includes(q);
-      const projMatch = (t.project || '').toLowerCase().includes(q);
-      const authorMatch = (t.author || '').toLowerCase().includes(q);
-      return titleMatch || customMatch || reqMatch || taskMatch || projMatch || authorMatch;
-    });
-  }, [queueTasks, searchQuery]);
+    let list = queueTasks;
+    if (selectedAuthorFilter) {
+      list = list.filter((t) => isTaskMatchingAuthor(t.author, selectedAuthorFilter));
+    }
+    if (searchQuery.trim()) {
+      list = list.filter((t) => isTaskMatchingQuery(t, searchQuery));
+    }
+    return list;
+  }, [queueTasks, selectedAuthorFilter, searchQuery]);
 
   // Completed tasks for Nástěnka
   const completedTasks = useMemo(() => {
@@ -736,6 +823,15 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
     }
     return list.sort(comparePlanOrder);
   }, [myTasks, queueTasks, showOnlyMyTasks, currentUser, availablePersons, distinctUsers]);
+
+  const filteredCompletedTasks = useMemo(() => {
+    let list = completedTasks;
+    if (selectedAuthorFilter) {
+      list = list.filter((t) => isTaskMatchingAuthor(t.author, selectedAuthorFilter));
+    }
+    if (!searchQuery.trim()) return list;
+    return list.filter((t) => isTaskMatchingQuery(t, searchQuery));
+  }, [completedTasks, selectedAuthorFilter, searchQuery]);
 
   // Active user tasks (excluding completed and notAvailable) for Nástěnka
   const activeMyTasks = useMemo(() => {
@@ -881,6 +977,35 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
                 </span>
               </button>
 
+              {/* Author / Zadavatel Filter Button */}
+              <button
+                ref={authorButtonRef}
+                type="button"
+                onClick={(e) => {
+                  if (authorMenuState) {
+                    setAuthorMenuState(null);
+                  } else {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setAuthorMenuState({
+                      top: rect.bottom + 6,
+                      right: window.innerWidth - rect.right,
+                    });
+                  }
+                }}
+                className={`w-[38px] h-[38px] rounded-full flex items-center justify-center transition cursor-pointer ${
+                  selectedAuthorFilter
+                    ? 'bg-indigo-500/20 text-indigo-300'
+                    : 'bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 hover:text-white'
+                }`}
+                title={
+                  selectedAuthorFilter
+                    ? `Filtrovat podle zadavatele: ${selectedAuthorFilter} (aktivní) – kliknutím změnit`
+                    : 'Filtrovat podle zadavatele'
+                }
+              >
+                <span className="material-symbols-outlined text-base">assignment_ind</span>
+              </button>
+
               {/* Show All Tasks Toggle Icon Button (replaces open in browser) */}
               {currentUser && (
                 <button
@@ -967,6 +1092,85 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
                 </div>
               </div>
             )}
+            {/* Author Filter Context Menu */}
+            {authorMenuState && (
+              <div
+                ref={authorMenuRef}
+                className="fixed z-[9999] min-w-[220px] max-w-[300px] bg-[#1e2029] border border-white/10 rounded-2xl shadow-2xl py-1.5 text-xs select-none backdrop-blur-md overflow-hidden animate-fade-in"
+                style={{
+                  top: `${authorMenuState.top}px`,
+                  right: `${authorMenuState.right}px`,
+                }}
+              >
+                <div className="px-3.5 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-white/5 flex items-center justify-between">
+                  <span>Zadavatelé ({uniqueAuthors.length})</span>
+                  {selectedAuthorFilter && (
+                    <span className="text-indigo-400 font-medium normal-case">Aktivní filtr</span>
+                  )}
+                </div>
+
+                <div className="overflow-y-auto max-h-[260px] py-1">
+                  {uniqueAuthors.length === 0 ? (
+                    <div className="px-3 py-3 text-gray-500 italic text-center">
+                      Žádní zadavatelé v plánu
+                    </div>
+                  ) : (
+                    uniqueAuthors.map((author) => {
+                      const isSelected = selectedAuthorFilter?.toLowerCase() === author.code.toLowerCase();
+                      return (
+                        <button
+                          key={author.code}
+                          type="button"
+                          onClick={() => {
+                            setSelectedAuthorFilter(author.code);
+                            setAuthorMenuState(null);
+                          }}
+                          className={`w-full flex items-center justify-between px-3.5 py-2 text-left transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-indigo-500/20 text-white font-medium'
+                              : 'text-gray-300 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 pr-2">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shrink-0 ${
+                                isSelected ? 'bg-indigo-500 text-white' : 'bg-white/[0.08] text-indigo-300'
+                              }`}
+                            >
+                              {author.code}
+                            </span>
+                            <span className="truncate text-xs">{author.displayName}</span>
+                          </div>
+                          <span className="text-[10px] text-gray-500 font-mono shrink-0 ml-1">
+                            {author.count}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="border-t border-white/10 pt-1 mt-0.5 px-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAuthorFilter(null);
+                      setAuthorMenuState(null);
+                    }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left transition cursor-pointer ${
+                      !selectedAuthorFilter
+                        ? 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                        : 'text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 font-medium'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {!selectedAuthorFilter ? 'check' : 'filter_alt_off'}
+                    </span>
+                    <span>Nefiltrovat</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1032,7 +1236,7 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
             <BoardView
               unassignedTasks={filteredQueueTasks}
               myTasks={activeMyTasks}
-              completedTasks={completedTasks}
+              completedTasks={filteredCompletedTasks}
               hasMultipleUsers={hasMultipleUsers}
               currentUser={currentUser}
               availablePersons={availablePersons}
@@ -1064,7 +1268,9 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
               filterMyOverflow={showOnlyMyTasks && Boolean(currentUser)}
               showOnlyMyTasks={showOnlyMyTasks}
               searchQuery={searchQuery}
+              selectedAuthorFilter={selectedAuthorFilter}
               dailyUserWorklogs={data?.dailyUserWorklogs}
+              worklogTimelineEntries={data?.worklogTimelineEntries}
               onOpenTask={handleOpenTask}
               onOpenCodeLink={handleOpenCodeLink}
               getTaskManagerUrl={getTaskManagerUrl}
@@ -1373,6 +1579,7 @@ interface TimelineGridViewProps {
   filterMyOverflow?: boolean;
   showOnlyMyTasks?: boolean;
   searchQuery?: string;
+  selectedAuthorFilter?: string | null;
   onOpenTask: (task: PlanTaskItem) => void;
   onOpenCodeLink: (code: string, task: PlanTaskItem, e?: React.MouseEvent) => void;
   getTaskManagerUrl: (code?: string) => string | null;
@@ -1381,6 +1588,7 @@ interface TimelineGridViewProps {
   primaryColor?: string;
   actionsColor?: string;
   dailyUserWorklogs?: Record<string, Record<string, number>>;
+  worklogTimelineEntries?: WorklogTimelineEntry[];
 }
 
 interface TimelineScheduledBlock {
@@ -1626,10 +1834,10 @@ const calculateScheduleForTasks = (
     } else {
       const worklog = t.worklogHours || 0;
       if (worklog > 0 && plannedH > 0 && worklog > plannedH) {
-        rawOverH = Math.round((worklog - plannedH) * 10) / 10;
+        rawOverH = Math.round((worklog - plannedH) * 100) / 100;
         overburnH = Math.ceil(rawOverH * 2) / 2;
         overburnProgressPercent = Math.round((worklog / plannedH) * 100);
-        fillPct = overburnH > 0 ? Math.min(100, Math.max(10, Math.round((rawOverH / overburnH) * 100))) : 100;
+        fillPct = overburnH > 0 ? Math.min(100, Math.max(5, Math.round((rawOverH / overburnH) * 100))) : 100;
       }
     }
 
@@ -1698,8 +1906,8 @@ const calculateScheduleForTasks = (
         isOverburnedInProgress: !isDone && (overburnH > 0 || (q.rawOverburnHours !== undefined && q.rawOverburnHours > 0) || q.overburnProgressPercent > 0),
       });
 
-      q.remainingPlannedHours = Math.max(0, Math.round((q.remainingPlannedHours - plannedH) * 10) / 10);
-      q.remainingOverburnHours = Math.max(0, Math.round((q.remainingOverburnHours - overburnH) * 10) / 10);
+      q.remainingPlannedHours = Math.max(0, Math.round((q.remainingPlannedHours - plannedH) * 100) / 100);
+      q.remainingOverburnHours = Math.max(0, Math.round((q.remainingOverburnHours - overburnH) * 100) / 100);
       q.part++;
 
       return { slotsAdded: spanCols };
@@ -2081,19 +2289,6 @@ const calculateScheduleForTasks = (
   };
 };
 
-const isTaskMatchingQuery = (t: PlanTaskItem, query: string): boolean => {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  const titleMatch = (t.title || '').toLowerCase().includes(q);
-  const customMatch = (t.customName || '').toLowerCase().includes(q);
-  const reqMatch = (t.requirementId || '').toLowerCase().includes(q);
-  const taskMatch = (t.taskIdentifier || '').toLowerCase().includes(q);
-  const projMatch = (t.project || '').toLowerCase().includes(q);
-  const authorMatch = (t.author || '').toLowerCase().includes(q);
-  const userMatch = (t.userName || '').toLowerCase().includes(q);
-  return Boolean(titleMatch || customMatch || reqMatch || taskMatch || projMatch || authorMatch || userMatch);
-};
-
 const TimelineGridView: React.FC<TimelineGridViewProps> = ({
   days,
   tasks,
@@ -2109,6 +2304,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
   filterMyOverflow,
   showOnlyMyTasks,
   searchQuery,
+  selectedAuthorFilter,
   onOpenTask,
   onOpenCodeLink,
   getTaskManagerUrl,
@@ -2117,11 +2313,13 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
   primaryColor,
   actionsColor,
   dailyUserWorklogs,
+  worklogTimelineEntries,
 }) => {
   const devColor = primaryColor || '#6366f1';
   const serviceColor = actionsColor || '#a855f7';
   const isCompact = Boolean(planSettings?.compactDayView);
   const showWorklogProgressBar = planSettings?.showWorklogProgressBar !== false;
+  const [realTimelineUserMap, setRealTimelineUserMap] = useState<Record<string, boolean>>({});
 
   const [userMenuState, setUserMenuState] = useState<{
     uIdx: number;
@@ -2182,6 +2380,12 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
   } | null>(null);
   const dayHoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Hover state for Real timeline entry tooltip
+  const [hoveredTimelineEntry, setHoveredTimelineEntry] = useState<{
+    entry: WorklogTimelineEntry;
+    rect: DOMRect;
+  } | null>(null);
+
   useEffect(() => {
     return () => {
       if (dayHoverTimerRef.current) {
@@ -2196,6 +2400,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
       dayHoverTimerRef.current = null;
     }
     setHoveredTask(null);
+    setHoveredTimelineEntry(null);
   }, [selectedDayIndex, viewMode]);
 
   // Helper to retrieve logged hours for a user on a given day
@@ -2235,8 +2440,8 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
   const tooltipPosition = useMemo(() => {
     if (!hoveredTask) return null;
     const padding = 16;
-    const approxWidth = 280;
-    const approxHeight = 160;
+    const approxWidth = 340;
+    const approxHeight = 220;
     const winW = typeof window !== 'undefined' ? window.innerWidth : 1200;
     const winH = typeof window !== 'undefined' ? window.innerHeight : 800;
 
@@ -2261,6 +2466,34 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
       translateY,
     };
   }, [hoveredTask]);
+
+  // Safe viewport positioning for Real timeline entry tooltip
+  const timelineTooltipPosition = useMemo(() => {
+    if (!hoveredTimelineEntry) return null;
+    const padding = 16;
+    const approxWidth = 280;
+    const approxHeight = 140;
+    const winW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const winH = typeof window !== 'undefined' ? window.innerHeight : 800;
+
+    const targetCenter = hoveredTimelineEntry.rect.left + hoveredTimelineEntry.rect.width / 2;
+    const clampedX = Math.max(
+      approxWidth / 2 + padding,
+      Math.min(winW - approxWidth / 2 - padding, targetCenter)
+    );
+
+    const showAbove =
+      hoveredTimelineEntry.rect.bottom + approxHeight + padding > winH &&
+      hoveredTimelineEntry.rect.top - approxHeight - padding > 0;
+    const y = showAbove ? hoveredTimelineEntry.rect.top - 10 : hoveredTimelineEntry.rect.bottom + 10;
+    const translateY = showAbove ? '-100%' : '0%';
+
+    return {
+      left: clampedX,
+      top: y,
+      translateY,
+    };
+  }, [hoveredTimelineEntry]);
 
   // Parse start and end hour for workday (standard: 09:00 to 17:00, or user custom from settings)
   const { startHour, endHour, startTimeLabel, endTimeLabel } = useMemo(() => {
@@ -2611,8 +2844,10 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
 
         {/* Scrollable Timeline Grid Container for both Day and Week */}
         <div className="w-full overflow-x-auto pb-2 outline-none">
-          <div className="min-w-[1040px] relative select-none">
-            {/* Realtime Moving Time Indicator Line (SHARED persistent element - animates smoothly between Day and Week!) */}
+          <div className="min-w-[1040px] select-none">
+            {/* Grid Container bounded with relative position for the Time Indicator */}
+            <div className="relative">
+              {/* Realtime Moving Time Indicator Line (SHARED persistent element - animates smoothly between Day and Week!) */}
             {currentIndicatorPercent !== null && (
               <div
                 className="absolute top-0 bottom-0 pointer-events-none z-40 outline-none overflow-hidden"
@@ -2859,7 +3094,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               style={{
                                 gridColumn: `1 / span ${totalDaySlots}`,
                                 gridRow: 1,
-                                opacity: searchQuery?.trim() ? 0.1 : 1,
+                                opacity: (searchQuery?.trim() || selectedAuthorFilter) ? 0.1 : 1,
                               }}
                               className={`${
                                 isCompact ? 'rounded-lg h-[46px] px-3 py-1' : 'rounded-2xl h-[112px] p-4'
@@ -2899,7 +3134,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               const displayCode = taskCode || reqCode;
 
                               const isNaMatch = !searchQuery?.trim() || 'nedostupný volno absence dovolená'.includes(searchQuery.trim().toLowerCase());
-                              const isNaMuted = Boolean(searchQuery?.trim()) && !isNaMatch;
+                              const isNaMuted = (Boolean(searchQuery?.trim()) && !isNaMatch) || Boolean(selectedAuthorFilter);
 
                               if (isNotAvailable) {
                                 return (
@@ -2965,23 +3200,43 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                     ? (isCompletedTask && task.estimatedHours ? Math.min(chunkHours, task.estimatedHours) : chunkHours)
                                     : chunkHours);
 
+                              const hadPrevOverburn = Boolean(
+                                isCutLeft &&
+                                uSched.scheduledBlocks.some(
+                                  (b) =>
+                                    b.task.taskId === task.taskId &&
+                                    !b.isNotAvailable &&
+                                    b.partIndex < partIndex &&
+                                    (b.hasOverburnChunk || (b.overburnChunkHours && b.overburnChunkHours > 0))
+                                )
+                              );
+                              const isPureOverburn = Boolean(
+                                hasOverburn && (plannedChunkH <= 0 || (isCutLeft && (hadPrevOverburn || plannedChunkH < 0.5)))
+                              );
+
+                              const isOverflowWithoutPlannedTime = Boolean(!isNotAvailable && isCutLeft && (hadPrevOverburn || plannedChunkH < 0.5));
+
                               const totalBlockH = block.chunkHours > 0 ? block.chunkHours : 1;
-                              const plannedWidthPct = hasOverburn && totalBlockH > 0
-                                ? Math.max(10, Math.min(95, Math.round((plannedChunkH / totalBlockH) * 100)))
-                                : 100;
+                              const plannedWidthPct = isPureOverburn
+                                ? 0
+                                : (hasOverburn && totalBlockH > 0
+                                    ? Math.max(10, Math.min(95, Math.round((plannedChunkH / totalBlockH) * 100)))
+                                    : 100);
                               const overburnWidthPct = 100 - plannedWidthPct;
 
-                              const isMatch = isTaskMatchingQuery(task, searchQuery || '');
-                              const isMuted = Boolean(searchQuery?.trim()) && !isMatch;
+                              const authorMatch = isTaskMatchingAuthor(task.author, selectedAuthorFilter);
+                              const queryMatch = isTaskMatchingQuery(task, searchQuery || '');
+                              const isMatch = authorMatch && queryMatch;
+                              const isMuted = (Boolean(searchQuery?.trim()) || Boolean(selectedAuthorFilter)) && !isMatch;
 
                               const isOverburnedInProgress = Boolean(!isNotAvailable && !isCompleted && (block.isOverburnedInProgress || hasOverburn));
                               const plannedTotal = task.totalHours > 0 ? task.totalHours : (block.plannedChunkHours || 1);
-                              const rawOver = block.rawOverburnHours !== undefined ? block.rawOverburnHours : (task.worklogHours && task.worklogHours > plannedTotal ? task.worklogHours - plannedTotal : 0);
+                              const rawOver = block.rawOverburnHours !== undefined ? block.rawOverburnHours : (task.worklogHours && task.worklogHours > plannedTotal ? Math.round((task.worklogHours - plannedTotal) * 100) / 100 : 0);
                               const overProgressPct = block.overburnProgressPercent || (rawOver > 0 && task.worklogHours ? Math.round((task.worklogHours / plannedTotal) * 100) : 0);
 
                               const overburnPct = block.overburnPercent || (task.estimatedHours && (task.totalHours || task.worklogHours) ? Math.round((Math.max(task.totalHours || 0, task.worklogHours || 0) / task.estimatedHours) * 100) : 0);
                               const isExtremeOverburn = isOverburnedInProgress ? overProgressPct > 200 : overburnPct > 200;
-                              const overburnBarColorClass = isExtremeOverburn ? 'bg-red-500' : 'bg-yellow-500';
+                              const overburnBarColorClass = isExtremeOverburn ? 'bg-red-500' : 'bg-orange-500';
 
                               const taskBackgroundColor = isNotAvailable
                                 ? '#27272a'
@@ -2996,7 +3251,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               const fillPct = block.overburnFillPercent !== undefined
                                 ? block.overburnFillPercent
                                 : (block.overburnChunkHours && rawOver > 0
-                                    ? Math.min(100, Math.max(10, Math.round((rawOver / block.overburnChunkHours) * 100)))
+                                    ? Math.min(100, Math.max(5, Math.round((rawOver / block.overburnChunkHours) * 100)))
                                     : 100);
 
                               const cardRadius = isCompact ? '8px' : '16px';
@@ -3050,40 +3305,46 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                     /* Overburn úkol: obě barvy v jednom kontejneru s opacitou 0.5 */
                                     <div className="absolute inset-0 pointer-events-none flex" style={{ opacity: isCompletedTask ? 0.5 : 0.8 }}>
                                       {/* A. Hlavní část úkolu se svým vlastním radiusem a box shadow */}
-                                      <div
-                                        style={{
-                                          width: `${plannedWidthPct}%`,
-                                          backgroundColor: taskBackgroundColor,
-                                          opacity: 1,
-                                          isolation: 'isolate',
-                                          borderTopLeftRadius: isCutLeft ? '0px' : cardRadius,
-                                          borderBottomLeftRadius: isCutLeft ? '0px' : cardRadius,
-                                          borderTopRightRadius: cardRadius,
-                                          borderBottomRightRadius: cardRadius,
-                                          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.35)',
-                                          zIndex: 2,
-                                          position: 'relative',
-                                        }}
-                                        className="h-full shrink-0 flex overflow-hidden"
-                                      />
+                                      {plannedWidthPct > 0 && (
+                                        <div
+                                          style={{
+                                            width: `${plannedWidthPct}%`,
+                                            backgroundColor: taskBackgroundColor,
+                                            opacity: 1,
+                                            isolation: 'isolate',
+                                            borderTopLeftRadius: isCutLeft ? '0px' : cardRadius,
+                                            borderBottomLeftRadius: isCutLeft ? '0px' : cardRadius,
+                                            borderTopRightRadius: cardRadius,
+                                            borderBottomRightRadius: cardRadius,
+                                            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.35)',
+                                            zIndex: 2,
+                                            position: 'relative',
+                                          }}
+                                          className="h-full shrink-0 flex overflow-hidden"
+                                        />
+                                      )}
 
                                       {/* B. Overburn část (přesah) podložená pod radius hlavní části */}
                                       <div
                                         style={{
-                                          marginLeft: `-${cardRadiusPx}px`,
-                                          width: `calc(${overburnWidthPct}% + ${cardRadiusPx}px)`,
+                                          marginLeft: plannedWidthPct > 0 ? `-${cardRadiusPx}px` : '0px',
+                                          width: plannedWidthPct > 0 ? `calc(${overburnWidthPct}% + ${cardRadiusPx}px)` : '100%',
+                                          borderTopLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : cardRadius),
+                                          borderBottomLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : cardRadius),
                                           borderTopRightRadius: isCutRight ? '0px' : cardRadius,
                                           borderBottomRightRadius: isCutRight ? '0px' : cardRadius,
-                                          backgroundColor: 'transparent',
+                                          backgroundColor: '#27272a',
                                           opacity: 1,
                                           zIndex: 1,
                                           position: 'relative',
                                         }}
-                                        className="h-full shrink-0 overflow-hidden flex"
+                                        className="h-full shrink-0 overflow-hidden flex bg-zinc-800"
                                       >
                                         {isCompletedTask ? (
                                           <div
                                             style={{
+                                              borderTopLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : cardRadius),
+                                              borderBottomLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : cardRadius),
                                               borderTopRightRadius: isCutRight ? '0px' : cardRadius,
                                               borderBottomRightRadius: isCutRight ? '0px' : cardRadius,
                                             }}
@@ -3094,8 +3355,10 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                             <div
                                               style={{
                                                 width: `${fillPct}%`,
-                                                borderTopRightRadius: fillPct >= 99 && !isCutRight ? cardRadius : '0px',
-                                                borderBottomRightRadius: fillPct >= 99 && !isCutRight ? cardRadius : '0px',
+                                                borderTopLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : cardRadius),
+                                                borderBottomLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : cardRadius),
+                                                borderTopRightRadius: (fillPct >= 99 && isCutRight) ? '0px' : cardRadius,
+                                                borderBottomRightRadius: (fillPct >= 99 && isCutRight) ? '0px' : cardRadius,
                                               }}
                                               className={`h-full ${overburnBarColorClass} shrink-0`}
                                             />
@@ -3149,11 +3412,11 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
 
                                   {/* Vrstva 3: Informační vrstva s texty omezená na plannedWidthPct */}
                                   <div
-                                    style={{ width: hasOverburn ? `${plannedWidthPct}%` : '100%' }}
+                                    style={{ width: hasOverburn && plannedWidthPct > 0 ? `${plannedWidthPct}%` : '100%' }}
                                     className={`absolute inset-y-0 left-0 z-10 h-full min-w-0 ${
                                       isCompact
                                         ? 'px-2.5 py-1 flex items-center justify-between overflow-hidden'
-                                        : 'p-2.5 flex flex-col justify-between gap-1'
+                                        : `p-2.5 flex flex-col justify-between gap-1 ${isOverflowWithoutPlannedTime ? 'pointer-events-none' : ''}`
                                     }`}
                                   >
                                   {isCompact ? (
@@ -3219,7 +3482,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                               ? `${chunkHours}h (${totalHours}h)`
                                               : `${chunkHours}h`}
                                             {isOverburnedInProgress && (
-                                              <span className={`ml-1 font-normal text-[11px] ${overProgressPct > 200 ? 'text-red-400' : 'text-amber-300'}`}>
+                                              <span className={`ml-1 font-normal text-[11px] ${overProgressPct > 200 ? 'text-red-400' : 'text-orange-400'}`}>
                                                 ({overProgressPct}%)
                                               </span>
                                             )}
@@ -3229,7 +3492,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                               </span>
                                             )}
                                             {isCompletedTask && hasOverburn && (
-                                              <span className={`ml-1 font-normal text-[11px] ${overburnPct > 200 ? 'text-red-400' : 'text-amber-300'}`}>
+                                              <span className={`ml-1 font-normal text-[11px] ${overburnPct > 200 ? 'text-red-400' : 'text-orange-400'}`}>
                                                 ({overburnPct}%)
                                               </span>
                                             )}
@@ -3266,7 +3529,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                         )}
                                       </div>
                                     </div>
-                                  ) : (
+                                  ) : isOverflowWithoutPlannedTime ? null : (
                                     <>
                                       {/* Content area: Title, Project, and Part/Hours row */}
                                       <div className="min-w-0 flex flex-col gap-0.5">
@@ -3297,24 +3560,24 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                               : `${chunkHours}h`}
                                           </span>
                                           {isOverburnedInProgress && (
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border font-mono ${
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono text-white ${
                                               overProgressPct > 200
-                                                ? 'text-red-200 bg-red-950/60 border-red-500/40'
-                                                : 'text-amber-200 bg-amber-950/60 border-amber-500/40'
+                                                ? 'bg-red-500'
+                                                : 'bg-orange-500'
                                             }`}>
                                               {overProgressPct}%
                                             </span>
                                           )}
                                           {!isOverburnedInProgress && hasWorklogProgress && (
-                                            <span className="text-[10px] text-white/80 font-bold bg-white/10 px-1.5 py-0.5 rounded border border-white/20 font-mono">
+                                            <span className="text-[10px] text-white font-bold bg-emerald-500 px-2 py-0.5 rounded-full font-mono">
                                               {pct}%
                                             </span>
                                           )}
                                           {isCompletedTask && hasOverburn && (
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border font-mono ${
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono text-white ${
                                               overburnPct > 200
-                                                ? 'text-red-200 bg-red-950/60 border-red-500/40'
-                                                : 'text-amber-200 bg-amber-950/60 border-amber-500/40'
+                                                ? 'bg-red-500'
+                                                : 'bg-orange-500'
                                             }`}>
                                               {overburnPct}%
                                             </span>
@@ -3335,7 +3598,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                                 }}
                                                 className={`px-2 py-0.5 rounded-full font-mono font-bold text-[11px] transition cursor-pointer truncate shrink-0 ${
                                                   isSolidCard
-                                                    ? 'border border-white/60 bg-white/10 hover:bg-white/20 text-white'
+                                                    ? 'bg-white/20 hover:bg-white/30 text-white'
                                                     : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300'
                                                 }`}
                                                 title={task.url ? 'Otevřít odkaz úkolu' : 'Godday úkol'}
@@ -3349,7 +3612,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                                   onClick={(e) => onOpenCodeLink(displayCode, task, e)}
                                                   className={`px-2 py-0.5 rounded-full font-mono font-bold text-[11px] transition cursor-pointer truncate shrink-0 ${
                                                     isSolidCard
-                                                      ? 'border border-white/60 bg-white/10 hover:bg-white/20 text-white'
+                                                      ? 'bg-white/20 hover:bg-white/30 text-white'
                                                       : 'bg-white/15 hover:bg-white/25 text-white'
                                                   }`}
                                                   title="Otevřít v TaskManageru"
@@ -3360,12 +3623,12 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                             )
                                           )}
 
-                                          {/* Author initials in pill: white outline when solid card */}
+                                          {/* Author initials in pill */}
                                           {task.author && (
                                             <div
                                               className={`px-2.5 py-0.5 min-w-[24px] rounded-full shrink-0 flex items-center justify-center font-bold text-[10px] font-mono text-center ${
                                                 isSolidCard
-                                                  ? 'border border-white/60 bg-white/10 text-white'
+                                                  ? 'bg-white/20 text-white'
                                                   : 'bg-indigo-500/20 text-indigo-300'
                                               }`}
                                               title={`Zadavatel: ${task.author}`}
@@ -3413,6 +3676,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               style={{
                                 gridColumn: `${((dayFree.startCol - 1) % totalDaySlots) + 1} / span ${dayFree.spanCols}`,
                                 gridRow: 1,
+                                opacity: (searchQuery?.trim() || selectedAuthorFilter) ? 0.1 : 1,
                               }}
                               className={`${
                                 isCompact ? 'rounded-lg h-[46px] px-3 py-1' : 'rounded-2xl h-[112px] p-4'
@@ -3429,57 +3693,330 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                         </div>
 
                         {/* User Worklog Progress Bar (Day View: 8h = 100%) */}
+                        {/* User Worklog Progress Bar / Real Timeline Log (Day View) */}
+                        {/* User Worklog Progress Bar / Real Timeline Log (Day View) */}
                         {showWorklogProgressBar && (() => {
                           const selectedDate = days[selectedDayIndex]?.date;
                           const dayWorklog = getUserWorklogForDay(uSched, selectedDayIndex, selectedDate);
                           const isToday = selectedDayIndex === todayIdx;
-                          const dayBarWidth = Math.min(100, Math.max(0, (dayWorklog / totalDayHours) * 100));
+                          const isRealTimeline = Boolean(realTimelineUserMap[uSched.userName]);
 
-                          let dayCompletionRatio = 1;
-                          let dayElapsed = 8;
-                          if (isToday) {
-                            const currentHourDec = currentTime.getHours() + currentTime.getMinutes() / 60;
-                            dayElapsed = Math.max(0, Math.min(totalDayHours, currentHourDec - startHour));
-                            if (dayElapsed <= 0) {
-                              dayCompletionRatio = 1;
-                            } else {
-                              dayCompletionRatio = dayWorklog / dayElapsed;
-                            }
-                          } else if (selectedDayIndex < todayIdx) {
-                            dayElapsed = 8;
-                            dayCompletionRatio = dayWorklog / 8;
-                          } else {
-                            dayElapsed = 0;
-                            dayCompletionRatio = 0;
-                          }
+                          // Filtrované záznamy pro daného uživatele a vybraný den
+                          const userTimelineEntries = (worklogTimelineEntries || []).filter((e) => {
+                            if (selectedDate && e.date !== selectedDate) return false;
+                            return isTaskForUser(e.userName, uSched.userName, availablePersons);
+                          });
 
-                          const dayBarColor =
-                            dayCompletionRatio < 0.25
-                              ? '#ef4444'
-                              : dayCompletionRatio < 0.65
-                              ? devColor
-                              : '#10b981';
+                          // Pomocná funkce pro převod HH:mm na decimální hodiny
+                          const parseTimeToHours = (t: string): number => {
+                            if (!t) return 0;
+                            const parts = t.split(':');
+                            const h = parseInt(parts[0], 10) || 0;
+                            const m = parseInt(parts[1], 10) || 0;
+                            return h + m / 60;
+                          };
+
+                          const formatDecToTime = (dec: number): string => {
+                            const totalMinutes = Math.round(dec * 60);
+                            const h = Math.floor(totalMinutes / 60);
+                            const m = totalMinutes % 60;
+                            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                          };
 
                           return (
-                            <div className="px-[2.5px] mt-1.5">
-                              <div
-                                className="w-full h-[4px] bg-white/[0.06] rounded-full overflow-hidden relative cursor-default"
-                                title={
-                                  isToday
-                                    ? `Worklog dnes: ${dayWorklog}h z 8h (${Math.round((dayWorklog / 8) * 100)}% kapacity) • K tomuto času očekáváno ${dayElapsed.toFixed(1)}h (${Math.round(dayCompletionRatio * 100)}% splněno)`
+                            <div className="px-[2.5px] mt-1.5 flex items-center gap-1.5 w-full">
+                              {!isRealTimeline ? (
+                                // MODE 1: Standardní celkový souhrnný worklog bar (8h = 100%)
+                                (() => {
+                                  const dayBarWidth = Math.min(100, Math.max(0, (dayWorklog / totalDayHours) * 100));
+
+                                  let dayCompletionRatio = 1;
+                                  let dayElapsed = 8;
+                                  if (isToday) {
+                                    const currentHourDec = currentTime.getHours() + currentTime.getMinutes() / 60;
+                                    dayElapsed = Math.max(0, Math.min(totalDayHours, currentHourDec - startHour));
+                                    if (dayElapsed <= 0) {
+                                      dayCompletionRatio = 1;
+                                    } else {
+                                      dayCompletionRatio = dayWorklog / dayElapsed;
+                                    }
+                                  } else if (selectedDayIndex < todayIdx) {
+                                    dayElapsed = 8;
+                                    dayCompletionRatio = dayWorklog / 8;
+                                  } else {
+                                    dayElapsed = 0;
+                                    dayCompletionRatio = 0;
+                                  }
+
+                                  const dayBarColor =
+                                    dayCompletionRatio < 0.25
+                                      ? '#ef4444'
+                                      : dayCompletionRatio < 0.65
+                                      ? devColor
+                                      : '#10b981';
+
+                                  const tooltipText = isToday
+                                    ? `Worklog dnes: ${dayWorklog}h z 8h (${Math.round((dayWorklog / 8) * 100)}% kapacity) • K tomuto času očekáváno ${dayElapsed.toFixed(1)}h (${Math.round(dayCompletionRatio * 100)}% splněno) • Kliknutím přepnete na Real timeline log`
                                     : selectedDayIndex < todayIdx
-                                    ? `Worklog dne: ${dayWorklog}h z 8h (${Math.round((dayWorklog / 8) * 100)}% splněno)`
-                                    : 'Budoucí den (zatím neodpracováno)'
+                                    ? `Worklog dne: ${dayWorklog}h z 8h (${Math.round((dayWorklog / 8) * 100)}% splněno) • Kliknutím přepnete na Real timeline log`
+                                    : 'Budoucí den (zatím neodpracováno) • Kliknutím přepnete na Real timeline log';
+
+                                  return (
+                                    <div
+                                      onClick={() =>
+                                        setRealTimelineUserMap((prev) => ({
+                                          ...prev,
+                                          [uSched.userName]: true,
+                                        }))
+                                      }
+                                      className="flex-1 py-1 cursor-pointer group flex items-center"
+                                      title={tooltipText}
+                                    >
+                                      <div className="w-full h-[4px] group-hover:h-[6px] bg-white/[0.06] rounded-full overflow-hidden relative transition-all">
+                                        <div
+                                          style={{
+                                            width: `${dayBarWidth}%`,
+                                            backgroundColor: dayBarColor,
+                                          }}
+                                          className="h-full rounded-full transition-all duration-300 max-w-full"
+                                        />
+                                      </div>
+                                    </div>
+                                  );
+                                })()
+                              ) : (
+                                // MODE 2: Real timeline log (výška sjednocena s total worklogem, bez inline popisů, opacity 0.6 pozadí)
+                                (() => {
+                                  const sortedEntries = [...userTimelineEntries]
+                                    .map((e) => {
+                                      const s = parseTimeToHours(e.timeStart);
+                                      const end = Math.max(s, parseTimeToHours(e.timeEnd));
+                                      return { ...e, startDec: s, endDec: end };
+                                    })
+                                    .sort((a, b) => a.startDec - b.startDec || b.endDec - a.endDec);
+
+                                  if (sortedEntries.length === 0) {
+                                    return (
+                                      <div className="flex-1 py-1 flex items-center">
+                                        <div className="w-full h-[4px] bg-white/[0.06] rounded-full" />
+                                      </div>
+                                    );
+                                  }
+
+                                  // Výpočet souvislých odpracovaných úseků (pro zjištění volných mezer)
+                                  const occupiedIntervals: {
+                                    startDec: number;
+                                    endDec: number;
+                                    timeStartStr: string;
+                                    timeEndStr: string;
+                                  }[] = [];
+
+                                  for (const entry of sortedEntries) {
+                                    if (occupiedIntervals.length === 0) {
+                                      occupiedIntervals.push({
+                                        startDec: entry.startDec,
+                                        endDec: entry.endDec,
+                                        timeStartStr: entry.timeStart,
+                                        timeEndStr: entry.timeEnd,
+                                      });
+                                    } else {
+                                      const last = occupiedIntervals[occupiedIntervals.length - 1];
+                                      if (entry.startDec <= last.endDec + (1.99 / 60)) {
+                                        if (entry.endDec > last.endDec) {
+                                          last.endDec = entry.endDec;
+                                          last.timeEndStr = entry.timeEnd;
+                                        }
+                                      } else {
+                                        occupiedIntervals.push({
+                                          startDec: entry.startDec,
+                                          endDec: entry.endDec,
+                                          timeStartStr: entry.timeStart,
+                                          timeEndStr: entry.timeEnd,
+                                        });
+                                      }
+                                    }
+                                  }
+
+                                  const gapEntries: Array<WorklogTimelineEntry & { startDec: number; endDec: number }> = [];
+                                  for (let i = 0; i < occupiedIntervals.length - 1; i++) {
+                                    const cur = occupiedIntervals[i];
+                                    const next = occupiedIntervals[i + 1];
+                                    if (next.startDec > cur.endDec) {
+                                      const gapDuration = next.startDec - cur.endDec;
+                                      const tStart = cur.timeEndStr || formatDecToTime(cur.endDec);
+                                      const tEnd = next.timeStartStr || formatDecToTime(next.startDec);
+                                      const gapMinutes = Math.round(gapDuration * 60);
+                                      // 1minutové a nulové pauzy neevidovat (pouze 2 minuty a více)
+                                      if (gapMinutes > 1) {
+                                        gapEntries.push({
+                                          date: selectedDate || '',
+                                          userName: uSched.userName,
+                                          taskId: '',
+                                          title: 'Volno',
+                                          project: 'Prokrastinace',
+                                          isService: false,
+                                          isDev: false,
+                                          hours: Math.round(gapDuration * 100) / 100,
+                                          timeStart: tStart,
+                                          timeEnd: tEnd,
+                                          startDec: cur.endDec,
+                                          endDec: next.startDec,
+                                          isGap: true,
+                                        });
+                                      }
+                                    }
+                                  }
+
+                                  const axisStart = sortedEntries[0].startDec;
+                                  const axisEnd = Math.max(...sortedEntries.map((e) => e.endDec));
+                                  const totalAxisHours = Math.max(0.0001, axisEnd - axisStart);
+
+                                  return (
+                                    <div className="flex-1 py-1 cursor-pointer group flex items-center">
+                                      <div className="w-full h-[4px] group-hover:h-[6px] bg-white/[0.06] rounded-full overflow-hidden relative transition-all">
+                                        <div className="w-full h-full relative overflow-hidden">
+                                          {/* Šedé bary pro prázdné meziprostory (Volno / Prokrastinace) */}
+                                          {gapEntries.map((gap, gIdx) => {
+                                            const leftPct = ((gap.startDec - axisStart) / totalAxisHours) * 100;
+                                            const widthPct = ((gap.endDec - gap.startDec) / totalAxisHours) * 100;
+
+                                            const isUserHovered = Boolean(
+                                              hoveredTimelineEntry &&
+                                              isTaskForUser(hoveredTimelineEntry.entry.userName, uSched.userName, availablePersons)
+                                            );
+                                            const isThisHovered = Boolean(
+                                              hoveredTimelineEntry &&
+                                              hoveredTimelineEntry.entry.isGap &&
+                                              hoveredTimelineEntry.entry.timeStart === gap.timeStart &&
+                                              hoveredTimelineEntry.entry.timeEnd === gap.timeEnd &&
+                                              isTaskForUser(hoveredTimelineEntry.entry.userName, uSched.userName, availablePersons)
+                                            );
+                                            const entryOpacity = isUserHovered
+                                              ? (isThisHovered ? 1 : 0.15)
+                                              : 0.5;
+
+                                            return (
+                                              <div
+                                                key={`gap-${gIdx}`}
+                                                style={{
+                                                  left: `${Math.max(0, leftPct)}%`,
+                                                  width: `${Math.max(0, Math.min(100 - leftPct, widthPct))}%`,
+                                                  minWidth: '1px',
+                                                  backgroundColor: '#71717a',
+                                                  opacity: entryOpacity,
+                                                  zIndex: isThisHovered ? 30 : 5,
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onMouseEnter={(e) => {
+                                                  setHoveredTimelineEntry({
+                                                    entry: gap,
+                                                    rect: e.currentTarget.getBoundingClientRect(),
+                                                  });
+                                                }}
+                                                onMouseLeave={() => {
+                                                  setHoveredTimelineEntry(null);
+                                                }}
+                                                className={`absolute top-0 bottom-0 cursor-pointer transition-all duration-150 ${
+                                                  isThisHovered ? 'brightness-125 shadow-sm' : ''
+                                                }`}
+                                              />
+                                            );
+                                          })}
+
+                                          {/* Záznamy odpracovaného času */}
+                                          {sortedEntries.map((entry, eIdx) => {
+                                            const leftPct = ((entry.startDec - axisStart) / totalAxisHours) * 100;
+                                            const widthPct = ((entry.endDec - entry.startDec) / totalAxisHours) * 100;
+                                            const bgCol = entry.isService ? serviceColor : devColor;
+                                            const taskLabel = entry.taskId || entry.parentTaskId || entry.reqId || '';
+
+                                            const isUserHovered = Boolean(
+                                              hoveredTimelineEntry &&
+                                              isTaskForUser(hoveredTimelineEntry.entry.userName, uSched.userName, availablePersons)
+                                            );
+                                            const isThisHovered = Boolean(
+                                              hoveredTimelineEntry &&
+                                              !hoveredTimelineEntry.entry.isGap &&
+                                              hoveredTimelineEntry.entry.timeStart === entry.timeStart &&
+                                              hoveredTimelineEntry.entry.timeEnd === entry.timeEnd &&
+                                              hoveredTimelineEntry.entry.date === entry.date &&
+                                              hoveredTimelineEntry.entry.taskId === entry.taskId &&
+                                              hoveredTimelineEntry.entry.hours === entry.hours &&
+                                              hoveredTimelineEntry.entry.description === entry.description
+                                            );
+                                            const entryOpacity = isUserHovered
+                                              ? (isThisHovered ? 1 : 0.15)
+                                              : 0.6;
+
+                                            return (
+                                              <div
+                                                key={eIdx}
+                                                style={{
+                                                  left: `${Math.max(0, leftPct)}%`,
+                                                  width: `${Math.max(0, Math.min(100 - leftPct, widthPct))}%`,
+                                                  minWidth: '1px',
+                                                  backgroundColor: bgCol,
+                                                  opacity: entryOpacity,
+                                                  zIndex: isThisHovered ? 30 : 10,
+                                                }}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (taskLabel) {
+                                                    const matchedTask = tasks.find(
+                                                      (t) =>
+                                                        t.id === taskLabel ||
+                                                        t.requirementId === taskLabel ||
+                                                        (entry.reqId && t.requirementId === entry.reqId)
+                                                    );
+                                                    if (matchedTask) {
+                                                      onOpenTask(matchedTask);
+                                                    } else if (onOpenCodeLink) {
+                                                      onOpenCodeLink(taskLabel);
+                                                    }
+                                                  }
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                  setHoveredTimelineEntry({
+                                                    entry,
+                                                    rect: e.currentTarget.getBoundingClientRect(),
+                                                  });
+                                                }}
+                                                onMouseLeave={() => {
+                                                  setHoveredTimelineEntry(null);
+                                                }}
+                                                className={`absolute top-0 bottom-0 rounded-full cursor-pointer transition-all duration-150 ${
+                                                  isThisHovered ? 'brightness-125 shadow-sm' : ''
+                                                }`}
+                                              />
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()
+                              )}
+
+                              {/* Samotná ikonka napravo bez textu pro toggling */}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setRealTimelineUserMap((prev) => ({
+                                    ...prev,
+                                    [uSched.userName]: !isRealTimeline,
+                                  }))
+                                }
+                                className="w-5 h-5 flex items-center justify-center rounded text-zinc-500 hover:text-white hover:bg-white/10 transition shrink-0"
+                                title={
+                                  isRealTimeline
+                                    ? 'Přepnout na celkový worklog'
+                                    : 'Přepnout na Real timeline log'
                                 }
                               >
-                                <div
-                                  style={{
-                                    width: `${dayBarWidth}%`,
-                                    backgroundColor: dayBarColor,
-                                  }}
-                                  className="h-full rounded-full transition-all duration-300 max-w-full"
-                                />
-                              </div>
+                                <span className="material-symbols-outlined text-[15px]">
+                                  {isRealTimeline ? 'bar_chart' : 'view_timeline'}
+                                </span>
+                              </button>
                             </div>
                           );
                         })()}
@@ -3487,57 +4024,6 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                     </div>
                   );
                 })}
-
-                {/* Row placeholder to add a new person (aligned flush left) */}
-                {onUpdateUserColumns && (
-                  <div className="pt-2 flex items-center">
-                    {!isAddingPerson ? (
-                      <button
-                        type="button"
-                        onClick={() => setIsAddingPerson(true)}
-                        className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-dashed border-white/15 hover:border-indigo-500/50 hover:bg-white/[0.03] text-xs text-gray-400 hover:text-white transition cursor-pointer select-none"
-                      >
-                        <span className="material-symbols-outlined text-sm text-indigo-400">add</span>
-                        <span>Přidat osobu</span>
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-3 p-2 rounded-2xl bg-white/[0.03] border border-white/10 animate-fade-in w-fit">
-                        <div className="w-7 h-7 rounded-full bg-white/[0.06] text-indigo-300 flex items-center justify-center font-bold text-xs shrink-0">
-                          <span className="material-symbols-outlined text-sm">person_add</span>
-                        </div>
-                        <select
-                          autoFocus
-                          defaultValue=""
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val) {
-                              handleAddUser(val);
-                              setIsAddingPerson(false);
-                            }
-                          }}
-                          className="bg-black/60 border border-white/15 rounded-xl px-3 py-1 text-xs text-white outline-none focus:border-indigo-500 transition [color-scheme:dark] cursor-pointer"
-                        >
-                          <option value="" disabled>Vyberte osobu k přidání...</option>
-                          {availablePersons
-                            .filter((p) => !userSchedules.some((u) => isTaskForUser(u.userName, p.id, availablePersons)))
-                            .map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name || p.id}
-                              </option>
-                            ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => setIsAddingPerson(false)}
-                          className="p-1 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-white/5 transition cursor-pointer"
-                          title="Zrušit"
-                        >
-                          <span className="material-symbols-outlined text-sm">close</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
         ) : (
@@ -3727,25 +4213,42 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                 ? (isCompletedTask && task.estimatedHours ? Math.min(chunkHours, task.estimatedHours) : chunkHours)
                                 : chunkHours);
 
+                          const hadPrevOverburn = Boolean(
+                            isCutLeft &&
+                            uSched.weekMergedBlocks.some(
+                              (b) =>
+                                b.task.taskId === task.taskId &&
+                                !b.isNotAvailable &&
+                                b.partIndex < partIndex &&
+                                (b.hasOverburnChunk || (b.overburnChunkHours && b.overburnChunkHours > 0))
+                            )
+                          );
+                          const isPureOverburn = Boolean(
+                            hasOverburn && (plannedChunkH <= 0 || (isCutLeft && (hadPrevOverburn || plannedChunkH < 0.5)))
+                          );
+
                           const totalBlockH = block.chunkHours > 0 ? block.chunkHours : 1;
-                          const plannedWidthPct = hasOverburn && totalBlockH > 0
-                            ? Math.max(10, Math.min(95, Math.round((plannedChunkH / totalBlockH) * 100)))
-                            : 100;
+                          const plannedWidthPct = isPureOverburn
+                            ? 0
+                            : (hasOverburn && totalBlockH > 0
+                                ? Math.max(10, Math.min(95, Math.round((plannedChunkH / totalBlockH) * 100)))
+                                : 100);
                           const overburnWidthPct = 100 - plannedWidthPct;
 
-                          const isMatch = isNotAvailable
-                            ? (!searchQuery?.trim() || 'nedostupný volno absence dovolená'.includes(searchQuery.trim().toLowerCase()))
-                            : isTaskMatchingQuery(task, searchQuery || '');
-                          const isMuted = Boolean(searchQuery?.trim()) && !isMatch;
+                          const isNaMatch = !searchQuery?.trim() || 'nedostupný volno absence dovolená'.includes(searchQuery.trim().toLowerCase());
+                          const authorMatch = isTaskMatchingAuthor(task.author, selectedAuthorFilter);
+                          const queryMatch = isNotAvailable ? isNaMatch : isTaskMatchingQuery(task, searchQuery || '');
+                          const isMatch = isNotAvailable ? (!selectedAuthorFilter && isNaMatch) : (authorMatch && queryMatch);
+                          const isMuted = (Boolean(searchQuery?.trim()) || Boolean(selectedAuthorFilter)) && !isMatch;
 
                           const isOverburnedInProgress = Boolean(!isNotAvailable && !isCompleted && (block.isOverburnedInProgress || hasOverburn));
                           const plannedTotal = task.totalHours > 0 ? task.totalHours : (block.plannedChunkHours || 1);
-                          const rawOver = block.rawOverburnHours !== undefined ? block.rawOverburnHours : (task.worklogHours && task.worklogHours > plannedTotal ? task.worklogHours - plannedTotal : 0);
+                          const rawOver = block.rawOverburnHours !== undefined ? block.rawOverburnHours : (task.worklogHours && task.worklogHours > plannedTotal ? Math.round((task.worklogHours - plannedTotal) * 100) / 100 : 0);
                           const overProgressPct = block.overburnProgressPercent || (rawOver > 0 && task.worklogHours ? Math.round((task.worklogHours / plannedTotal) * 100) : 0);
 
                           const overburnPct = block.overburnPercent || (task.estimatedHours && (task.totalHours || task.worklogHours) ? Math.round((Math.max(task.totalHours || 0, task.worklogHours || 0) / task.estimatedHours) * 100) : 0);
                           const isExtremeOverburn = isOverburnedInProgress ? overProgressPct > 200 : overburnPct > 200;
-                          const overburnBarColorClass = isExtremeOverburn ? 'bg-red-500' : 'bg-yellow-500';
+                          const overburnBarColorClass = isExtremeOverburn ? 'bg-red-500' : 'bg-orange-500';
 
                           const taskBackgroundColor = isNotAvailable
                             ? '#27272a'
@@ -3760,7 +4263,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                           const fillPct = block.overburnFillPercent !== undefined
                             ? block.overburnFillPercent
                             : (block.overburnChunkHours && rawOver > 0
-                                ? Math.min(100, Math.max(10, Math.round((rawOver / block.overburnChunkHours) * 100)))
+                                ? Math.min(100, Math.max(5, Math.round((rawOver / block.overburnChunkHours) * 100)))
                                 : 100);
 
                           const blockStyle: React.CSSProperties = {
@@ -3794,39 +4297,45 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               {hasOverburn ? (
                                 /* Overburn úkol: obě barvy v jednom kontejneru s opacitou 0.5 */
                                 <div className="absolute inset-0 pointer-events-none flex" style={{ opacity: isCompletedTask ? 0.5 : 0.8 }}>
-                                  <div
-                                    style={{
-                                      width: `${plannedWidthPct}%`,
-                                      backgroundColor: taskBackgroundColor,
-                                      opacity: 1,
-                                      isolation: 'isolate',
-                                      borderTopLeftRadius: isCutLeft ? '0px' : '8px',
-                                      borderBottomLeftRadius: isCutLeft ? '0px' : '8px',
-                                      borderTopRightRadius: '8px',
-                                      borderBottomRightRadius: '8px',
-                                      boxShadow: '0 2px 6px rgba(0, 0, 0, 0.35)',
-                                      zIndex: 2,
-                                      position: 'relative',
-                                    }}
-                                    className="h-full shrink-0 flex overflow-hidden"
-                                  />
+                                  {plannedWidthPct > 0 && (
+                                    <div
+                                      style={{
+                                        width: `${plannedWidthPct}%`,
+                                        backgroundColor: taskBackgroundColor,
+                                        opacity: 1,
+                                        isolation: 'isolate',
+                                        borderTopLeftRadius: isCutLeft ? '0px' : '8px',
+                                        borderBottomLeftRadius: isCutLeft ? '0px' : '8px',
+                                        borderTopRightRadius: '8px',
+                                        borderBottomRightRadius: '8px',
+                                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.35)',
+                                        zIndex: 2,
+                                        position: 'relative',
+                                      }}
+                                      className="h-full shrink-0 flex overflow-hidden"
+                                    />
+                                  )}
 
                                   <div
                                     style={{
-                                      marginLeft: '-8px',
-                                      width: `calc(${overburnWidthPct}% + 8px)`,
+                                      marginLeft: plannedWidthPct > 0 ? '-8px' : '0px',
+                                      width: plannedWidthPct > 0 ? `calc(${overburnWidthPct}% + 8px)` : '100%',
+                                      borderTopLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : '8px'),
+                                      borderBottomLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : '8px'),
                                       borderTopRightRadius: isCutRight ? '0px' : '8px',
                                       borderBottomRightRadius: isCutRight ? '0px' : '8px',
-                                      backgroundColor: 'transparent',
+                                      backgroundColor: '#27272a',
                                       opacity: 1,
                                       zIndex: 1,
                                       position: 'relative',
                                     }}
-                                    className="h-full shrink-0 overflow-hidden flex"
+                                    className="h-full shrink-0 overflow-hidden flex bg-zinc-800"
                                   >
                                     {isCompletedTask ? (
                                       <div
                                         style={{
+                                          borderTopLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : '8px'),
+                                          borderBottomLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : '8px'),
                                           borderTopRightRadius: isCutRight ? '0px' : '8px',
                                           borderBottomRightRadius: isCutRight ? '0px' : '8px',
                                         }}
@@ -3837,8 +4346,10 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                         <div
                                           style={{
                                             width: `${fillPct}%`,
-                                            borderTopRightRadius: fillPct >= 99 && !isCutRight ? '8px' : '0px',
-                                            borderBottomRightRadius: fillPct >= 99 && !isCutRight ? '8px' : '0px',
+                                            borderTopLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : '8px'),
+                                            borderBottomLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : '8px'),
+                                            borderTopRightRadius: (fillPct >= 99 && isCutRight) ? '0px' : '8px',
+                                            borderBottomRightRadius: (fillPct >= 99 && isCutRight) ? '0px' : '8px',
                                           }}
                                           className={`h-full ${overburnBarColorClass} shrink-0`}
                                         />
@@ -3892,7 +4403,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
 
                               {/* Vrstva 3: Informační vrstva s ikonami v prostoru plánu */}
                               <div
-                                style={{ width: hasOverburn ? `${plannedWidthPct}%` : '100%' }}
+                                style={{ width: hasOverburn && plannedWidthPct > 0 ? `${plannedWidthPct}%` : '100%' }}
                                 className="absolute inset-y-0 left-0 z-10 w-full h-full flex items-center justify-center pointer-events-none"
                               >
                                 <div
@@ -3934,7 +4445,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                             style={{
                               gridColumn: `${free.startCol} / span ${free.spanCols}`,
                               gridRow: 1,
-                              opacity: searchQuery?.trim() ? 0.1 : 1,
+                              opacity: (searchQuery?.trim() || selectedAuthorFilter) ? 0.1 : 1,
                             }}
                             className="rounded-lg border border-dashed border-white/10 bg-white/[0.015] hover:bg-white/[0.03] text-gray-500 text-xs flex items-center justify-center gap-1 transition-all duration-200 select-none h-full"
                             title={free.dayIndex < todayIdx ? `${free.freeHours}h nevyužité kapacity` : `${free.freeHours}h volné kapacity`}
@@ -3995,60 +4506,61 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                   </div>
                 );
               })}
-
-              {/* Row placeholder to add a new person */}
-              {onUpdateUserColumns && (
-                <div className="pt-2 flex items-center">
-                  {!isAddingPerson ? (
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingPerson(true)}
-                      className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-dashed border-white/15 hover:border-indigo-500/50 hover:bg-white/[0.03] text-xs text-gray-400 hover:text-white transition cursor-pointer select-none"
-                    >
-                      <span className="material-symbols-outlined text-sm text-indigo-400">add</span>
-                      <span>Přidat osobu</span>
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-3 p-2 rounded-2xl bg-white/[0.03] border border-white/10 animate-fade-in w-fit">
-                      <div className="w-7 h-7 rounded-full bg-white/[0.06] text-indigo-300 flex items-center justify-center font-bold text-xs shrink-0">
-                        <span className="material-symbols-outlined text-sm">person_add</span>
-                      </div>
-                      <select
-                        autoFocus
-                        defaultValue=""
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val) {
-                            handleAddUser(val);
-                            setIsAddingPerson(false);
-                          }
-                        }}
-                        className="bg-black/60 border border-white/15 rounded-xl px-3 py-1 text-xs text-white outline-none focus:border-indigo-500 transition [color-scheme:dark] cursor-pointer"
-                      >
-                        <option value="" disabled>Vyberte osobu k přidání...</option>
-                        {availablePersons
-                          .filter((p) => !userSchedules.some((u) => isTaskForUser(u.userName, p.id, availablePersons)))
-                          .map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name || p.id}
-                            </option>
-                          ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => setIsAddingPerson(false)}
-                        className="p-1 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-white/5 transition cursor-pointer"
-                        title="Zrušit"
-                      >
-                        <span className="material-symbols-outlined text-sm">close</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         )}
+      </div>
+
+            {/* Row placeholder to add a new person (outside the time indicator grid) */}
+            {onUpdateUserColumns && (
+              <div className="pt-3 flex items-center">
+                {!isAddingPerson ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingPerson(true)}
+                    className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-dashed border-white/15 hover:border-indigo-500/50 hover:bg-white/[0.03] text-xs text-gray-400 hover:text-white transition cursor-pointer select-none"
+                  >
+                    <span className="material-symbols-outlined text-sm text-indigo-400">add</span>
+                    <span>Přidat osobu</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-3 p-2 rounded-2xl bg-white/[0.03] border border-white/10 animate-fade-in w-fit">
+                    <div className="w-7 h-7 rounded-full bg-white/[0.06] text-indigo-300 flex items-center justify-center font-bold text-xs shrink-0">
+                      <span className="material-symbols-outlined text-sm">person_add</span>
+                    </div>
+                    <select
+                      autoFocus
+                      defaultValue=""
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val) {
+                          handleAddUser(val);
+                          setIsAddingPerson(false);
+                        }
+                      }}
+                      className="bg-black/60 border border-white/15 rounded-xl px-3 py-1 text-xs text-white outline-none focus:border-indigo-500 transition [color-scheme:dark] cursor-pointer"
+                    >
+                      <option value="" disabled>Vyberte osobu k přidání...</option>
+                      {availablePersons
+                        .filter((p) => !userSchedules.some((u) => isTaskForUser(u.userName, p.id, availablePersons)))
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name || p.id}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingPerson(false)}
+                      className="p-1 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-white/5 transition cursor-pointer"
+                      title="Zrušit"
+                    >
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -4087,7 +4599,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
               <span>Dokončeno</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-3.5 h-3.5 rounded bg-yellow-500/60 border border-yellow-400/50 shadow-sm" />
+              <span className="w-3.5 h-3.5 rounded bg-orange-500/60 border border-orange-400/50 shadow-sm" />
               <span>Nad odhad</span>
             </div>
             <div className="flex items-center gap-2">
@@ -4119,7 +4631,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
       {/* Custom Floating Tooltip for Week View & Day View (Bounded inside visible viewport) */}
       {hoveredTask && tooltipPosition && (
         <div
-          className="fixed z-50 pointer-events-none p-3.5 rounded-2xl bg-[#161720]/95 backdrop-blur-md shadow-2xl text-xs space-y-2 min-w-[240px] max-w-[320px] animate-in fade-in zoom-in-95 duration-150"
+          className="fixed z-50 pointer-events-none p-3.5 rounded-2xl bg-[#161720]/95 backdrop-blur-md shadow-2xl text-xs space-y-2 min-w-[260px] max-w-[360px] animate-in fade-in zoom-in-95 duration-150"
           style={{
             top: tooltipPosition.top,
             left: tooltipPosition.left,
@@ -4186,7 +4698,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                     const wl = task.worklogHours || 0;
                     const pct = hoveredTask.block.overburnProgressPercent || (plan > 0 && wl > plan ? Math.round((wl / plan) * 100) : 0);
                     return pct > 0 ? (
-                      <span className={`font-normal ${pct > 200 ? 'text-red-400' : 'text-amber-400'}`}>
+                      <span className={`font-normal ${pct > 200 ? 'text-red-400' : 'text-orange-400'}`}>
                         {' '}{pct}%
                       </span>
                     ) : null;
@@ -4202,7 +4714,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                     const act = Math.max(task.totalHours || 0, task.worklogHours || 0);
                     const pct = hoveredTask.block.overburnPercent || (est > 0 && act > est ? Math.round((act / est) * 100) : 0);
                     return pct > 0 ? (
-                      <span className={`font-normal ${pct > 200 ? 'text-red-400' : 'text-amber-400'}`}>
+                      <span className={`font-normal ${pct > 200 ? 'text-red-400' : 'text-orange-400'}`}>
                         {' '}{pct}%
                       </span>
                     ) : null;
@@ -4248,10 +4760,198 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                   </span>
                 )}
               </div>
-              <div className="text-[10px] text-gray-500 italic pt-0.5">
-                {isGoddayTask(hoveredTask.block.task) ? 'Kliknutím otevřít odkaz' : 'Kliknutím otevřít v TaskManageru'}
-              </div>
+              {(() => {
+                const task = hoveredTask.block.task;
+                const targetTaskId = task.taskIdentifier || task.taskId;
+                const targetReqId = task.requirementId;
+
+                const cleanTargetTaskId = targetTaskId?.replace(/^[TR]/i, '');
+                const cleanTargetReqId = targetReqId?.replace(/^[TR]/i, '');
+
+                const matchedLogs = (worklogTimelineEntries || []).filter((w) => {
+                  if (targetTaskId && (w.taskId === targetTaskId || w.parentTaskId === targetTaskId)) return true;
+                  if (targetReqId && w.reqId === targetReqId) return true;
+                  if (cleanTargetTaskId) {
+                    if (w.taskId?.replace(/^[TR]/i, '') === cleanTargetTaskId) return true;
+                    if (w.parentTaskId?.replace(/^[TR]/i, '') === cleanTargetTaskId) return true;
+                  }
+                  if (cleanTargetReqId && w.reqId?.replace(/^[TR]/i, '') === cleanTargetReqId) return true;
+                  return false;
+                });
+
+                if (matchedLogs.length === 0) {
+                  return (
+                    <div className="text-[10px] text-gray-500 italic pt-0.5">
+                      {isGoddayTask(task) ? 'Kliknutím otevřít odkaz' : 'Kliknutím otevřít v TaskManageru'}
+                    </div>
+                  );
+                }
+
+                // Seřadit sestupně (nejnovější nahoře)
+                const sortedLogs = [...matchedLogs].sort((a, b) => {
+                  const dCmp = b.date.localeCompare(a.date);
+                  if (dCmp !== 0) return dCmp;
+                  return b.timeStart.localeCompare(a.timeStart);
+                });
+
+                const formatEntryDate = (dateStr: string): string => {
+                  if (!dateStr) return '';
+                  const now = new Date();
+                  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                  const yesterday = new Date(now);
+                  yesterday.setDate(yesterday.getDate() - 1);
+                  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+                  if (dateStr === todayStr) return 'Dnes';
+                  if (dateStr === yesterdayStr) return 'Včera';
+
+                  const parts = dateStr.split('-');
+                  if (parts.length === 3) {
+                    const day = parseInt(parts[2], 10);
+                    const month = parseInt(parts[1], 10);
+                    return `${day}.${month}.`;
+                  }
+                  return dateStr;
+                };
+
+                return (
+                  <div className="pt-1.5 border-t border-white/5 space-y-1">
+                    <div className="space-y-1 max-h-[140px] overflow-y-auto pr-0.5 custom-scrollbar">
+                      {sortedLogs.map((log, lIdx) => {
+                        const cleanDesc =
+                          log.description && log.description !== '--Bez popisu--'
+                            ? log.description
+                            : '';
+                        return (
+                          <div
+                            key={lIdx}
+                            className="flex items-center gap-1.5 text-[10px] text-zinc-300 font-mono truncate"
+                            title={`${formatEntryDate(log.date)} ${log.timeStart} – ${log.timeEnd} (${log.hours}h)${cleanDesc ? ' - ' + cleanDesc : ''}`}
+                          >
+                            <span className="font-bold text-zinc-200 shrink-0">
+                              {formatEntryDate(log.date)}
+                            </span>
+                            <span className="text-zinc-400 shrink-0">
+                              {log.timeStart} – {log.timeEnd} ({log.hours}h)
+                            </span>
+                            {cleanDesc && <span className="text-zinc-500 shrink-0">-</span>}
+                            {cleanDesc && (
+                              <span className="text-zinc-300 truncate font-sans">
+                                {cleanDesc}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </>
+          )}
+        </div>
+      )}
+
+      {/* Custom Floating Tooltip for Real Timeline Entry (Guideline design - borderless) */}
+      {hoveredTimelineEntry && timelineTooltipPosition && (
+        <div
+          className="fixed z-50 pointer-events-none p-3.5 rounded-2xl bg-[#161720]/95 backdrop-blur-md shadow-2xl text-xs space-y-2 min-w-[240px] max-w-[320px] animate-in fade-in zoom-in-95 duration-150"
+          style={{
+            top: timelineTooltipPosition.top,
+            left: timelineTooltipPosition.left,
+            transform: `translate(-50%, ${timelineTooltipPosition.translateY})`,
+          }}
+        >
+          {/* Header row: Type badge + time & hours */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wider ${
+                  hoveredTimelineEntry.entry.isGap
+                    ? 'text-zinc-400'
+                    : hoveredTimelineEntry.entry.isService
+                    ? 'text-purple-300'
+                    : 'text-indigo-300'
+                }`}
+              >
+                {hoveredTimelineEntry.entry.isGap ? 'Pauza' : hoveredTimelineEntry.entry.isService ? 'Servis' : 'Vývoj'}
+              </span>
+            </div>
+            <span className="font-mono font-bold text-gray-200">
+              {hoveredTimelineEntry.entry.timeStart} – {hoveredTimelineEntry.entry.timeEnd}{' '}
+              <span className="text-zinc-400 font-normal">({hoveredTimelineEntry.entry.hours}h)</span>
+            </span>
+          </div>
+
+          {/* Title & Project */}
+          {hoveredTimelineEntry.entry.isGap ? (
+            <div className="space-y-0.5">
+              <div className="font-bold text-white leading-snug">
+                Volno
+              </div>
+              <div className="text-[11px] text-gray-400 truncate">
+                Prokrastinace
+              </div>
+            </div>
+          ) : (() => {
+            const taskLabel =
+              hoveredTimelineEntry.entry.taskId ||
+              hoveredTimelineEntry.entry.parentTaskId ||
+              hoveredTimelineEntry.entry.reqId ||
+              '';
+            const matchedTask = tasks.find(
+              (t) =>
+                (taskLabel && (t.id === taskLabel || t.requirementId === taskLabel)) ||
+                (hoveredTimelineEntry.entry.reqId && t.requirementId === hoveredTimelineEntry.entry.reqId)
+            );
+            const displayTitle =
+              matchedTask?.customName ||
+              matchedTask?.title ||
+              hoveredTimelineEntry.entry.title ||
+              hoveredTimelineEntry.entry.project ||
+              'Zápis v MLogu';
+            const displayProject = matchedTask?.project || hoveredTimelineEntry.entry.project;
+
+            return (
+              <div className="space-y-0.5">
+                <div className="font-bold text-white leading-snug">
+                  {displayTitle}
+                </div>
+                {displayProject && displayProject !== displayTitle && (
+                  <div className="text-[11px] text-gray-400 truncate" title={displayProject}>
+                    {displayProject}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Codes: Task ID / Parent Task ID / Req ID */}
+          {!hoveredTimelineEntry.entry.isGap && (
+            <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-gray-400 font-mono">
+              {hoveredTimelineEntry.entry.taskId && (
+                <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-bold">
+                  {hoveredTimelineEntry.entry.taskId}
+                </span>
+              )}
+              {hoveredTimelineEntry.entry.parentTaskId && hoveredTimelineEntry.entry.parentTaskId !== hoveredTimelineEntry.entry.taskId && (
+                <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold">
+                  úkol {hoveredTimelineEntry.entry.parentTaskId}
+                </span>
+              )}
+              {hoveredTimelineEntry.entry.reqId && (
+                <span className="px-2 py-0.5 rounded-full bg-white/10 text-gray-200 font-bold">
+                  {hoveredTimelineEntry.entry.reqId}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Poznámka k výkazu práce na místě původního textu */}
+          {!hoveredTimelineEntry.entry.isGap && hoveredTimelineEntry.entry.description && (
+            <div className="text-[10px] text-gray-400 italic pt-0.5 break-words">
+              {hoveredTimelineEntry.entry.description}
+            </div>
           )}
         </div>
       )}
@@ -4268,27 +4968,36 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
               const originalTotal = originalTotalHours || task.totalHours || remainingHours;
               const scheduledHours = Math.max(0, originalTotal - remainingHours);
               const remainingWorklog = Math.max(0, (task.worklogHours || 0) - scheduledHours);
+              const authorMatch = isTaskMatchingAuthor(task.author, selectedAuthorFilter);
+              const queryMatch = isTaskMatchingQuery(task, searchQuery || '');
+              const isMatch = authorMatch && queryMatch;
+              const isMuted = (Boolean(searchQuery?.trim()) || Boolean(selectedAuthorFilter)) && !isMatch;
               return (
-                <TaskCard
+                <div
                   key={`timeline-overflow-${task.taskId}`}
-                  task={{ ...task, totalHours: remainingHours, worklogHours: remainingWorklog }}
-                  onOpenTask={onOpenTask}
-                  onOpenCodeLink={onOpenCodeLink}
-                  getTaskManagerUrl={getTaskManagerUrl}
-                  isCopied={copiedId === task.taskId}
-                  showAssignee={hasMultipleUsers && !showOnlyMyTasks}
-                  currentUser={currentUser}
-                  availablePersons={availablePersons}
-                  overflowSplitInfo={
-                    totalParts && totalParts > 1 && partIndex
-                      ? {
-                          partIndex,
-                          totalParts,
-                          originalTotalHours: originalTotal,
-                        }
-                      : undefined
-                  }
-                />
+                  style={{ opacity: isMuted ? 0.1 : 1 }}
+                  className={isMuted ? 'pointer-events-none' : ''}
+                >
+                  <TaskCard
+                    task={{ ...task, totalHours: remainingHours, worklogHours: remainingWorklog }}
+                    onOpenTask={onOpenTask}
+                    onOpenCodeLink={onOpenCodeLink}
+                    getTaskManagerUrl={getTaskManagerUrl}
+                    isCopied={copiedId === task.taskId}
+                    showAssignee={hasMultipleUsers && !showOnlyMyTasks}
+                    currentUser={currentUser}
+                    availablePersons={availablePersons}
+                    overflowSplitInfo={
+                      totalParts && totalParts > 1 && partIndex
+                        ? {
+                            partIndex,
+                            totalParts,
+                            originalTotalHours: originalTotal,
+                          }
+                        : undefined
+                    }
+                  />
+                </div>
               );
             })}
           </div>

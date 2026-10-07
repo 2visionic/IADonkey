@@ -4,6 +4,14 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.6] - 7. 10. 2026
+### MagicPlan Real timeline log v denním pohledu, transparentní překryvy a oprava notifikací plánu
+- **MagicPlan – Real timeline log v denním pohledu**: Kliknutím na progress bar worklogu nebo na postranní ikonu napravo se u daného uživatele zobrazí chronologická časová osa odpracovaných intervalů z MLogu.
+- **MagicPlan – Jednořádkové zobrazení s překryvy a opacitou**: Všechny časové intervaly leží v jednom řádku. Pozadí bloků má opacitu 0.6, takže se při souběžném logování vrstvy transparentně složí a indikují překryv, zatímco text zůstává s plnou ostrostí (1.0).
+- **MagicPlan – Přesná osa 100 % šířky dne**: Časová osa se dynamicky vymezuje od prvního začátku po poslední konec logování v daný den, tvořící čistých 100 % šířky bez rušivých prázdných okrajů a bez záhlaví.
+- **MagicPlan – Plovoucí informační tooltip**: Při najetí myši na libovolný úsek se zobrazí plovoucí tooltip v jednotném guideline designu aplikace (časy od–do, hodiny, typ vývoj/servis, název úkolu, projekt, kód úkolu a možnost přímého otevření).
+- **MagicPlan – Párování na odkaz úkolu a spolehlivé notifikace**: Podpora pro nový odkaz na nadřazený úkol v HTML buňce MLogu a oprava filtru řešitele zajišťující spolehlivé odesílání notifikací při navýšení i snížení plánu hodin.
+
 ## [2.1.5] - 7. 10. 2026
 ### Spolehlivý Alt+Space interceptor, kopírování z kalkulačky, MagicPlan v nápovědě a ladicí nástroje
 - **Klávesové zkratky – Spolehlivý Alt+Space interceptor**: V nízkoúrovňovém jádru Electronu byl nasazen Win32 hook, který při nahrávání i stisku globální zkratky Alt+Space spolehlivě potlačuje systémové okenní menu Windows.

@@ -11323,7 +11323,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Chytré funkce
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-[13px]">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-[13px]">
                   <div className="p-4 bg-white/[0.03] hover:bg-white/[0.05] rounded-2xl space-y-1.5 transition-colors">
                     <div className="flex items-center gap-2 text-teal-400 font-semibold">
                       <span className="material-symbols-outlined text-base">content_copy</span>

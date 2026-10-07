@@ -4,7 +4,7 @@ import { net, BrowserWindow, app } from 'electron';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { AppStore } from './store';
-import type { MagicPlanData, PlanTaskItem, MagicPlanSettings, PlanDayInfo, PlanPersonInfo } from '../src/types';
+import type { MagicPlanData, PlanTaskItem, MagicPlanSettings, PlanDayInfo, PlanPersonInfo, WorklogTimelineEntry } from '../src/types';
 import { notificationService } from './notificationService';
 import { diagnosticsService } from './diagnosticsService';
 
@@ -47,14 +47,93 @@ function matchesPersonName(planNameOrClean: string, worklogName: string): boolea
   return pTokens === wTokens;
 }
 
+function formatTimeHHMM(timeStr: string): string {
+  if (!timeStr) return '';
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return timeStr;
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function calculateTimeStart(timeEnd: string, hours: number): string {
+  if (!timeEnd) return '';
+  const parts = timeEnd.split(':');
+  if (parts.length < 2) return timeEnd;
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  const endMinutes = h * 60 + m;
+  const durationMinutes = Math.round(hours * 60);
+  const startMinutes = (endMinutes - durationMinutes + 24 * 60) % (24 * 60);
+  const startH = Math.floor(startMinutes / 60);
+  const startM = startMinutes % 60;
+  return `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
+}
+
+export function isTaskForUser(
+  task: PlanTaskItem,
+  targetUser?: string,
+  availablePersons?: PlanPersonInfo[]
+): boolean {
+  if (!targetUser) return true;
+  if (!task) return false;
+
+  const tNorm = task.userName ? task.userName.trim().toLowerCase() : '';
+  const taskUserId = task.userId ? String(task.userId).trim().toLowerCase() : '';
+  const uNorm = targetUser.trim().toLowerCase();
+
+  // 1. Direct match on userId if present
+  if (taskUserId && taskUserId === uNorm) {
+    return true;
+  }
+
+  // 2. Direct match on name string
+  if (tNorm && (tNorm === uNorm || tNorm.includes(uNorm) || uNorm.includes(tNorm))) {
+    return true;
+  }
+
+  // 3. Resolve targetUser or task via availablePersons
+  if (availablePersons && availablePersons.length > 0) {
+    const targetPerson = availablePersons.find(
+      (p) =>
+        String(p.id).trim().toLowerCase() === uNorm ||
+        (p.name && p.name.trim().toLowerCase() === uNorm) ||
+        (p.cleanName && p.cleanName.trim().toLowerCase() === uNorm) ||
+        (p.shortcut && p.shortcut.trim().toLowerCase() === uNorm)
+    );
+
+    if (targetPerson) {
+      const pIdNorm = String(targetPerson.id).trim().toLowerCase();
+      const pNameNorm = (targetPerson.name || '').trim().toLowerCase();
+      const pCleanNorm = (targetPerson.cleanName || '').trim().toLowerCase();
+      const pScNorm = (targetPerson.shortcut || '').trim().toLowerCase();
+
+      if (taskUserId && taskUserId === pIdNorm) return true;
+      if (tNorm) {
+        if (pNameNorm && (tNorm === pNameNorm || tNorm.includes(pNameNorm) || pNameNorm.includes(tNorm))) return true;
+        if (pCleanNorm && (tNorm === pCleanNorm || tNorm.includes(pCleanNorm) || pCleanNorm.includes(tNorm))) return true;
+        if (pScNorm && tNorm.includes(`(${pScNorm})`)) return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 interface WorklogParsedItem {
+  date?: string;
+  userName?: string;
   reqId: string;
   taskId: string;
+  parentTaskId?: string;
   title: string;
   project: string;
   isService: boolean;
   isDev: boolean;
   hours: number;
+  timeEnd?: string;
+  timeStart?: string;
+  description?: string;
 }
 
 export interface MagicPlanQueryLog {
@@ -159,8 +238,7 @@ export class MagicPlanService {
 
     for (const t of loadedMyTasks.values()) {
       const key = getTaskBusinessKey(t);
-      const tUser = (t.userName || t.userId || '').trim().toLowerCase();
-      const isMe = tUser === curU || (!tUser && uCols.length <= 1);
+      const isMe = isTaskForUser(t, curU, loadedPersons) || (!t.userName && !t.userId && uCols.length <= 1);
       this.previousSnapshot.set(key, {
         key,
         location: isMe ? 'me' : 'other',
@@ -570,9 +648,10 @@ export class MagicPlanService {
         : 'http://mlog/Logs.aspx';
 
       let dailyUserWorklogs: Record<string, Record<string, number>> | undefined = undefined;
+      let worklogTimelineEntries: WorklogTimelineEntry[] | undefined = undefined;
       if (worklogBase && combinedDays.length > 0) {
         try {
-          dailyUserWorklogs = await this.fetchAndApplyWorklogs(
+          const wlRes = await this.fetchAndApplyWorklogs(
             worklogBase,
             combinedDays,
             allMyTasks,
@@ -583,6 +662,8 @@ export class MagicPlanService {
             mlogTaskPrefix,
             mlogRequestPrefix
           );
+          dailyUserWorklogs = wlRes.dailyUserWorklogs;
+          worklogTimelineEntries = wlRes.worklogTimelineEntries;
         } catch (wlErr: any) {
           console.warn('[MagicPlan] Chyba načtení worklogu:', wlErr?.message || wlErr);
         }
@@ -604,6 +685,7 @@ export class MagicPlanService {
         totalMyHours,
         availablePersons: allAvailablePersons,
         dailyUserWorklogs,
+        worklogTimelineEntries,
         isOffline: false,
       };
 
@@ -745,7 +827,7 @@ export class MagicPlanService {
   /**
    * Parses worklog entries from MLog Logs.aspx HTML
    */
-  private parseWorklogHtml(html: string): Map<string, WorklogParsedItem[]> {
+  private parseWorklogHtml(html: string, date: string = ''): Map<string, WorklogParsedItem[]> {
     const result = new Map<string, WorklogParsedItem[]>();
     if (!html) return result;
 
@@ -786,29 +868,120 @@ export class MagicPlanService {
         const project = projMatch ? decodeHtmlEntities(projMatch[1]).trim() : '';
 
         const tdMatches2 = tr2.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [];
-        let hours = 0;
+        let rowFallbackHours = 0;
         for (const td of tdMatches2) {
           const hMatch = td.match(/([\d,\.]+)\s*h(?:od)?\b/i);
           if (hMatch) {
-            hours = parseFloat(hMatch[1].replace(',', '.')) || 0;
-            if (hours > 0) break;
+            rowFallbackHours = parseFloat(hMatch[1].replace(',', '.')) || 0;
+            if (rowFallbackHours > 0) break;
           }
         }
-        if (hours === 0 && tdMatches2.length >= 2) {
+        if (rowFallbackHours === 0 && tdMatches2.length >= 2) {
           const hText = tdMatches2[1].replace(/<[^>]+>/g, '').replace('h', '').replace(',', '.').trim();
-          hours = parseFloat(hText) || 0;
+          rowFallbackHours = parseFloat(hText) || 0;
         }
 
-        const tMatch =
+        // Row-level fallback task IDs
+        const rowParentMatch =
+          tr2.match(/<a\s+[^>]*href=["']mlog:\/\/(T\d+)["'][^>]*title=["'][^"']*úkol[^"']*["']/i) ||
+          tr2.match(/<a\s+[^>]*href=["']mlog:\/\/(T\d+)["'][^>]*>[\s\S]*?úkol[\s\S]*?<\/a>/i) ||
+          tr2.match(/data-parent(?:task)?id=["']?(T\d+)["']?/i) ||
+          tr1.match(/data-parent(?:task)?id=["']?(T\d+)["']?/i);
+        const rowParentTaskId = rowParentMatch ? rowParentMatch[1].toUpperCase() : undefined;
+
+        const rowTMatch =
           tr2.match(/mlog:\/\/(T\d+)/i) ||
           tr2.match(/\((T\d+)\)/i) ||
           tr2.match(/\b(T\d+)\b/i) ||
           tr1.match(/mlog:\/\/(T\d+)/i) ||
           tr1.match(/\((T\d+)\)/i) ||
           tr1.match(/\b(T\d+)\b/i);
-        const taskId = tMatch ? tMatch[1].toUpperCase() : '';
+        const rowFallbackTaskId = rowTMatch ? rowTMatch[1].toUpperCase() : '';
 
-        userTasks.push({ reqId, taskId, title, project, isService, isDev, hours });
+        // Search for individual worklog sub-entries: (HH:MM / Xh)
+        const descCell = tdMatches2.length >= 3 ? tdMatches2[2] : tr2;
+        const subEntryRegex = /\(\s*(\d{1,2}:\d{2})\s*\/\s*([\d,\.]+)\s*h(?:od)?\s*\)/gi;
+        const subMatches: Array<{ timeStr: string; hours: number; index: number }> = [];
+        let sm: RegExpExecArray | null;
+        while ((sm = subEntryRegex.exec(descCell)) !== null) {
+          subMatches.push({
+            timeStr: sm[1],
+            hours: parseFloat(sm[2].replace(',', '.')) || 0,
+            index: sm.index,
+          });
+        }
+
+        if (subMatches.length > 0) {
+          for (let mIdx = 0; mIdx < subMatches.length; mIdx++) {
+            const curr = subMatches[mIdx];
+            const nextIdx = subMatches[mIdx + 1]?.index ?? descCell.length;
+            const segment = descCell.slice(curr.index, nextIdx);
+
+            const timeEnd = formatTimeHHMM(curr.timeStr);
+            const subHours = curr.hours;
+            const timeStart = calculateTimeStart(timeEnd, subHours);
+
+            // Link parsing:
+            // 1. Priority 1: Link to parent task (indicated by "úkol" in text or title, or explicit data-parenttaskid)
+            const explicitParentMatch =
+              segment.match(/<a\s+[^>]*href=["']mlog:\/\/(T\d+)["'][^>]*title=["'][^"']*úkol[^"']*["']/i) ||
+              segment.match(/<a\s+[^>]*href=["']mlog:\/\/(T\d+)["'][^>]*>[\s\S]*?úkol[\s\S]*?<\/a>/i) ||
+              segment.match(/data-parent(?:task)?id=["']?(T\d+)["']?/i);
+            const subParentTaskId = explicitParentMatch ? explicitParentMatch[1].toUpperCase() : undefined;
+
+            // 2. Priority 2: Worklog bubble link (mlog://T...)
+            const allTLinks = Array.from(segment.matchAll(/href=["']mlog:\/\/(T\d+)["']/gi)).map((m) => m[1].toUpperCase());
+            const subFallbackTaskId = allTLinks.find((t) => t !== subParentTaskId) ||
+              allTLinks[0] ||
+              segment.match(/\((T\d+)\)/i)?.[1]?.toUpperCase() ||
+              segment.match(/\b(T\d+)\b/i)?.[1]?.toUpperCase() ||
+              '';
+
+            const effectiveTaskId = subParentTaskId || subFallbackTaskId || rowParentTaskId || rowFallbackTaskId;
+
+            let subDesc = segment
+              .replace(/^\s*\(\s*\d{1,2}:\d{2}\s*\/\s*[\d,\.]+\s*h(?:od)?\s*\)/i, '')
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/&nbsp;/g, ' ')
+              .replace(/[↑▲]/g, '')
+              .replace(/úkol\s+T\d+/gi, '')
+              .replace(/\s*\|\s*$/, '')
+              .trim();
+            subDesc = decodeHtmlEntities(subDesc);
+
+            userTasks.push({
+              date,
+              userName,
+              reqId,
+              taskId: effectiveTaskId,
+              parentTaskId: subParentTaskId || rowParentTaskId,
+              title,
+              project,
+              isService,
+              isDev,
+              hours: subHours,
+              timeEnd,
+              timeStart,
+              description: subDesc || title,
+            });
+          }
+        } else {
+          // Fallback to row-level entry if no (HH:MM / Xh) blocks were found
+          const effectiveTaskId = rowParentTaskId || rowFallbackTaskId;
+          userTasks.push({
+            date,
+            userName,
+            reqId,
+            taskId: effectiveTaskId,
+            parentTaskId: rowParentTaskId,
+            title,
+            project,
+            isService,
+            isDev,
+            hours: rowFallbackHours,
+            description: title,
+          });
+        }
       }
 
       if (userTasks.length > 0) {
@@ -833,13 +1006,20 @@ export class MagicPlanService {
     mlogBaseUrl?: string,
     mlogTaskPrefix: string = 'T',
     mlogRequestPrefix: string = 'R'
-  ): Promise<Record<string, Record<string, number>>> {
-    if (!worklogBaseUrl || combinedDays.length === 0) return {};
+  ): Promise<{
+    dailyUserWorklogs: Record<string, Record<string, number>>;
+    worklogTimelineEntries: WorklogTimelineEntry[];
+  }> {
+    if (!worklogBaseUrl || combinedDays.length === 0) {
+      return { dailyUserWorklogs: {}, worklogTimelineEntries: [] };
+    }
 
     // Always query all 5 days of the plan week so all worklogs in the week are aggregated
     const targetDays = combinedDays.slice(0, 5);
 
-    if (targetDays.length === 0) return {};
+    if (targetDays.length === 0) {
+      return { dailyUserWorklogs: {}, worklogTimelineEntries: [] };
+    }
 
     const dailyResults = await Promise.all(
       targetDays.map(async (day) => {
@@ -849,7 +1029,7 @@ export class MagicPlanService {
           const sep = worklogBaseUrl.includes('?') ? '&' : '?';
           const url = `${worklogBaseUrl}${sep}Date=${dateParam}`;
           const html = await this.fetchHtmlWithCredentials(url, (t) => Boolean(t && (t.includes('TitleHeading') || t.includes('table'))));
-          return { date: day.date, usersMap: this.parseWorklogHtml(html) };
+          return { date: day.date, usersMap: this.parseWorklogHtml(html, day.date) };
         } catch (err: any) {
           console.warn(`[MagicPlan] Chyba načtení worklogu pro ${day.date}:`, err?.message || err);
           return { date: day.date, usersMap: new Map<string, WorklogParsedItem[]>() };
@@ -1130,7 +1310,53 @@ export class MagicPlanService {
       }
     }
 
-    return dailyUserWorklogs;
+    // Build granular chronological timeline entries for Real timeline log
+    const worklogTimelineEntries: WorklogTimelineEntry[] = [];
+    for (const dayRes of dailyResults) {
+      for (const [wUser, items] of dayRes.usersMap.entries()) {
+        const matchedPerson = allAvailablePersons.find(
+          (p) =>
+            matchesPersonName(p.cleanName || '', wUser) ||
+            matchesPersonName(p.name || '', wUser)
+        );
+        if (!isUserMonitored(wUser, matchedPerson)) {
+          continue;
+        }
+
+        for (const item of items) {
+          if (item.timeStart && item.timeEnd && item.hours > 0) {
+            worklogTimelineEntries.push({
+              date: item.date || dayRes.date,
+              userName: matchedPerson?.name || wUser,
+              reqId: item.reqId || undefined,
+              taskId: item.taskId,
+              parentTaskId: item.parentTaskId,
+              title: item.title,
+              project: item.project,
+              isService: item.isService,
+              isDev: item.isDev,
+              hours: item.hours,
+              timeStart: item.timeStart,
+              timeEnd: item.timeEnd,
+              description: item.description,
+            });
+          }
+        }
+      }
+    }
+
+    worklogTimelineEntries.sort((a, b) => {
+      const dCmp = a.date.localeCompare(b.date);
+      if (dCmp !== 0) return dCmp;
+      const uCmp = a.userName.localeCompare(b.userName, 'cs');
+      if (uCmp !== 0) return uCmp;
+      return a.timeStart.localeCompare(b.timeStart);
+    });
+
+    return {
+      dailyUserWorklogs,
+      worklogTimelineEntries,
+    };
   }
 
   /**
@@ -1805,13 +2031,14 @@ export class MagicPlanService {
     const currentMap = new Map<string, PlanTaskItem>();
     const currentUnassignedMap = new Map<string, PlanTaskItem>();
 
+    const personsList = this.cachedData?.availablePersons || Array.from(this.knownPersonsMap.values());
+
     for (const t of currentTasks) {
       const fp = getTaskFingerprint(t);
       currentMap.set(fp, t);
 
       const key = getTaskBusinessKey(t);
-      const taskUser = (t.userName || t.userId || '').trim().toLowerCase();
-      const isMe = taskUser === currentUserName || (!taskUser && userColumns.length <= 1);
+      const isMe = isTaskForUser(t, currentUserName, personsList) || (!t.userName && !t.userId && userColumns.length <= 1);
       const location: 'me' | 'other' = isMe ? 'me' : 'other';
       const userName = t.userName?.trim() || (isMe ? 'Já' : 'Kolega');
 
@@ -2139,7 +2366,7 @@ export class MagicPlanService {
           }
         }
 
-        // Hours changed (for my active tasks)
+        // Hours changed
         if (curr.location === 'me' && !curr.isSolved && prev.totalHours !== curr.totalHours) {
           if (curr.totalHours > prev.totalHours) {
             // Situace 11: požadavek u mě změnil čas na vyšší
@@ -2163,6 +2390,34 @@ export class MagicPlanService {
                 type: 'magicPlan',
                 subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
                 title: curr.isCritical ? 'Snížení času u kritického úkolu' : 'Snížení odhadu času úkolu',
+                body: `${taskTitle} (zkráceno: ${prev.totalHours}h → ${curr.totalHours}h)`,
+                mpSituation: 12,
+                isCritical: !!curr.isCritical,
+                taskType: curr.task.taskType === 'service' ? 'service' : 'dev',
+              });
+            }
+          }
+        } else if (curr.location === 'other' && !curr.isSolved && prev.totalHours !== curr.totalHours) {
+          if (curr.totalHours > prev.totalHours) {
+            diffResult.changedTasks.push(`[${curr.userName}] ${taskTitle} (navýšeno: ${prev.totalHours}h → ${curr.totalHours}h)`);
+            if (notificationsEnabled && planConfig.notifyColleagueTasks !== false && planConfig.notifyTaskChanges !== false) {
+              notificationService.show({
+                type: 'magicPlan',
+                subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
+                title: curr.isCritical ? `${curr.userName}: Zvýšení času u kritického úkolu` : `${curr.userName}: Zvýšení odhadu času úkolu`,
+                body: `${taskTitle} (navýšeno: ${prev.totalHours}h → ${curr.totalHours}h)`,
+                mpSituation: 11,
+                isCritical: !!curr.isCritical,
+                taskType: curr.task.taskType === 'service' ? 'service' : 'dev',
+              });
+            }
+          } else {
+            diffResult.changedTasks.push(`[${curr.userName}] ${taskTitle} (zkráceno: ${prev.totalHours}h → ${curr.totalHours}h)`);
+            if (notificationsEnabled && planConfig.notifyColleagueTasks !== false && planConfig.notifyTaskChanges !== false) {
+              notificationService.show({
+                type: 'magicPlan',
+                subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
+                title: curr.isCritical ? `${curr.userName}: Snížení času u kritického úkolu` : `${curr.userName}: Snížení odhadu času úkolu`,
                 body: `${taskTitle} (zkráceno: ${prev.totalHours}h → ${curr.totalHours}h)`,
                 mpSituation: 12,
                 isCritical: !!curr.isCritical,

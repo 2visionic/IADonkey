@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.5';
+export const CURRENT_APP_VERSION = '2.1.6';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,18 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.6',
+    date: '7. 10. 2026',
+    title: 'MagicPlan Real timeline log v denním pohledu, transparentní překryvy a oprava notifikací plánu',
+    highlights: [
+      'MagicPlan – Real timeline log v denním pohledu: Kliknutím na progress bar worklogu nebo na postranní ikonu napravo se u daného uživatele zobrazí chronologická časová osa odpracovaných intervalů z MLogu.',
+      'MagicPlan – Jednořádkové zobrazení s překryvy a opacitou: Všechny časové intervaly leží v jednom řádku. Pozadí bloků má opacitu 0.6, takže se při souběžném logování vrstvy transparentně složí a indikují překryv, zatímco text zůstává s plnou ostrostí (1.0).',
+      'MagicPlan – Přesná osa 100 % šířky dne: Časová osa se dynamicky vymezuje od prvního začátku po poslední konec logování v daný den, tvořící čistých 100 % šířky bez rušivých prázdných okrajů a bez záhlaví.',
+      'MagicPlan – Plovoucí informační tooltip: Při najetí myši na libovolný úsek se zobrazí plovoucí tooltip v jednotném guideline designu aplikace (časy od–do, hodiny, typ vývoj/servis, název úkolu, projekt, kód úkolu a možnost přímého otevření).',
+      'MagicPlan – Párování na odkaz úkolu a spolehlivé notifikace: Podpora pro nový odkaz na nadřazený úkol v HTML buňce MLogu a oprava filtru řešitele zajišťující spolehlivé odesílání notifikací při navýšení i snížení plánu hodin.',
+    ],
+  },
   {
     version: '2.1.5',
     date: '7. 10. 2026',

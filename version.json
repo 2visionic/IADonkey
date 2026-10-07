@@ -1,6 +1,6 @@
 {
-  "version": "2.1.5",
-  "releaseNotes": "• Klávesové zkratky: Spolehlivý Win32 interceptor pro globální zkratku Alt+Space potlačující okenní menu Windows.\n• Spotlight: Správné kopírování vypočteného výsledku z kalkulačky.\n• Nápověda: Doplnění karty MagicPlan do nápovědy chytrých funkcí v Nastavení.\n• Dialog aktualizace: Vyladění šířky tlačítka restartu (není roztažené na celou šířku).\n• Nastavení & Vývojář: Zelené ikony a strukturované seřazení ladicích nástrojů, zjednodušené názvy výchozích barev a zakulacený chip.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.5/IADonkey-Setup-2.1.5.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.5/IADonkey-2.1.5.zip"
+  "version": "2.1.6",
+  "releaseNotes": "• MagicPlan: Real timeline log v denním pohledu na kliknutí na worklog bar nebo postranní ikonu.\n• MagicPlan: Všechny časové úseky na jednom řádku včetně transparentního překrývání (opacity 0.6 pozadí, 1.0 text).\n• MagicPlan: Plynulá časová osa od prvního začátku po poslední konec logování (100% šířka dne).\n• MagicPlan: Bohatý plovoucí tooltip s detaily úseku podle guideline designu a proklikem do úkolu.\n• MagicPlan: Oprava párování na samostatný odkaz úkolu z MLogu a spolehlivé notifikace navýšení plánu hodin.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.6/IADonkey-Setup-2.1.6.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.6/IADonkey-2.1.6.zip"
 }

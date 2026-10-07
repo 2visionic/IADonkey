@@ -165,6 +165,23 @@ export interface PlanPersonInfo {
   shortcut?: string;
 }
 
+export interface WorklogTimelineEntry {
+  date: string;          // e.g. "2026-10-07"
+  userName: string;      // e.g. "Petr Kulhánek"
+  reqId?: string;        // e.g. "R134497"
+  taskId: string;        // e.g. "T788343" (nebo parentTaskId)
+  parentTaskId?: string; // explicitní hodnota z data-parenttaskid pokud existuje
+  title?: string;
+  project?: string;
+  isService: boolean;
+  isDev: boolean;
+  hours: number;         // e.g. 1.54
+  timeEnd: string;       // "08:28"
+  timeStart: string;     // "06:56"
+  description?: string;
+  isGap?: boolean;
+}
+
 export interface MagicPlanData {
   planNumber?: string;
   planRange?: string;
@@ -175,6 +192,7 @@ export interface MagicPlanData {
   totalMyHours: number;
   availablePersons?: PlanPersonInfo[];
   dailyUserWorklogs?: Record<string, Record<string, number>>;
+  worklogTimelineEntries?: WorklogTimelineEntry[];
   error?: string;
   isOffline?: boolean;
 }
