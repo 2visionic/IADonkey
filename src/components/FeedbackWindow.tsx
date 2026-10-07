@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AppConfig, FeedbackItem, FeedbackPriority, FeedbackStatus, FeedbackType } from '../types';
-import { CURRENT_APP_VERSION } from '../changelog';
+import { CURRENT_APP_VERSION, IS_DEV } from '../changelog';
 
 interface FeedbackWindowProps {
   config: AppConfig;
@@ -19,6 +19,22 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
     if (m === 'dev' || m === 'user') return m;
     return initialMode;
   });
+
+  const isDevAvailable = useMemo(() => {
+    if (IS_DEV) return true;
+    if (initialMode === 'dev' || mode === 'dev') return true;
+    try {
+      if (localStorage.getItem('iadonkey_develop_mode') === 'true') return true;
+    } catch {}
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get('mode') === 'dev') return true;
+      const hash = window.location.hash;
+      const qIdx = hash.indexOf('?');
+      if (qIdx !== -1 && new URLSearchParams(hash.slice(qIdx + 1)).get('mode') === 'dev') return true;
+    } catch {}
+    return false;
+  }, [initialMode, mode]);
 
   const [items, setItems] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -527,8 +543,8 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
 
         {/* Tlačítka v záhlaví */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Tlačítka dostupná pouze pokud je povolen DEV režim */}
-          {(initialMode === 'dev' || new URLSearchParams(window.location.search).get('mode') === 'dev') && (
+          {/* Tlačítka dostupná pokud je povolen DEV režim */}
+          {isDevAvailable && (
             <>
               {/* Tlačítko změny složky */}
               <button
@@ -541,9 +557,9 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                 <span>Složka</span>
               </button>
 
-              {/* Přepínač DEV pohled (standardní switch z design guidelines) */}
-              <label className="flex items-center gap-2 cursor-pointer select-none shrink-0 px-1.5" title="Přepnout zobrazení pro vývojáře">
-                <span className="text-xs text-gray-400 font-medium">DEV</span>
+              {/* Přepínač DEV / Uživatel (standardní switch z design guidelines) */}
+              <label className="flex items-center gap-2 cursor-pointer select-none shrink-0 px-1.5" title="Přepnout zobrazení: Uživatel / DEV">
+                <span className={`text-xs font-medium transition ${mode === 'user' ? 'text-white' : 'text-gray-400'}`}>Uživatel</span>
                 <div className="relative inline-flex items-center">
                   <input
                     type="checkbox"
@@ -553,6 +569,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                   />
                   <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600" />
                 </div>
+                <span className={`text-xs font-medium transition ${mode === 'dev' ? 'text-indigo-400 font-semibold' : 'text-gray-400'}`}>DEV</span>
               </label>
             </>
           )}
