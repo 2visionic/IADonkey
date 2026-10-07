@@ -310,6 +310,20 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
   };
 
+  const openFeedback = async (mode: 'user' | 'dev' = 'user') => {
+    try {
+      if (window.electronAPI?.openFeedbackWindow) {
+        await window.electronAPI.openFeedbackWindow(mode);
+      }
+    } catch (err) {
+      console.error('Failed to open Feedback window:', err);
+    } finally {
+      setIsDonkeyToolsOpen(false);
+      setIsRevealed(false);
+      await window.electronAPI?.resetAndHideSpotlight?.();
+    }
+  };
+
   const exitPaletteMode = () => {
     setIsDonkeyToolsOpen(false);
     setParentItem(null);
@@ -479,6 +493,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         enterPaletteMode();
       } else if (data?.mode === 'plan' || data?.mode === 'magicplan') {
         openMagicPlan();
+      } else if (data?.mode === 'feedback' || data?.mode === 'feedback-user') {
+        openFeedback('user');
+      } else if (data?.mode === 'feedback-dev') {
+        openFeedback('dev');
       }
     });
 
@@ -1196,13 +1214,59 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         }
       }
 
-      const allSlash = [...dtCommands, ...planCommands];
+      const feedbackCommands: LauncherItem[] = [];
+      const slashCmd = trimmed.slice(1).trim().toLowerCase();
+      const fbUserShortcuts = ['/feedback', '/zpetnavazba', '/napady', '/chyba'];
+      if (
+        slashCmd === '' ||
+        'feedback'.includes(slashCmd) ||
+        'zpetnavazba'.includes(slashCmd) ||
+        'napady'.includes(slashCmd) ||
+        'chyba'.includes(slashCmd) ||
+        fbUserShortcuts.some((s) => s.replace(/^\//, '').includes(slashCmd))
+      ) {
+        feedbackCommands.push({
+          id: 'feedback-user-command',
+          name: 'Zpětná vazba a nápady',
+          location: 'Zadání podnětu, návrhu na vylepšení či nahlášení chyby',
+          action: 'feedback-user',
+          icon: 'rate_review',
+          priority: -1.1,
+          sourceId: 'feedback',
+          shortcuts: fbUserShortcuts,
+        });
+      }
+
+      const isDevelopMode =
+        IS_DEV ||
+        (typeof localStorage !== 'undefined' && localStorage.getItem('iadonkey_develop_mode') === 'true');
+      if (isDevelopMode) {
+        const fbDevShortcuts = ['/feedback-dev', '/feedback dev', '/zpetnavazba-dev'];
+        if (
+          slashCmd === '' ||
+          'feedback-dev'.includes(slashCmd) ||
+          'feedback dev'.includes(slashCmd) ||
+          'dev'.includes(slashCmd) ||
+          fbDevShortcuts.some((s) => s.replace(/^\//, '').includes(slashCmd))
+        ) {
+          feedbackCommands.push({
+            id: 'feedback-dev-command',
+            name: 'Správce zpětné vazby (DEV)',
+            location: 'Správa všech podnětů, plánování verzí a změny stavů',
+            action: 'feedback-dev',
+            icon: 'rate_review',
+            priority: -1.05,
+            sourceId: 'feedback',
+            shortcuts: fbDevShortcuts,
+          });
+        }
+      }
+
+      const allSlash = [...dtCommands, ...planCommands, ...feedbackCommands];
       if (allSlash.length > 0) {
         return allSlash;
       }
-      if (donkeyToolsEnabled || isMagicPlanActive) {
-        return [];
-      }
+      return [];
     }
 
     // Prefix "git:": searches exclusively in git repositories
@@ -1545,6 +1609,26 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       list.push(...matched);
     }
 
+    // 2.4. Feedback search item
+    if (trimmed.length >= 2) {
+      const normQ = removeDiacritics(trimmed.toLowerCase());
+      if (
+        ['feedback', 'zpetna vazba', 'zpetna', 'vazba', 'napady', 'napad', 'podnet', 'podnety', 'chyba', 'nahlasit'].some(
+          (k) => k.includes(normQ) || normQ.includes(k)
+        )
+      ) {
+        list.push({
+          id: 'feedback-search-item',
+          name: 'Zpětná vazba a nápady',
+          location: 'Zadání podnětu, návrhu na vylepšení či nahlášení chyby',
+          action: 'feedback-user',
+          icon: 'rate_review',
+          priority: -0.95,
+          sourceId: 'feedback',
+        });
+      }
+    }
+
     // 2.5. MagicPlan tasks search (matches task title, R-code, T-code, or project)
     if (magicPlanEnabled && magicPlanData && trimmed.length >= 2) {
       const q = removeDiacritics(trimmed.toLowerCase());
@@ -1782,6 +1866,16 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
     if (item.action === 'magicplan') {
       await openMagicPlan();
+      return;
+    }
+
+    if (item.action === 'feedback-user') {
+      await openFeedback('user');
+      return;
+    }
+
+    if (item.action === 'feedback-dev') {
+      await openFeedback('dev');
       return;
     }
 
@@ -3955,6 +4049,22 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         ) : item.sourceId === 'donkeytools' ? (
                           <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-300 font-medium shadow-sm">
                             DonkeyTools
+                          </span>
+                        ) : null}
+                        {item.sourceId === 'feedback' && item.shortcuts && item.shortcuts.length > 0 ? (
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {item.shortcuts.slice(0, 2).map((shortcut) => (
+                              <span
+                                key={shortcut}
+                                className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium select-none shadow-sm"
+                              >
+                                {shortcut}
+                              </span>
+                            ))}
+                          </div>
+                        ) : item.sourceId === 'feedback' ? (
+                          <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium shadow-sm">
+                            Feedback
                           </span>
                         ) : null}
                         {(item.sourceId === 'gmail' || item.id?.startsWith('gmail-')) && (

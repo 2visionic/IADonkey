@@ -54,6 +54,7 @@ export class WindowManager {
   private paletteBarWindow: BrowserWindow | null = null;
   private paletteDetailWindow: BrowserWindow | null = null;
   private magicPlanWindow: BrowserWindow | null = null;
+  private feedbackWindow: BrowserWindow | null = null;
   private snipperWindow: BrowserWindow | null = null;
   private rulerWindow: BrowserWindow | null = null;
   private splashWindow: BrowserWindow | null = null;
@@ -1101,6 +1102,102 @@ export class WindowManager {
     });
   }
 
+  public getFeedbackWindow(): BrowserWindow | null {
+    return this.feedbackWindow;
+  }
+
+  public closeFeedbackWindow(): void {
+    if (this.feedbackWindow && !this.feedbackWindow.isDestroyed()) {
+      this.feedbackWindow.hide();
+    }
+  }
+
+  public async openFeedbackWindow(mode: 'user' | 'dev' = 'user'): Promise<BrowserWindow> {
+    const query = new URLSearchParams({
+      window: 'feedback',
+      mode,
+    }).toString();
+
+    if (this.feedbackWindow && !this.feedbackWindow.isDestroyed()) {
+      this.feedbackWindow.webContents.send('feedback-mode-changed', mode);
+      if (this.feedbackWindow.isMinimized()) this.feedbackWindow.restore();
+      this.feedbackWindow.show();
+      this.feedbackWindow.focus();
+      return this.feedbackWindow;
+    }
+
+    const preloadPath = fs.existsSync(path.join(__dirname, 'preload.cjs'))
+      ? path.join(__dirname, 'preload.cjs')
+      : fs.existsSync(path.join(__dirname, 'preload.mjs'))
+      ? path.join(__dirname, 'preload.mjs')
+      : path.join(__dirname, 'preload.js');
+
+    this.feedbackWindow = new BrowserWindow({
+      width: 1040,
+      height: 720,
+      minWidth: 760,
+      minHeight: 500,
+      resizable: true,
+      title: getWindowTitle(mode === 'dev' ? 'Zpětná vazba (DEV)' : 'Zpětná vazba'),
+      icon: getAppIcon(),
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: true,
+      show: false,
+      skipTaskbar: false,
+      webPreferences: {
+        preload: preloadPath,
+        sandbox: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+
+    try {
+      this.feedbackWindow.removeMenu();
+    } catch {}
+
+    this.registerCrashHandlers(this.feedbackWindow, 'Feedback');
+
+    if (process.env.VITE_DEV_SERVER_URL) {
+      this.feedbackWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}?${query}#feedback`);
+    } else {
+      this.feedbackWindow.loadFile(path.join(__dirname, '../dist/index.html'), {
+        hash: 'feedback',
+        search: query,
+      });
+    }
+
+    this.feedbackWindow.on('close', (event) => {
+      if (!this.isQuitting) {
+        event.preventDefault();
+        this.feedbackWindow?.hide();
+      }
+    });
+
+    this.feedbackWindow.on('closed', () => {
+      this.feedbackWindow = null;
+    });
+
+    return new Promise<BrowserWindow>((resolve) => {
+      let resolved = false;
+      const onReady = () => {
+        if (!resolved) {
+          resolved = true;
+          this.feedbackWindow?.show();
+          this.feedbackWindow?.focus();
+          resolve(this.feedbackWindow!);
+        }
+      };
+
+      this.feedbackWindow?.once('ready-to-show', onReady);
+      setTimeout(() => {
+        onReady();
+      }, 4000);
+    });
+  }
+
   public getSnipperWindow(): BrowserWindow | null {
     return this.snipperWindow;
   }
@@ -1843,6 +1940,13 @@ export class WindowManager {
         this.magicPlanWindow.removeAllListeners('close');
         this.magicPlanWindow.destroy();
         this.magicPlanWindow = null;
+      }
+    } catch {}
+    try {
+      if (this.feedbackWindow && !this.feedbackWindow.isDestroyed()) {
+        this.feedbackWindow.removeAllListeners('close');
+        this.feedbackWindow.destroy();
+        this.feedbackWindow = null;
       }
     } catch {}
     try {

@@ -18,6 +18,7 @@ import { PaletteDetailModal } from './components/PaletteDetailModal';
 import { WindowFrame } from './components/WindowFrame';
 import { PowerManagementModal } from './components/PowerManagementModal';
 import { MagicPlanWindow } from './components/MagicPlanWindow';
+import { FeedbackWindow } from './components/FeedbackWindow';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CURRENT_APP_VERSION, IS_DEV, getLatestRelease } from './changelog';
 import { applyPrimaryColor, applyActionsColor } from './utils/theme';
@@ -158,6 +159,28 @@ export const App: React.FC = () => {
     );
   });
 
+  const [isFeedbackView, setIsFeedbackView] = useState(() => {
+    return (
+      window.location.hash.startsWith('#feedback') ||
+      window.location.search.includes('window=feedback')
+    );
+  });
+
+  const [feedbackInitialMode] = useState<'user' | 'dev'>(() => {
+    const hash = window.location.hash;
+    const qIndex = hash.indexOf('?');
+    if (qIndex !== -1) {
+      const sp = new URLSearchParams(hash.slice(qIndex + 1));
+      return (sp.get('mode') as 'user' | 'dev') || 'user';
+    }
+    const search = window.location.search;
+    if (search) {
+      const sp = new URLSearchParams(search);
+      return (sp.get('mode') as 'user' | 'dev') || 'user';
+    }
+    return 'user';
+  });
+
   const [isCmsDownloadView, setIsCmsDownloadView] = useState(() => {
     return window.location.hash.startsWith('#cms-download') || window.location.search.includes('window=cms-download');
   });
@@ -236,6 +259,7 @@ export const App: React.FC = () => {
       setIsGitCloneView(window.location.hash.startsWith('#git-clone') || window.location.search.includes('window=git-clone'));
       setIsCmsDownloadView(window.location.hash.startsWith('#cms-download') || window.location.search.includes('window=cms-download'));
       setIsTuneColorView(window.location.hash.startsWith('#tune-color') || window.location.search.includes('window=tune-color'));
+      setIsFeedbackView(window.location.hash.startsWith('#feedback') || window.location.search.includes('window=feedback'));
     };
     window.addEventListener('hashchange', handleHash);
     return () => window.removeEventListener('hashchange', handleHash);
@@ -696,6 +720,32 @@ export const App: React.FC = () => {
                 setShowSettings(true);
               }
             }}
+          />
+        </ErrorBoundary>
+      </WindowFrame>
+    );
+  }
+
+  // Feedback dedicated standalone window
+  if (isFeedbackView) {
+    return (
+      <WindowFrame
+        title="IADonkey – Zpětná vazba a nápady"
+        allowMinimize={true}
+        allowMaximize={true}
+        onClose={() => {
+          if (window.electronAPI?.closeFeedbackWindow) {
+            window.electronAPI.closeFeedbackWindow();
+          } else {
+            window.close();
+          }
+        }}
+      >
+        <ErrorBoundary fallbackTitle="Chyba vykreslení okna Zpětné vazby">
+          <FeedbackWindow
+            config={config}
+            onSaveConfig={handleSaveConfig}
+            initialMode={feedbackInitialMode}
           />
         </ErrorBoundary>
       </WindowFrame>

@@ -22,6 +22,7 @@ import { easyClipService } from './easyClipService';
 import { pasteService } from './pasteService';
 import { MagicPlanService } from './magicPlanService';
 import { windowDragService } from './windowDragService';
+import { feedbackService } from './feedbackService';
 
 app.name = 'IADonkey';
 if (process.platform === 'win32') {
@@ -1353,6 +1354,62 @@ function setupIpcHandlers() {
 
   ipcMain.handle('close-magicplan-window', () => {
     windowManager.closeMagicPlanWindow();
+  });
+
+  ipcMain.handle('open-feedback-window', async (_event, mode?: 'user' | 'dev') => {
+    await windowManager.openFeedbackWindow(mode);
+    return true;
+  });
+
+  ipcMain.handle('close-feedback-window', () => {
+    windowManager.closeFeedbackWindow();
+  });
+
+  ipcMain.handle('feedback-list', async (_event, folderPath?: string) => {
+    const config = store.getConfig();
+    const targetFolder = folderPath || config.feedback?.sharedFolder;
+    return await feedbackService.listFeedbacks(targetFolder);
+  });
+
+  ipcMain.handle('feedback-create', async (_event, params: { folderPath?: string; data: any; screenshotBase64?: string }) => {
+    const config = store.getConfig();
+    const targetFolder = params?.folderPath || config.feedback?.sharedFolder || feedbackService.getDefaultFolderPath();
+    return await feedbackService.createFeedback(targetFolder, params.data, params.screenshotBase64);
+  });
+
+  ipcMain.handle('feedback-update', async (_event, params: { folderPath?: string; item: any; screenshotBase64?: string }) => {
+    const config = store.getConfig();
+    const targetFolder = params?.folderPath || config.feedback?.sharedFolder || feedbackService.getDefaultFolderPath();
+    return await feedbackService.updateFeedback(targetFolder, params.item, params.screenshotBase64);
+  });
+
+  ipcMain.handle('feedback-delete', async (_event, params: { folderPath?: string; feedbackId: string }) => {
+    const config = store.getConfig();
+    const targetFolder = params?.folderPath || config.feedback?.sharedFolder || feedbackService.getDefaultFolderPath();
+    return await feedbackService.deleteFeedback(targetFolder, params.feedbackId);
+  });
+
+  ipcMain.handle('feedback-get-screenshot', async (_event, params: { folderPath?: string; filename: string }) => {
+    const config = store.getConfig();
+    const targetFolder = params?.folderPath || config.feedback?.sharedFolder || feedbackService.getDefaultFolderPath();
+    return await feedbackService.getScreenshot(targetFolder, params.filename);
+  });
+
+  ipcMain.handle('feedback-get-next-version', (_event, currentVer?: string) => {
+    return feedbackService.getNextVersion(currentVer);
+  });
+
+  ipcMain.handle('feedback-select-folder', async () => {
+    const win = windowManager.getFeedbackWindow() || windowManager.getSettingsWindow() || windowManager.getMainWindow();
+    const res = await dialog.showOpenDialog(win || (undefined as any), {
+      title: 'Vyberte složku pro sdílenou zpětnou vazbu',
+      defaultPath: feedbackService.getDefaultFolderPath(),
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (!res.canceled && res.filePaths.length > 0) {
+      return res.filePaths[0];
+    }
+    return null;
   });
 
   ipcMain.handle('get-config', () => {

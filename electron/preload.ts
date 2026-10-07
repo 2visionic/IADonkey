@@ -428,4 +428,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('magicplan:data-updated', handler);
     return () => ipcRenderer.removeListener('magicplan:data-updated', handler);
   },
+
+  // Feedback API
+  openFeedbackWindow: (mode?: 'user' | 'dev'): Promise<void> => ipcRenderer.invoke('open-feedback-window', mode),
+  closeFeedbackWindow: (): Promise<void> => ipcRenderer.invoke('close-feedback-window'),
+  listFeedbacks: (folderPath?: string): Promise<{ success: boolean; items: any[]; error?: string }> =>
+    ipcRenderer.invoke('feedback-list', folderPath),
+  createFeedback: (params: { folderPath?: string; data: any; screenshotBase64?: string }): Promise<{ success: boolean; item?: any; error?: string }> =>
+    ipcRenderer.invoke('feedback-create', params),
+  updateFeedback: (params: { folderPath?: string; item: any; screenshotBase64?: string }): Promise<{ success: boolean; item?: any; error?: string }> =>
+    ipcRenderer.invoke('feedback-update', params),
+  deleteFeedback: (params: { folderPath?: string; feedbackId: string }): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('feedback-delete', params),
+  getFeedbackScreenshot: (params: { folderPath?: string; filename: string }): Promise<{ success: boolean; dataUrl?: string; error?: string }> =>
+    ipcRenderer.invoke('feedback-get-screenshot', params),
+  getFeedbackNextVersion: (currentVer?: string): Promise<string> =>
+    ipcRenderer.invoke('feedback-get-next-version', currentVer),
+  selectFeedbackFolder: (): Promise<string | null> =>
+    ipcRenderer.invoke('feedback-select-folder'),
+  onFeedbackModeChanged: (callback: (mode: 'user' | 'dev') => void) => {
+    const handler = (_event: any, mode: 'user' | 'dev') => callback(mode);
+    ipcRenderer.on('feedback-mode-changed', handler);
+    return () => ipcRenderer.removeListener('feedback-mode-changed', handler);
+  },
 });

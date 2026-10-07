@@ -279,6 +279,18 @@ declare global {
       getMagicPlanDevLogs?: () => Promise<any>;
       clearMagicPlanData?: () => Promise<any>;
       onMagicPlanDataUpdated?: (callback: (data: import('./index').MagicPlanData) => void) => () => void;
+
+      // Feedback
+      openFeedbackWindow?: (mode?: 'user' | 'dev') => Promise<void>;
+      closeFeedbackWindow?: () => Promise<void>;
+      listFeedbacks?: (folderPath?: string) => Promise<{ success: boolean; items: import('./feedback').FeedbackItem[]; error?: string }>;
+      createFeedback?: (params: { folderPath?: string; data: Partial<import('./feedback').FeedbackItem>; screenshotBase64?: string }) => Promise<{ success: boolean; item?: import('./feedback').FeedbackItem; error?: string }>;
+      updateFeedback?: (params: { folderPath?: string; item: import('./feedback').FeedbackItem; screenshotBase64?: string }) => Promise<{ success: boolean; item?: import('./feedback').FeedbackItem; error?: string }>;
+      deleteFeedback?: (params: { folderPath?: string; feedbackId: string }) => Promise<{ success: boolean; error?: string }>;
+      getFeedbackScreenshot?: (params: { folderPath?: string; filename: string }) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
+      getFeedbackNextVersion?: (currentVer?: string) => Promise<string>;
+      selectFeedbackFolder?: () => Promise<string | null>;
+      onFeedbackModeChanged?: (callback: (mode: 'user' | 'dev') => void) => () => void;
     };
   }
 }

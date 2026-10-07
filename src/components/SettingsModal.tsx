@@ -10981,6 +10981,131 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 )}
               </div>
 
+              {/* Section: Feedback & Ideas */}
+              <div className="bg-white/[0.03] rounded-2xl p-5 space-y-4 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <span className="material-symbols-outlined text-base text-amber-400">rate_review</span>
+                      Interní zpětná vazba a nápady
+                    </h4>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Podělte se o nápady na vylepšení nebo nahlaste chyby přímo vývojáři aplikace. Záznamy se ukládají na společný síťový disk.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.electronAPI?.openFeedbackWindow?.('user');
+                      }}
+                      className="m3-primary-pill px-4 py-1.5 text-xs font-semibold rounded-full transition flex items-center gap-1.5 cursor-pointer shadow-md"
+                      title="Otevřít okno pro zadání či zobrazení vašich podnětů"
+                    >
+                      <span className="material-symbols-outlined text-base">open_in_new</span>
+                      <span>Otevřít Zpětnou vazbu</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                  {/* Shared folder path */}
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-[12px] font-medium text-gray-300 flex items-center justify-between">
+                      <span>Cesta ke sdílené složce (síťový disk)</span>
+                      <span className="text-[11px] text-gray-400 font-normal">např. \\server\share\IADonkey-Feedback</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={formData.feedback?.sharedFolder || ''}
+                        onChange={(e) => {
+                          const updated = {
+                            ...formData,
+                            feedback: {
+                              ...formData.feedback,
+                              sharedFolder: e.target.value,
+                            },
+                          };
+                          setFormData(updated);
+                          handleSave(updated);
+                        }}
+                        placeholder="Výchozí: interní data složka nebo zadejte síťovou složku..."
+                        className="flex-1 h-[38px] px-3.5 bg-white/5 border border-white/10 rounded-full text-white placeholder-gray-500 text-xs focus:outline-none focus:border-amber-400/50 transition font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.electronAPI?.selectFeedbackFolder) {
+                            const selected = await window.electronAPI.selectFeedbackFolder();
+                            if (selected) {
+                              const updated = {
+                                ...formData,
+                                feedback: {
+                                  ...formData.feedback,
+                                  sharedFolder: selected,
+                                },
+                              };
+                              setFormData(updated);
+                              handleSave(updated);
+                            }
+                          }
+                        }}
+                        className="h-[38px] px-4 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-full text-[13px] font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                      >
+                        <span className="material-symbols-outlined text-base text-amber-400">folder_open</span>
+                        <span>Procházet...</span>
+                      </button>
+                      {formData.feedback?.sharedFolder && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = {
+                              ...formData,
+                              feedback: {
+                                ...formData.feedback,
+                                sharedFolder: '',
+                              },
+                            };
+                            setFormData(updated);
+                            handleSave(updated);
+                          }}
+                          className="h-[38px] px-3 bg-white/[0.06] hover:bg-rose-500/20 text-gray-400 hover:text-rose-300 rounded-full transition cursor-pointer flex items-center justify-center shrink-0"
+                          title="Obnovit výchozí umístění"
+                        >
+                          <span className="material-symbols-outlined text-base">close</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Author Name */}
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-[12px] font-medium text-gray-300 flex items-center justify-between">
+                      <span>Vaše jméno / autor podnětů</span>
+                      <span className="text-[11px] text-gray-400 font-normal">Automaticky se vyplní k vašim požadavkům</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.feedback?.authorName || ''}
+                      onChange={(e) => {
+                        const updated = {
+                          ...formData,
+                          feedback: {
+                            ...formData.feedback,
+                            authorName: e.target.value,
+                          },
+                        };
+                        setFormData(updated);
+                        handleSave(updated);
+                      }}
+                      placeholder="např. Jan Novák"
+                      className="w-full max-w-md h-[38px] px-3.5 bg-white/5 border border-white/10 rounded-full text-white placeholder-gray-500 text-xs focus:outline-none focus:border-amber-400/50 transition"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Section 2: Crashlogs & Error Diagnostics */}
               <div className="bg-white/[0.03] rounded-2xl p-5 space-y-4 shadow-sm">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -11631,6 +11756,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   >
                     <span className="material-symbols-outlined text-base text-indigo-400">auto_awesome</span>
                     <span>Zobrazit Release notes</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.electronAPI?.openFeedbackWindow?.('dev');
+                    }}
+                    className="w-full px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 hover:text-amber-100 border border-amber-500/20 rounded-full text-xs font-semibold transition flex items-center gap-2 cursor-pointer shadow-sm"
+                    title="Otevře okno se všemi nahlášenými podněty, možností řízení priorit, stavů a plánování verzí"
+                  >
+                    <span className="material-symbols-outlined text-base text-amber-400">rate_review</span>
+                    <span>Správce zpětné vazby (DEV režim)</span>
                   </button>
 
                   {/* GitHub clone simulation dropdown */}

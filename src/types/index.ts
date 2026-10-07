@@ -330,6 +330,7 @@ export interface AppConfig {
   donkeyTools?: DonkeyToolsSettings;
   magicplan?: MagicPlanSettings;
   notifications?: NotificationSettings;
+  feedback?: import('./feedback').FeedbackSettings;
   banlist?: BannedItem[];
   updateUrl: string;
   lastDeclinedVersion: string | null;
@@ -414,3 +415,5 @@ export interface CrashLogEntry {
   errorSnippet: string;
   fullContent: string;
 }
+
+export * from './feedback';

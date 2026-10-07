@@ -1,0 +1,266 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { app } from 'electron';
+import { FeedbackItem, FeedbackPriority, FeedbackStatus, FeedbackType } from '../src/types/feedback';
+
+export class FeedbackService {
+  /**
+   * Získá výchozí složku pro feedback, pokud není nakonfigurovaná.
+   */
+  public getDefaultFolderPath(): string {
+    const userData = app?.getPath ? app.getPath('userData') : path.join(process.cwd(), '.user_data');
+    return path.join(userData, 'Feedback');
+  }
+
+  /**
+   * Zkontroluje a případně vytvoří adresář pro feedback.
+   */
+  private ensureDirectory(folderPath: string): void {
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath, { recursive: true });
+    }
+  }
+
+  /**
+   * Načte všechny feedbacky ze zadané složky.
+   * Každý záznam je samostatný JSON soubor.
+   */
+  public async listFeedbacks(folderPath?: string): Promise<{ success: boolean; items: FeedbackItem[]; error?: string }> {
+    const targetFolder = folderPath?.trim() || this.getDefaultFolderPath();
+
+    if (!fs.existsSync(targetFolder)) {
+      return { success: true, items: [] };
+    }
+
+    try {
+      const files = await fs.promises.readdir(targetFolder);
+      const jsonFiles = files.filter((f) => f.endsWith('.json') && !f.endsWith('.tmp'));
+
+      const items: FeedbackItem[] = [];
+
+      for (const file of jsonFiles) {
+        try {
+          const filePath = path.join(targetFolder, file);
+          const raw = await fs.promises.readFile(filePath, 'utf-8');
+          const parsed = JSON.parse(raw) as FeedbackItem;
+
+          if (parsed && parsed.id) {
+            // Ověříme, zda existuje screenshot
+            if (parsed.screenshotFilename) {
+              const ssPath = path.join(targetFolder, parsed.screenshotFilename);
+              parsed.hasScreenshot = fs.existsSync(ssPath);
+            }
+            items.push(parsed);
+          }
+        } catch (err) {
+          console.warn(`[FeedbackService] Chyba při čtení feedback souboru ${file}:`, err);
+        }
+      }
+
+      // Seřazení od nejnovějších
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      return { success: true, items };
+    } catch (err: any) {
+      console.error('[FeedbackService] Chyba při listování složky feedbacku:', err);
+      return { success: false, items: [], error: err?.message || 'Chyba při čtení složky' };
+    }
+  }
+
+  /**
+   * Vytvoří nový feedback a uloží jej atomicky do JSON souboru (případně se screenshotem).
+   */
+  public async createFeedback(
+    folderPath: string,
+    data: Partial<FeedbackItem>,
+    screenshotBase64?: string
+  ): Promise<{ success: boolean; item?: FeedbackItem; error?: string }> {
+    const targetFolder = folderPath?.trim() || this.getDefaultFolderPath();
+
+    try {
+      this.ensureDirectory(targetFolder);
+
+      const timestamp = Date.now();
+      const randomSuffix = Math.random().toString(36).substring(2, 8);
+      const id = `fb_${timestamp}_${randomSuffix}`;
+      const nowIso = new Date().toISOString();
+
+      let screenshotFilename: string | undefined;
+      let hasScreenshot = false;
+
+      // Uložení screenshotu (pokud byl předán)
+      if (screenshotBase64 && screenshotBase64.length > 50) {
+        const cleanBase64 = screenshotBase64.replace(/^data:image\/\w+;base64,/, '');
+        screenshotFilename = `${id}.png`;
+        const ssPath = path.join(targetFolder, screenshotFilename);
+        const ssTmpPath = `${ssPath}.tmp`;
+
+        await fs.promises.writeFile(ssTmpPath, Buffer.from(cleanBase64, 'base64'));
+        await fs.promises.rename(ssTmpPath, ssPath);
+        hasScreenshot = true;
+      }
+
+      const item: FeedbackItem = {
+        id,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        author: data.author?.trim() || os.userInfo().username || 'Neznámý',
+        authorHost: os.hostname(),
+        type: (data.type as FeedbackType) || 'bug',
+        title: data.title?.trim() || 'Bez názvu',
+        description: data.description?.trim() || '',
+        priority: (data.priority as FeedbackPriority) || 'normal',
+        status: 'new',
+        appVersion: data.appVersion || this.getCurrentVersion(),
+        osVersion: `${os.type()} ${os.release()}`,
+        hasScreenshot,
+        screenshotFilename,
+      };
+
+      // Atomický zápis JSONu
+      const jsonPath = path.join(targetFolder, `${id}.json`);
+      const jsonTmpPath = `${jsonPath}.tmp`;
+
+      await fs.promises.writeFile(jsonTmpPath, JSON.stringify(item, null, 2), 'utf-8');
+      await fs.promises.rename(jsonTmpPath, jsonPath);
+
+      return { success: true, item };
+    } catch (err: any) {
+      console.error('[FeedbackService] Chyba při vytváření feedbacku:', err);
+      return { success: false, error: err?.message || 'Chyba při ukládání feedbacku' };
+    }
+  }
+
+  /**
+   * Aktualizuje existující feedback (atomický zápis).
+   */
+  public async updateFeedback(
+    folderPath: string,
+    item: FeedbackItem,
+    newScreenshotBase64?: string
+  ): Promise<{ success: boolean; item?: FeedbackItem; error?: string }> {
+    const targetFolder = folderPath?.trim() || this.getDefaultFolderPath();
+
+    try {
+      this.ensureDirectory(targetFolder);
+
+      const jsonPath = path.join(targetFolder, `${item.id}.json`);
+      if (!fs.existsSync(jsonPath)) {
+        return { success: false, error: `Feedback se souborem ${item.id}.json nebyl nalezen.` };
+      }
+
+      const nowIso = new Date().toISOString();
+      const updatedItem: FeedbackItem = {
+        ...item,
+        updatedAt: nowIso,
+      };
+
+      // Nový screenshot, pokud byl přiložen
+      if (newScreenshotBase64 && newScreenshotBase64.length > 50) {
+        const cleanBase64 = newScreenshotBase64.replace(/^data:image\/\w+;base64,/, '');
+        const screenshotFilename = `${item.id}.png`;
+        const ssPath = path.join(targetFolder, screenshotFilename);
+        const ssTmpPath = `${ssPath}.tmp`;
+
+        await fs.promises.writeFile(ssTmpPath, Buffer.from(cleanBase64, 'base64'));
+        await fs.promises.rename(ssTmpPath, ssPath);
+        updatedItem.screenshotFilename = screenshotFilename;
+        updatedItem.hasScreenshot = true;
+      }
+
+      // Atomický zápis aktualizovaného JSONu
+      const jsonTmpPath = `${jsonPath}.tmp`;
+      await fs.promises.writeFile(jsonTmpPath, JSON.stringify(updatedItem, null, 2), 'utf-8');
+      await fs.promises.rename(jsonTmpPath, jsonPath);
+
+      return { success: true, item: updatedItem };
+    } catch (err: any) {
+      console.error('[FeedbackService] Chyba při aktualizaci feedbacku:', err);
+      return { success: false, error: err?.message || 'Chyba při aktualizaci' };
+    }
+  }
+
+  /**
+   * Smaže feedback a případný asociovaný screenshot.
+   */
+  public async deleteFeedback(folderPath: string, feedbackId: string): Promise<{ success: boolean; error?: string }> {
+    const targetFolder = folderPath?.trim() || this.getDefaultFolderPath();
+
+    try {
+      const cleanId = path.basename(feedbackId);
+      const jsonPath = path.join(targetFolder, `${cleanId}.json`);
+      const ssPath = path.join(targetFolder, `${cleanId}.png`);
+
+      if (fs.existsSync(jsonPath)) {
+        await fs.promises.unlink(jsonPath);
+      }
+      if (fs.existsSync(ssPath)) {
+        await fs.promises.unlink(ssPath);
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.error('[FeedbackService] Chyba při mazání feedbacku:', err);
+      return { success: false, error: err?.message || 'Chyba při mazání' };
+    }
+  }
+
+  /**
+   * Načte screenshot ze souboru jako data URL.
+   */
+  public async getScreenshot(
+    folderPath: string,
+    filename: string
+  ): Promise<{ success: boolean; dataUrl?: string; error?: string }> {
+    const targetFolder = folderPath?.trim() || this.getDefaultFolderPath();
+
+    try {
+      const cleanName = path.basename(filename);
+      const ssPath = path.join(targetFolder, cleanName);
+
+      if (!fs.existsSync(ssPath)) {
+        return { success: false, error: 'Screenshot soubor neexistuje' };
+      }
+
+      const buffer = await fs.promises.readFile(ssPath);
+      const base64 = buffer.toString('base64');
+      const dataUrl = `data:image/png;base64,${base64}`;
+
+      return { success: true, dataUrl };
+    } catch (err: any) {
+      console.error('[FeedbackService] Chyba při čtení screenshotu:', err);
+      return { success: false, error: err?.message || 'Chyba při čtení obrázku' };
+    }
+  }
+
+  /**
+   * Vrátí aktuální verzi aplikace z package.json nebo default.
+   */
+  public getCurrentVersion(): string {
+    try {
+      const pkgPath = path.join(__dirname, '..', 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+        return pkg.version || '1.0.0';
+      }
+    } catch {}
+    return '1.0.0';
+  }
+
+  /**
+   * Spočítá odhadovanou budoucí verzi (patch + 1).
+   */
+  public getNextVersion(currentVersion?: string): string {
+    const v = currentVersion || this.getCurrentVersion();
+    const clean = v.replace(/^v/, '');
+    const parts = clean.split('.').map((p) => parseInt(p, 10));
+
+    if (parts.length === 3 && !parts.some(isNaN)) {
+      return `v${parts[0]}.${parts[1]}.${parts[2] + 1}`;
+    }
+    return `v${clean}.1`;
+  }
+}
+
+export const feedbackService = new FeedbackService();
