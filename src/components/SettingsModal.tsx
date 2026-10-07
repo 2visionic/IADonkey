@@ -11122,7 +11122,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <button
                       type="button"
                       onClick={handleOpenCrashLogFolder}
-                      className="px-4 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                      className="h-[38px] px-4 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-full text-xs font-semibold transition flex items-center gap-2 cursor-pointer shadow-sm shrink-0"
                       title="Otevře složku s crashlogy v Průzkumníku Windows"
                     >
                       <span className="material-symbols-outlined text-base text-indigo-400">folder_open</span>
@@ -11132,7 +11132,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <button
                         type="button"
                         onClick={handleClearCrashLogs}
-                        className="px-4 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                        className="h-[38px] px-4 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-full text-xs font-semibold transition flex items-center gap-2 cursor-pointer shadow-sm shrink-0"
                         title="Vymaže všechny soubory crashlogů"
                       >
                         <span className="material-symbols-outlined text-base text-rose-400">delete_sweep</span>
@@ -12078,7 +12078,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <button
                         type="button"
                         onClick={handleClearActionLogs}
-                        className="px-3.5 py-1.5 bg-white/5 hover:bg-rose-500/20 text-gray-300 hover:text-rose-200 rounded-full text-xs font-medium transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                        className="h-[38px] px-4 bg-white/[0.06] hover:bg-rose-500/20 text-gray-300 hover:text-rose-200 rounded-full text-xs font-semibold transition flex items-center gap-2 cursor-pointer shadow-sm shrink-0"
                         title="Vymaže historii akcí"
                       >
                         <span className="material-symbols-outlined text-base text-rose-500">delete</span>
