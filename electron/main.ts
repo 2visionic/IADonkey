@@ -1395,7 +1395,11 @@ function setupIpcHandlers() {
   ipcMain.handle('feedback-delete', async (_event, params: { folderPath?: string; feedbackId: string }) => {
     const config = store.getConfig();
     const targetFolder = params?.folderPath || config.feedback?.sharedFolder || feedbackService.getDefaultFolderPath();
-    return await feedbackService.deleteFeedback(targetFolder, params.feedbackId);
+    const res = await feedbackService.deleteFeedback(targetFolder, params.feedbackId);
+    if (res.success) {
+      feedbackNotificationService.onFeedbackDeleted(params.feedbackId);
+    }
+    return res;
   });
 
   ipcMain.handle('feedback-get-screenshot', async (_event, params: { folderPath?: string; filename: string }) => {

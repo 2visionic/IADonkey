@@ -253,7 +253,8 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
   };
 
   // Smazání feedbacku
-  const handleDelete = async (item: FeedbackItem) => {
+  const handleDelete = async (item: FeedbackItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     const isOwner = isItemOwnedByMe(item);
     if (!isOwner && mode !== 'dev') {
       alert('Můžete mazat pouze své vlastní záznamy.');
@@ -273,7 +274,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
       });
       if (res.success) {
         if (detailItem?.id === item.id) setDetailItem(null);
-        loadFeedbacks();
+        await loadFeedbacks();
       } else {
         alert(res.error || 'Chyba při mazání.');
       }
@@ -1062,7 +1063,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                   </div>
 
                   {/* Akční tlačítka */}
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                     {/* Dev ovládání stavu */}
                     {mode === 'dev' ? (
                       <>
@@ -1147,7 +1148,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                         {/* Smazat pro dev */}
                         <button
                           type="button"
-                          onClick={() => handleDelete(item)}
+                          onClick={(e) => handleDelete(item, e)}
                           className="w-[28px] h-[28px] rounded-full hover:bg-red-500/20 text-zinc-500 hover:text-red-400 flex items-center justify-center transition cursor-pointer"
                           title="Smazat feedback"
                         >
@@ -1161,7 +1162,10 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                           <>
                             <button
                               type="button"
-                              onClick={() => handleOpenEdit(item)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEdit(item);
+                              }}
                               className="h-[28px] px-3 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition"
                               title="Upravit svůj požadavek"
                             >
@@ -1170,7 +1174,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDelete(item)}
+                              onClick={(e) => handleDelete(item, e)}
                               className="w-[28px] h-[28px] rounded-full hover:bg-red-500/20 text-zinc-500 hover:text-red-400 flex items-center justify-center transition cursor-pointer"
                               title="Smazat svůj požadavek"
                             >
@@ -1393,6 +1397,17 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                   >
                     <span className="material-symbols-outlined text-sm">content_copy</span>
                     <span>Zkopírovat do TODO</span>
+                  </button>
+                )}
+                {(mode === 'dev' || (isItemOwnedByMe(detailItem) && detailItem.status === 'new')) && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleDelete(detailItem, e)}
+                    className="h-[38px] px-3.5 rounded-full hover:bg-red-500/15 text-zinc-400 hover:text-red-400 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+                    title="Smazat feedback"
+                  >
+                    <span className="material-symbols-outlined text-base">delete</span>
+                    <span>Smazat</span>
                   </button>
                 )}
               </div>

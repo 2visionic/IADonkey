@@ -124,6 +124,15 @@ export class FeedbackNotificationService {
     }
   }
 
+  /**
+   * Vyvoláno ihned při smazání feedbacku v aplikaci.
+   */
+  public onFeedbackDeleted(feedbackId: string): void {
+    const cleanId = path.basename(feedbackId).replace(/\.json$/i, '');
+    this.knownFeedbacks.delete(cleanId);
+    this.knownFeedbacks.delete(feedbackId);
+  }
+
   private getTargetFolder(): string {
     const config = this.store?.getConfig();
     return config?.feedback?.sharedFolder?.trim() || feedbackService.getDefaultFolderPath();

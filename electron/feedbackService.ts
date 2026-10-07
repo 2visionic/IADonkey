@@ -188,15 +188,47 @@ export class FeedbackService {
     const targetFolder = folderPath?.trim() || this.getDefaultFolderPath();
 
     try {
-      const cleanId = path.basename(feedbackId);
+      const cleanId = path.basename(feedbackId).replace(/\.json$/i, '');
       const jsonPath = path.join(targetFolder, `${cleanId}.json`);
       const ssPath = path.join(targetFolder, `${cleanId}.png`);
 
+      let deleted = false;
+
       if (fs.existsSync(jsonPath)) {
         await fs.promises.unlink(jsonPath);
+        deleted = true;
+      } else if (fs.existsSync(targetFolder)) {
+        const files = await fs.promises.readdir(targetFolder);
+        for (const f of files) {
+          const fClean = f.replace(/\.json$/i, '');
+          if (fClean.toLowerCase() === cleanId.toLowerCase() || f.toLowerCase() === feedbackId.toLowerCase()) {
+            await fs.promises.unlink(path.join(targetFolder, f));
+            deleted = true;
+            break;
+          }
+        }
       }
+
       if (fs.existsSync(ssPath)) {
-        await fs.promises.unlink(ssPath);
+        try {
+          await fs.promises.unlink(ssPath);
+        } catch {}
+      } else if (fs.existsSync(targetFolder)) {
+        try {
+          const files = await fs.promises.readdir(targetFolder);
+          for (const f of files) {
+            const fClean = f.replace(/\.png$/i, '');
+            if (fClean.toLowerCase() === cleanId.toLowerCase() && f.endsWith('.png')) {
+              await fs.promises.unlink(path.join(targetFolder, f));
+              break;
+            }
+          }
+        } catch {}
+      }
+
+      if (!deleted) {
+        console.warn(`[FeedbackService] Soubor ${cleanId}.json nebyl nalezen v ${targetFolder}`);
+        return { success: false, error: `Soubor ${cleanId}.json nebyl nalezen ve složce.` };
       }
 
       return { success: true };
