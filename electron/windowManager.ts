@@ -1133,7 +1133,7 @@ export class WindowManager {
       : path.join(__dirname, 'preload.js');
 
     this.feedbackWindow = new BrowserWindow({
-      width: 1040,
+      width: 1190,
       height: 720,
       minWidth: 760,
       minHeight: 500,
