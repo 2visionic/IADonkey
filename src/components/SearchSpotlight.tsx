@@ -4792,6 +4792,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                   item.settings === 'magicgate' ||
                   item.sourceId === 'snippet' ||
                   item.sourceId === 'donkeytools' ||
+                  item.sourceId === 'feedback' ||
+                  (item.sourceId === 'magicplan' && Boolean(item.shortcuts && item.shortcuts.length > 0)) ||
                   item.priority === -1.5 ||
                   item.priority === -2 ||
                   item.priority === -1 ||
@@ -4984,6 +4986,22 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         ) : item.sourceId === 'feedback' ? (
                           <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300 font-medium shadow-sm">
                             Feedback
+                          </span>
+                        ) : null}
+                        {item.sourceId === 'magicplan' && item.shortcuts && item.shortcuts.length > 0 ? (
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {item.shortcuts.map((shortcut) => (
+                              <span
+                                key={shortcut}
+                                className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 font-medium select-none shadow-sm"
+                              >
+                                {shortcut}
+                              </span>
+                            ))}
+                          </div>
+                        ) : item.sourceId === 'magicplan' && !hasActionsOrInfo ? (
+                          <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 font-medium shadow-sm">
+                            MagicPlan
                           </span>
                         ) : null}
                         {(item.sourceId === 'gmail' || item.id?.startsWith('gmail-')) && (
