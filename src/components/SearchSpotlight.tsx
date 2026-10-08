@@ -691,12 +691,12 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }, 50);
   };
 
-  const openMagicPlan = async () => {
+  const openMagicPlan = async (filter?: string) => {
     if (isOpeningMagicPlan) return;
     setIsOpeningMagicPlan(true);
     try {
       if (window.electronAPI?.openMagicPlanWindow) {
-        await window.electronAPI.openMagicPlanWindow();
+        await window.electronAPI.openMagicPlanWindow(filter ? { filter } : undefined);
       }
     } catch (err) {
       console.error('Failed to open MagicPlan window:', err);
@@ -1836,6 +1836,141 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     const tPref = (mlogTaskPrefix || 'T').trim();
     const rPref = (mlogRequestPrefix || 'R').trim();
 
+    // Helper to build a LauncherItem for a MagicPlan task with actions and a single subitem
+    const buildPlanTaskLauncherItem = (t: PlanTaskItem, taskPriority: number = -0.9): LauncherItem => {
+      const cleanBase = (mlogBaseUrl || '').trim().replace(/\/+$/, '');
+      const tDigits = t.taskIdentifier ? t.taskIdentifier.replace(/\D/g, '') : '';
+      const rDigits = t.requirementId ? t.requirementId.replace(/\D/g, '') : '';
+
+      const canonicalTaskCode = tDigits ? `${tPref}${tDigits}` : (t.taskIdentifier || '');
+      const canonicalReqCode = rDigits ? `${rPref}${rDigits}` : (t.requirementId || '');
+      const filterCode = canonicalTaskCode || canonicalReqCode || '';
+
+      const taskUrl = cleanBase
+        ? (canonicalTaskCode
+          ? `${cleanBase}/${canonicalTaskCode}`
+          : canonicalReqCode
+          ? `${cleanBase}/${canonicalReqCode}`
+          : t.url || magicPlanConfig?.url?.trim() || '')
+        : (t.url || magicPlanConfig?.url?.trim() || '');
+
+      // 1. Actions list (all 3 options converted to actions)
+      const taskActions: LauncherAction[] = [];
+      if (taskUrl) {
+        taskActions.push({
+          name: 'Otevřít úkol',
+          action: 'open',
+          location: taskUrl,
+          icon: 'support_agent',
+        });
+      }
+      taskActions.push({
+        name: 'Kopírovat kód úlohy',
+        action: 'copy',
+        location: filterCode || t.taskId,
+        icon: 'content_copy',
+      });
+      taskActions.push({
+        name: 'Otevřít plán úkolů',
+        action: 'magicplan',
+        location: filterCode,
+        icon: 'calendar_month',
+      });
+
+      // 2. Subitems (options) - only 1 item: the first one "Otevřít úkol"
+      const taskOptions: LauncherItem[] = [];
+      if (taskUrl) {
+        taskOptions.push({
+          id: `magicplan-subtask-open-${t.taskId}`,
+          name: 'Otevřít úkol',
+          action: 'open',
+          location: taskUrl,
+          icon: 'support_agent',
+          sourceId: 'magicplan',
+        });
+      }
+
+      return {
+        id: `magicplan-task-${t.taskId}`,
+        name: `${canonicalTaskCode ? `[${canonicalTaskCode}] ` : canonicalReqCode ? `[${canonicalReqCode}] ` : ''}${t.title}`,
+        location: `${t.totalHours}h • ${t.userName || 'Nezařazeno'} • ${t.project || 'Projekt'} (MagicPlan)`,
+        action: 'magicplan',
+        icon: 'calendar_month',
+        priority: taskPriority,
+        sourceId: 'magicplan',
+        options: taskOptions.length > 0 ? taskOptions : undefined,
+        actions: taskActions,
+      };
+    };
+
+    // Helper to find matching tasks in MagicPlanData
+    const findMatchingPlanTasks = (searchStr: string, limit: number = 6, defaultPriority: number = -1.8): LauncherItem[] => {
+      if (!magicPlanEnabled || !magicPlanData) return [];
+      const cleanSearch = removeDiacritics(searchStr.trim().toLowerCase());
+      if (!cleanSearch) return [];
+
+      const searchDigits = cleanSearch.replace(/\D/g, '');
+      const isDigitsOnly = /^\d+$/.test(cleanSearch);
+      const isTPrefix = cleanSearch.startsWith(tPref.toLowerCase()) || cleanSearch.startsWith('t');
+      const isRPrefix = cleanSearch.startsWith(rPref.toLowerCase()) || cleanSearch.startsWith('r');
+
+      const allTasks = [...(magicPlanData.myTasks || []), ...(magicPlanData.unassignedTasks || [])];
+      const seenTaskIds = new Set<string>();
+
+      const matchedTasks = allTasks.filter((t: PlanTaskItem) => {
+        if (!t || seenTaskIds.has(t.taskId)) return false;
+
+        const tIdent = (t.taskIdentifier || '').toLowerCase();
+        const rIdent = (t.requirementId || '').toLowerCase();
+        const tDigits = tIdent.replace(/\D/g, '');
+        const rDigits = rIdent.replace(/\D/g, '');
+        const titleNorm = removeDiacritics(t.title || '').toLowerCase();
+        const projNorm = removeDiacritics(t.project || '').toLowerCase();
+
+        let isMatch = false;
+
+        if (isDigitsOnly && searchDigits) {
+          if ((tDigits && tDigits.includes(searchDigits)) || (rDigits && rDigits.includes(searchDigits))) {
+            isMatch = true;
+          } else if (titleNorm.includes(cleanSearch) || projNorm.includes(cleanSearch)) {
+            isMatch = true;
+          }
+        } else if (isTPrefix && searchDigits) {
+          if (tDigits && tDigits.includes(searchDigits)) {
+            isMatch = true;
+          } else if (tIdent.includes(cleanSearch)) {
+            isMatch = true;
+          } else if (titleNorm.includes(cleanSearch) || projNorm.includes(cleanSearch)) {
+            isMatch = true;
+          }
+        } else if (isRPrefix && searchDigits) {
+          if (rDigits && rDigits.includes(searchDigits)) {
+            isMatch = true;
+          } else if (rIdent.includes(cleanSearch)) {
+            isMatch = true;
+          } else if (titleNorm.includes(cleanSearch) || projNorm.includes(cleanSearch)) {
+            isMatch = true;
+          }
+        } else {
+          const idMatch = tIdent.includes(cleanSearch);
+          const reqMatch = rIdent.includes(cleanSearch);
+          const titleMatch = titleNorm.includes(cleanSearch);
+          const projMatch = projNorm.includes(cleanSearch);
+          if (idMatch || reqMatch || titleMatch || projMatch) {
+            isMatch = true;
+          }
+        }
+
+        if (isMatch) {
+          seenTaskIds.add(t.taskId);
+          return true;
+        }
+        return false;
+      });
+
+      return matchedTasks.slice(0, limit).map((t) => buildPlanTaskLauncherItem(t, defaultPriority));
+    };
+
     // Prefix "taskmanager:" or "mlog:": searches exclusively in Taskmanager tickets and related items
     const tmPrefixMatch = trimmed.match(/^(?:taskmanager|mlog):\s*(.*)$/i);
     if (tmPrefixMatch) {
@@ -1871,6 +2006,12 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         }
       }
 
+      // Also include matching plan tasks in taskmanager search
+      if (tmQuery) {
+        const matchingPlan = findMatchingPlanTasks(tmQuery, 6, -1.8);
+        tmList.push(...matchingPlan);
+      }
+
       // Also filter any items that mention Taskmanager or this ticket
       if (tmQuery) {
         const norm = removeDiacritics(tmQuery).toLowerCase();
@@ -1897,6 +2038,11 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     const mlogItem = detectMlogTicket(trimmed, mlogBaseUrl, tPref, rPref);
     if (mlogItem) {
       list.push(mlogItem);
+
+      // Include matching plan tasks right under the main ticket action
+      const matchingPlanTasks = findMatchingPlanTasks(trimmed, 6, -1.8);
+      list.push(...matchingPlanTasks);
+
       // Also look for items that specifically reference this ticket in info
       const normTicket = removeDiacritics(trimmed.replace(/\s+/g, '')).toLowerCase();
       const referencingItems = items.filter((it) => {
@@ -1918,12 +2064,18 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
     // 0a. Taskmanager digits-only query (3 or more digits, e.g. 123 -> offers Task and Request with configured prefixes)
     const digitsOnlyMatch = trimmed.match(/^(\d{3,})$/);
-    if (digitsOnlyMatch && mlogBaseUrl) {
+    if (digitsOnlyMatch && (mlogBaseUrl || (magicPlanEnabled && magicPlanData))) {
       const numId = digitsOnlyMatch[1];
-      const taskItem = detectMlogTicket(`${tPref}${numId}`, mlogBaseUrl, tPref, rPref);
-      const reqItem = detectMlogTicket(`${rPref}${numId}`, mlogBaseUrl, tPref, rPref);
-      if (taskItem) list.push(taskItem);
-      if (reqItem) list.push(reqItem);
+      if (mlogBaseUrl) {
+        const taskItem = detectMlogTicket(`${tPref}${numId}`, mlogBaseUrl, tPref, rPref);
+        const reqItem = detectMlogTicket(`${rPref}${numId}`, mlogBaseUrl, tPref, rPref);
+        if (taskItem) list.push(taskItem);
+        if (reqItem) list.push(reqItem);
+      }
+
+      // Include matching plan tasks right under the main T and R tasks
+      const matchingPlanTasks = findMatchingPlanTasks(numId, 6, -1.8);
+      list.push(...matchingPlanTasks);
 
       // Also look for items that specifically reference this ticket or number in info or name
       const referencingItems = items.filter((it) => {
@@ -2040,66 +2192,11 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
     // 2.5. MagicPlan tasks search (matches task title, R-code, T-code, or project)
     if (magicPlanEnabled && magicPlanData && trimmed.length >= 2) {
-      const q = removeDiacritics(trimmed.toLowerCase());
-      const allTasks = [...(magicPlanData.myTasks || []), ...(magicPlanData.unassignedTasks || [])];
-      const seenTaskIds = new Set<string>();
-      const matchingTasks = allTasks.filter((t: PlanTaskItem) => {
-        if (seenTaskIds.has(t.taskId)) return false;
-        const idMatch = (t.taskIdentifier || '').toLowerCase().includes(q);
-        const reqMatch = (t.requirementId || '').toLowerCase().includes(q);
-        const titleMatch = removeDiacritics(t.title || '').toLowerCase().includes(q);
-        const projMatch = removeDiacritics(t.project || '').toLowerCase().includes(q);
-        const digitsMatch = /^\d+$/.test(q) && ((t.taskIdentifier && t.taskIdentifier.includes(q)) || (t.requirementId && t.requirementId.includes(q)));
-        if (idMatch || reqMatch || titleMatch || projMatch || digitsMatch) {
-          seenTaskIds.add(t.taskId);
-          return true;
+      const generalPlanTasks = findMatchingPlanTasks(trimmed, 6, -0.9);
+      for (const pt of generalPlanTasks) {
+        if (!list.some((it) => it.id === pt.id)) {
+          list.push(pt);
         }
-        return false;
-      });
-
-      for (const t of matchingTasks.slice(0, 4)) {
-        const cleanBase = (mlogBaseUrl || '').trim().replace(/\/+$/, '');
-        const tPref = (mlogTaskPrefix || 'T').trim();
-        const rPref = (mlogRequestPrefix || 'R').trim();
-        const taskUrl = cleanBase
-          ? (t.taskIdentifier
-            ? `${cleanBase}/${tPref}${t.taskIdentifier.replace(/\D/g, '')}`
-            : t.requirementId
-            ? `${cleanBase}/${rPref}${t.requirementId.replace(/\D/g, '')}`
-            : t.url || magicPlanConfig?.url?.trim() || '')
-          : (t.url || magicPlanConfig?.url?.trim() || '');
-
-        const taskOptions: any[] = [];
-        if (taskUrl) {
-          taskOptions.push({
-            name: 'Otevřít úkol',
-            action: 'open',
-            location: taskUrl,
-            icon: 'support_agent',
-          });
-        }
-        taskOptions.push({
-          name: 'Kopírovat kód úlohy',
-          action: 'copy',
-          location: t.taskIdentifier || t.requirementId || t.taskId,
-          icon: 'content_copy',
-        });
-        taskOptions.push({
-          name: 'Otevřít plán úkolů',
-          action: 'magicplan',
-          icon: 'calendar_month',
-        });
-
-        list.push({
-          id: `magicplan-task-${t.taskId}`,
-          name: `${t.taskIdentifier ? `[${t.taskIdentifier}] ` : t.requirementId ? `[${t.requirementId}] ` : ''}${t.title}`,
-          location: `${t.totalHours}h • ${t.userName || 'Nezařazeno'} • ${t.project || 'Projekt'} (MagicPlan)`,
-          action: 'magicplan',
-          icon: 'calendar_month',
-          priority: -0.9,
-          sourceId: 'magicplan',
-          options: taskOptions,
-        });
       }
     }
 
@@ -2279,7 +2376,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
 
     if (item.action === 'magicplan') {
-      await openMagicPlan();
+      const planAction = item.actions?.find((a) => a.action === 'magicplan');
+      const filter = planAction?.location || (item.id?.startsWith('magicplan-task-') && item.name.match(/\[([TR]\d+)\]/i)?.[1]) || undefined;
+      await openMagicPlan(filter);
       return;
     }
 
@@ -2580,6 +2679,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         });
       }
       handleClose();
+      return;
+    }
+
+    if (actionType === 'magicplan') {
+      exitActions();
+      handleClose();
+      await openMagicPlan(effectiveLocation || undefined);
       return;
     }
 

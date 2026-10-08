@@ -1013,12 +1013,16 @@ export class WindowManager {
     }
   }
 
-  public async openMagicPlanWindow(): Promise<BrowserWindow> {
+  public async openMagicPlanWindow(filter?: string): Promise<BrowserWindow> {
     const query = new URLSearchParams({
       window: 'magicplan',
+      ...(filter ? { filter } : {}),
     }).toString();
 
     if (this.magicPlanWindow && !this.magicPlanWindow.isDestroyed()) {
+      if (filter) {
+        this.magicPlanWindow.webContents.send('magicplan-set-filter', filter);
+      }
       if (this.magicPlanWindow.isMinimized()) this.magicPlanWindow.restore();
       this.magicPlanWindow.show();
       this.magicPlanWindow.focus();
@@ -1089,6 +1093,9 @@ export class WindowManager {
           resolved = true;
           this.magicPlanWindow?.show();
           this.magicPlanWindow?.focus();
+          if (filter) {
+            this.magicPlanWindow?.webContents.send('magicplan-set-filter', filter);
+          }
           resolve(this.magicPlanWindow!);
         }
       };

@@ -1348,8 +1348,8 @@ function setupIpcHandlers() {
     return true;
   });
 
-  ipcMain.handle('open-magicplan-window', async () => {
-    await windowManager.openMagicPlanWindow();
+  ipcMain.handle('open-magicplan-window', async (_event, options?: { filter?: string }) => {
+    await windowManager.openMagicPlanWindow(options?.filter);
     return true;
   });
 

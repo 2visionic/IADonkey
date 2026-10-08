@@ -171,7 +171,27 @@ export const isTaskMatchingQuery = (t: PlanTaskItem, query: string): boolean => 
   const projMatch = (t.project || '').toLowerCase().includes(q);
   const authorMatch = (t.author || '').toLowerCase().includes(q);
   const userMatch = (t.userName || '').toLowerCase().includes(q);
-  return Boolean(titleMatch || customMatch || reqMatch || taskMatch || projMatch || authorMatch || userMatch);
+
+  const qDigits = q.replace(/\D/g, '');
+  const tDigits = (t.taskIdentifier || '').replace(/\D/g, '');
+  const rDigits = (t.requirementId || '').replace(/\D/g, '');
+  const digitsMatch = Boolean(
+    qDigits &&
+      ((q.startsWith('t') && tDigits && tDigits.includes(qDigits)) ||
+        (q.startsWith('r') && rDigits && rDigits.includes(qDigits)) ||
+        (/^\d+$/.test(q) && ((tDigits && tDigits.includes(qDigits)) || (rDigits && rDigits.includes(qDigits)))))
+  );
+
+  return Boolean(
+    titleMatch ||
+    customMatch ||
+    reqMatch ||
+    taskMatch ||
+    projMatch ||
+    authorMatch ||
+    userMatch ||
+    digitsMatch
+  );
 };
 
 export const isTaskMatchingAuthor = (taskAuthor?: string, selectedAuthor?: string | null): boolean => {
@@ -614,6 +634,36 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
       setShowOnlyMyTasks(!activeCfg.magicplan.showAllTasks);
     }
   }, [config.magicplan?.showAllTasks, currentConfig?.magicplan?.showAllTasks]);
+
+  // Handle initial filter passed via URL query params on mount
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const initialFilter = params.get('filter');
+      if (initialFilter) {
+        setSearchQuery(initialFilter);
+        setIsSearchOpen(true);
+        setShowOnlyMyTasks(false);
+      }
+    } catch (err) {
+      console.error('Failed to parse URL filter parameter:', err);
+    }
+  }, []);
+
+  // Handle filter passed via IPC when window is opened or focused
+  useEffect(() => {
+    const unsub = window.electronAPI?.onMagicPlanSetFilter?.((filterText: string) => {
+      if (filterText) {
+        setSearchQuery(filterText);
+        setIsSearchOpen(true);
+        setShowOnlyMyTasks(false);
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 50);
+      }
+    });
+    return () => unsub?.();
+  }, []);
 
   const availablePersons: PlanPersonInfo[] = useMemo(() => {
     return data?.availablePersons || [];

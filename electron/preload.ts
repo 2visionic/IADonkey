@@ -417,7 +417,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // MagicPlan API
-  openMagicPlanWindow: (): Promise<void> => ipcRenderer.invoke('open-magicplan-window'),
+  openMagicPlanWindow: (options?: { filter?: string }): Promise<void> =>
+    ipcRenderer.invoke('open-magicplan-window', options),
   closeMagicPlanWindow: (): Promise<void> => ipcRenderer.invoke('close-magicplan-window'),
   getMagicPlanData: (): Promise<any> => ipcRenderer.invoke('magicplan-get-data'),
   refreshMagicPlan: (): Promise<any> => ipcRenderer.invoke('magicplan-refresh'),
@@ -427,6 +428,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (_event: any, data: any) => callback(data);
     ipcRenderer.on('magicplan:data-updated', handler);
     return () => ipcRenderer.removeListener('magicplan:data-updated', handler);
+  },
+  onMagicPlanSetFilter: (callback: (filter: string) => void) => {
+    const handler = (_event: any, filter: string) => callback(filter);
+    ipcRenderer.on('magicplan-set-filter', handler);
+    return () => ipcRenderer.removeListener('magicplan-set-filter', handler);
   },
 
   // Feedback API

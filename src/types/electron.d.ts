@@ -272,13 +272,14 @@ declare global {
       onFastSnapCleanup?: (callback: () => void) => () => void;
 
       // MagicPlan
-      openMagicPlanWindow?: () => Promise<void>;
+      openMagicPlanWindow?: (options?: { filter?: string }) => Promise<void>;
       closeMagicPlanWindow?: () => Promise<void>;
       getMagicPlanData?: () => Promise<import('./index').MagicPlanData>;
       refreshMagicPlan?: () => Promise<import('./index').MagicPlanData>;
       getMagicPlanDevLogs?: () => Promise<any>;
       clearMagicPlanData?: () => Promise<any>;
       onMagicPlanDataUpdated?: (callback: (data: import('./index').MagicPlanData) => void) => () => void;
+      onMagicPlanSetFilter?: (callback: (filter: string) => void) => () => void;
 
       // Feedback
       openFeedbackWindow?: (mode?: 'user' | 'dev') => Promise<void>;
