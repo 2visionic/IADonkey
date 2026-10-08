@@ -1183,7 +1183,8 @@ export class MagicPlanService {
       }
 
       for (const [, wTask] of taskMap.entries()) {
-        const roundedHours = Math.max(0.5, Math.round(wTask.totalRawHours * 2) / 2);
+        const realRawWorklog = Math.round(wTask.totalRawHours * 100) / 100;
+        const roundedHours = Math.max(0.5, Math.ceil(wTask.totalRawHours * 2) / 2);
         const wTaskDigits = (wTask.taskId || '').replace(/\D/g, '');
         const wReqDigits = (wTask.reqId || '').replace(/\D/g, '');
 
@@ -1240,10 +1241,10 @@ export class MagicPlanService {
                 existingTask.estimatedHours = existingTask.totalHours;
               }
               existingTask.totalHours = roundedHours;
-              existingTask.worklogHours = roundedHours;
+              existingTask.worklogHours = realRawWorklog;
             } else {
               // U nevyřešeného požadavku počítáme reálný sloučený worklog bez zaokrouhlování
-              existingTask.worklogHours = Math.round(wTask.totalRawHours * 100) / 100;
+              existingTask.worklogHours = realRawWorklog;
             }
             if (wTask.isService) existingTask.taskType = 'service';
             else if (wTask.isDev) existingTask.taskType = 'dev';
@@ -1270,7 +1271,7 @@ export class MagicPlanService {
             userId: matchedPerson?.id || '',
             userName: matchedPerson?.name || wUser,
             totalHours: roundedHours,
-            worklogHours: roundedHours,
+            worklogHours: realRawWorklog,
             isPinned: false,
             isSolved: true,
             isCompleted: true,

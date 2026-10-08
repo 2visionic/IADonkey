@@ -85,7 +85,7 @@ export const GitCloneModal: React.FC<GitCloneModalProps> = ({
   };
 
   const [targetDir, setTargetDir] = useState<string>(getInitialTargetDir);
-  const [recursive, setRecursive] = useState(initialRecursive);
+  const [recursive, setRecursive] = useState(isInstanceMode ? true : initialRecursive);
   const [status, setStatus] = useState<'idle' | 'cloning' | 'success' | 'error'>('idle');
   const [clonedPath, setClonedPath] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -108,7 +108,7 @@ export const GitCloneModal: React.FC<GitCloneModalProps> = ({
         ? normalizeInstanceTargetDir(defaultTargetDir, repoName)
         : defaultTargetDir;
       setTargetDir(initial);
-      setRecursive(initialRecursive);
+      setRecursive(isInstanceMode ? true : initialRecursive);
       setStatus('idle');
       setClonedPath('');
       setErrorMessage('');
@@ -317,9 +317,15 @@ export const GitCloneModal: React.FC<GitCloneModalProps> = ({
       if (res.success) {
         setStatus('success');
         setClonedPath(res.targetPath);
+        if (res.output) {
+          setCloneLogs([res.output]);
+        }
       } else {
         setStatus('error');
         setErrorMessage(res.error || 'Nastala neznámá chyba při spouštění git clone.');
+        if (res.output) {
+          setCloneLogs([res.output]);
+        }
       }
     } catch (err: any) {
       setStatus('error');
@@ -349,8 +355,9 @@ export const GitCloneModal: React.FC<GitCloneModalProps> = ({
   useEffect(() => {
     if (status === 'success' && !isInstanceMode) {
       const pathToOpen = clonedPath || targetDir;
-      if (pathToOpen && window.electronAPI?.isAndroidProject) {
-        window.electronAPI.isAndroidProject(pathToOpen).then((isAndroid) => {
+      const api = window.electronAPI as any;
+      if (pathToOpen && api?.isAndroidProject) {
+        api.isAndroidProject(pathToOpen).then((isAndroid: boolean) => {
           if (isAndroid) setIsLocalAndroidProject(true);
         });
       }
@@ -509,6 +516,14 @@ export const GitCloneModal: React.FC<GitCloneModalProps> = ({
             <p className="text-[11px] text-rose-200/80 whitespace-pre-wrap font-mono break-all max-h-36 overflow-y-auto bg-black/30 p-2.5 rounded-xl">
               {errorMessage}
             </p>
+            {cloneLogs.length > 0 && (
+              <div
+                ref={logContainerRef}
+                className="mt-2 font-mono text-[11px] text-gray-300 bg-black/60 rounded-xl p-2.5 max-h-36 overflow-y-auto whitespace-pre-wrap leading-relaxed select-text"
+              >
+                {cloneLogs.join('')}
+              </div>
+            )}
           </div>
         )}
 

@@ -1868,7 +1868,8 @@ const calculateScheduleForTasks = (
 
   const createTaskQueueItem = (t: PlanTaskItem): TaskQueueItem => {
     const isDone = Boolean(t.isCompleted || t.isSolved);
-    let plannedH = t.totalHours > 0 ? t.totalHours : 1;
+    const est = t.estimatedHours && t.estimatedHours > 0 ? t.estimatedHours : (t.totalHours > 0 ? t.totalHours : 1);
+    let plannedH = est;
     let overburnH = 0;
     let rawOverH = 0;
     let fillPct = 100;
@@ -1876,15 +1877,14 @@ const calculateScheduleForTasks = (
     let overburnProgressPercent = 0;
 
     if (isDone) {
-      const est = t.estimatedHours && t.estimatedHours > 0 ? t.estimatedHours : (t.totalHours > 0 ? t.totalHours : 1);
-      const actual = Math.max(t.totalHours || 0, t.worklogHours || 0) || plannedH;
+      const actual = (t.worklogHours && t.worklogHours > 0) ? t.worklogHours : (t.totalHours || plannedH);
       if (est && est > 0 && actual > est) {
         plannedH = est;
-        const roundedActual = Math.round(actual * 2) / 2;
+        const roundedActual = Math.max(est, Math.ceil(actual * 2) / 2);
         overburnH = Math.max(0, roundedActual - est);
-        rawOverH = Math.round((actual - est) * 10) / 10;
+        rawOverH = Math.round((actual - est) * 100) / 100;
         overburnPercent = Math.round((actual / est) * 100);
-        fillPct = 100;
+        fillPct = overburnH > 0 ? Math.min(100, Math.max(5, Math.round((rawOverH / overburnH) * 100))) : 100;
       }
     } else {
       const worklog = t.worklogHours || 0;
@@ -1971,116 +1971,167 @@ const calculateScheduleForTasks = (
     return { slotsAdded: 0 };
   };
 
-  // 1. Hotové úkoly: skládáme za sebou od začátku týdne (d=0) dle relevance z plánu.
-  const compQueue: TaskQueueItem[] = compTasks.map(createTaskQueueItem);
+  const baseNaBlocks = [...blocks];
+  let currentCompTasks = [...compTasks];
+  let currentDevTasks = [...sortedDevTasks];
+  let currentServiceTasks = [...sortedServiceTasks];
 
-  for (let d = 0; d < 5; d++) {
-    const naSlots = blocks
-      .filter((b) => b.dayIndex === d && b.isNotAvailable)
-      .reduce((s, b) => s + b.spanCols, 0);
-    let slotInDay = naSlots;
+  let compQueue: TaskQueueItem[] = [];
+  let subsequentQueue: TaskQueueItem[] = [];
 
-    for (const q of compQueue) {
-      if (slotInDay >= totalDaySlots) break;
-      if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+  for (let pass = 0; pass < 2; pass++) {
+    blocks.length = 0;
+    blocks.push(...baseNaBlocks.map((b) => ({ ...b })));
 
-      const isSrv = isServiceTaskItem(q.task);
-      const { slotsAdded } = placeQueueItem(q, d, slotInDay, totalDaySlots, isSrv);
-      slotInDay += slotsAdded;
-    }
-  }
+    // 1. Hotové úkoly: skládáme za sebou od začátku týdne (d=0) dle relevance z plánu.
+    compQueue = currentCompTasks.map(createTaskQueueItem);
 
-  // Příprava front aktivních úkolů (řazených: kritické -> rozpracované s worklogem -> nerozpracované)
-  const devQueue: TaskQueueItem[] = sortedDevTasks.map(createTaskQueueItem);
-  const serviceQueue: TaskQueueItem[] = sortedServiceTasks.map(createTaskQueueItem);
+    for (let d = 0; d < 5; d++) {
+      const naSlots = blocks
+        .filter((b) => b.dayIndex === d && b.isNotAvailable)
+        .reduce((s, b) => s + b.spanCols, 0);
+      let slotInDay = naSlots;
 
-  // 2. Aktuální den (todayIdx)
-  if (todayIdx >= 0 && todayIdx < 5) {
-    const usedInToday = blocks
-      .filter((b) => b.dayIndex === todayIdx)
-      .reduce((s, b) => s + b.spanCols, 0);
-
-    const availableTotalSlots = Math.max(0, totalDaySlots - usedInToday);
-    const availableTotalHours = availableTotalSlots / SLOTS_PER_HOUR;
-
-    const totalDevNeeded = devQueue.reduce((s, q) => s + q.remainingPlannedHours + q.remainingOverburnHours, 0);
-    const totalServiceNeeded = serviceQueue.reduce((s, q) => s + q.remainingPlannedHours + q.remainingOverburnHours, 0);
-
-    // Pravidlo: 3h servisu na konci dne, 5h devs.
-    let targetServiceHours = 0;
-    let targetDevHours = 0;
-
-    if (availableTotalHours > 0) {
-      const baseDevCap = Math.max(0, availableTotalHours - 3);
-      const plannedDev = Math.min(baseDevCap, totalDevNeeded);
-      const unusedDev = Math.max(0, baseDevCap - plannedDev);
-
-      const maxServicePossible = Math.min(availableTotalHours - plannedDev, 3 + unusedDev);
-      targetServiceHours = Math.min(maxServicePossible, totalServiceNeeded);
-
-      const unusedService = Math.max(0, 3 - targetServiceHours);
-      const maxDevPossible = Math.min(availableTotalHours - targetServiceHours, 5 + unusedService);
-      targetDevHours = Math.min(maxDevPossible, totalDevNeeded);
-    }
-
-    const targetServiceSlots = Math.round(targetServiceHours * SLOTS_PER_HOUR);
-    const targetDevSlots = Math.round(targetDevHours * SLOTS_PER_HOUR);
-
-    const isContiguous = (usedInToday + targetDevSlots + targetServiceSlots) < totalDaySlots;
-
-    let devStartSlot = usedInToday;
-    let srvStartSlot = isContiguous
-      ? usedInToday + targetDevSlots
-      : totalDaySlots - targetServiceSlots;
-
-    // Vložení vývojových úkolů do dneška (kritické -> rozpracované -> nerozpracované)
-    const devMaxSlot = isContiguous ? srvStartSlot : totalDaySlots - targetServiceSlots;
-    for (const q of devQueue) {
-      if (devStartSlot >= devMaxSlot) break;
-      if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
-
-      const { slotsAdded } = placeQueueItem(q, todayIdx, devStartSlot, devMaxSlot, false);
-      devStartSlot += slotsAdded;
-    }
-
-    // Vložení servisních úkolů do dneška (kritické -> rozpracované -> nerozpracované)
-    if (targetServiceSlots > 0) {
-      let curSrvSlot = srvStartSlot;
-      for (const q of serviceQueue) {
-        if (curSrvSlot >= totalDaySlots) break;
+      for (const q of compQueue) {
+        if (slotInDay >= totalDaySlots) break;
         if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
 
-        const { slotsAdded } = placeQueueItem(q, todayIdx, curSrvSlot, totalDaySlots, true);
-        curSrvSlot += slotsAdded;
+        const isSrv = isServiceTaskItem(q.task);
+        const { slotsAdded } = placeQueueItem(q, d, slotInDay, totalDaySlots, isSrv);
+        slotInDay += slotsAdded;
       }
     }
-  }
 
-  // 3. Následující dny (d > todayIdx, případně d < todayIdx pokud by v nich zbyl prostor):
-  const subsequentQueue: TaskQueueItem[] = [
-    ...devQueue.filter((q) => q.task.isCritical && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
-    ...serviceQueue.filter((q) => q.task.isCritical && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
-    ...devQueue.filter((q) => !q.task.isCritical && isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
-    ...serviceQueue.filter((q) => !q.task.isCritical && isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
-    ...devQueue.filter((q) => !q.task.isCritical && !isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
-    ...serviceQueue.filter((q) => !q.task.isCritical && !isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
-  ];
+    // Příprava front aktivních úkolů (řazených: kritické -> rozpracované s worklogem -> nerozpracované)
+    const devQueue: TaskQueueItem[] = currentDevTasks.map(createTaskQueueItem);
+    const serviceQueue: TaskQueueItem[] = currentServiceTasks.map(createTaskQueueItem);
 
-  const firstSubsequentDay = todayIdx !== -1 ? todayIdx + 1 : 0;
-  for (let d = firstSubsequentDay; d < 5; d++) {
-    const usedInDay = blocks
-      .filter((b) => b.dayIndex === d)
-      .reduce((s, b) => s + b.spanCols, 0);
-    let slotInDay = usedInDay;
+    // 2. Aktuální den (todayIdx)
+    if (todayIdx >= 0 && todayIdx < 5) {
+      const usedInToday = blocks
+        .filter((b) => b.dayIndex === todayIdx)
+        .reduce((s, b) => s + b.spanCols, 0);
 
-    for (const q of subsequentQueue) {
-      if (slotInDay >= totalDaySlots) break;
-      if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+      const availableTotalSlots = Math.max(0, totalDaySlots - usedInToday);
+      const availableTotalHours = availableTotalSlots / SLOTS_PER_HOUR;
 
-      const isSrv = isServiceTaskItem(q.task);
-      const { slotsAdded } = placeQueueItem(q, d, slotInDay, totalDaySlots, isSrv);
-      slotInDay += slotsAdded;
+      const totalDevNeeded = devQueue.reduce((s, q) => s + q.remainingPlannedHours + q.remainingOverburnHours, 0);
+      const totalServiceNeeded = serviceQueue.reduce((s, q) => s + q.remainingPlannedHours + q.remainingOverburnHours, 0);
+
+      // Pravidlo: 3h servisu na konci dne, 5h devs.
+      let targetServiceHours = 0;
+      let targetDevHours = 0;
+
+      if (availableTotalHours > 0) {
+        const baseDevCap = Math.max(0, availableTotalHours - 3);
+        const plannedDev = Math.min(baseDevCap, totalDevNeeded);
+        const unusedDev = Math.max(0, baseDevCap - plannedDev);
+
+        const maxServicePossible = Math.min(availableTotalHours - plannedDev, 3 + unusedDev);
+        targetServiceHours = Math.min(maxServicePossible, totalServiceNeeded);
+
+        const unusedService = Math.max(0, 3 - targetServiceHours);
+        const maxDevPossible = Math.min(availableTotalHours - targetServiceHours, 5 + unusedService);
+        targetDevHours = Math.min(maxDevPossible, totalDevNeeded);
+      }
+
+      const targetServiceSlots = Math.round(targetServiceHours * SLOTS_PER_HOUR);
+      const targetDevSlots = Math.round(targetDevHours * SLOTS_PER_HOUR);
+
+      const isContiguous = (usedInToday + targetDevSlots + targetServiceSlots) < totalDaySlots;
+
+      let devStartSlot = usedInToday;
+      let srvStartSlot = isContiguous
+        ? usedInToday + targetDevSlots
+        : totalDaySlots - targetServiceSlots;
+
+      // Vložení vývojových úkolů do dneška (kritické -> rozpracované -> nerozpracované)
+      const devMaxSlot = isContiguous ? srvStartSlot : totalDaySlots - targetServiceSlots;
+      for (const q of devQueue) {
+        if (devStartSlot >= devMaxSlot) break;
+        if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+
+        const { slotsAdded } = placeQueueItem(q, todayIdx, devStartSlot, devMaxSlot, false);
+        devStartSlot += slotsAdded;
+      }
+
+      // Vložení servisních úkolů do dneška (kritické -> rozpracované -> nerozpracované)
+      if (targetServiceSlots > 0) {
+        let curSrvSlot = srvStartSlot;
+        for (const q of serviceQueue) {
+          if (curSrvSlot >= totalDaySlots) break;
+          if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+
+          const { slotsAdded } = placeQueueItem(q, todayIdx, curSrvSlot, totalDaySlots, true);
+          curSrvSlot += slotsAdded;
+        }
+      }
     }
+
+    // 3. Následující dny (d > todayIdx, případně d < todayIdx pokud by v nich zbyl prostor):
+    subsequentQueue = [
+      ...devQueue.filter((q) => q.task.isCritical && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+      ...serviceQueue.filter((q) => q.task.isCritical && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+      ...devQueue.filter((q) => !q.task.isCritical && isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+      ...serviceQueue.filter((q) => !q.task.isCritical && isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+      ...devQueue.filter((q) => !q.task.isCritical && !isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+      ...serviceQueue.filter((q) => !q.task.isCritical && !isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+    ];
+
+    const firstSubsequentDay = todayIdx !== -1 ? todayIdx + 1 : 0;
+    for (let d = firstSubsequentDay; d < 5; d++) {
+      const usedInDay = blocks
+        .filter((b) => b.dayIndex === d)
+        .reduce((s, b) => s + b.spanCols, 0);
+      let slotInDay = usedInDay;
+
+      for (const q of subsequentQueue) {
+        if (slotInDay >= totalDaySlots) break;
+        if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+
+        const isSrv = isServiceTaskItem(q.task);
+        const { slotsAdded } = placeQueueItem(q, d, slotInDay, totalDaySlots, isSrv);
+        slotInDay += slotsAdded;
+      }
+    }
+
+    // Pokud zalogovaný požadavek v tomto týdnu již v plánu není (nevešel se ani na 0.5h, celý přetekl):
+    // Převedeme jej nakonec vyřešených požadavků s reálným logem a overburnem, v dalším týdnu jej nezobrazíme.
+    if (pass === 0) {
+      const evictedLoggedTasks = subsequentQueue.filter((q) => {
+        const wl = q.task.worklogHours || 0;
+        if (wl <= 0) return false;
+        const scheduledInWeek = blocks
+          .filter((b) => b.task.taskId === q.task.taskId && !b.isNotAvailable)
+          .reduce((s, b) => s + b.chunkHours, 0);
+        return scheduledInWeek < 0.5;
+      });
+
+      if (evictedLoggedTasks.length > 0) {
+        const evictedIds = new Set(evictedLoggedTasks.map((q) => q.task.taskId));
+        const newCompTasksToAdd: PlanTaskItem[] = evictedLoggedTasks.map((q) => {
+          const est = q.task.estimatedHours && q.task.estimatedHours > 0
+            ? q.task.estimatedHours
+            : (q.task.totalHours > 0 ? q.task.totalHours : 1);
+          const wl = q.task.worklogHours || 0;
+          return {
+            ...q.task,
+            isCompleted: false, // Vizuálně u něj nesmí být splněno, ale jako by byl rozpracovaný
+            isSolved: false,
+            estimatedHours: est,
+            worklogHours: wl,
+            totalHours: est,
+          };
+        });
+
+        currentCompTasks = [...currentCompTasks, ...newCompTasksToAdd];
+        currentDevTasks = currentDevTasks.filter((t) => !evictedIds.has(t.taskId));
+        currentServiceTasks = currentServiceTasks.filter((t) => !evictedIds.has(t.taskId));
+        continue;
+      }
+    }
+
+    break;
   }
 
   // Overflow tasks (zbylé úkoly, které se nevešly do týdne)
@@ -2137,7 +2188,7 @@ const calculateScheduleForTasks = (
 
     if (isDone) {
       const est = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
-      const actualHours = Math.max(task.totalHours || 0, task.worklogHours || 0);
+      const actualHours = (task.worklogHours && task.worklogHours > 0) ? task.worklogHours : (task.totalHours || 0);
       if (est > 0 && actualHours > est) {
         const taskOverPct = Math.round((actualHours / est) * 100);
         for (const b of sorted) {
@@ -2145,7 +2196,7 @@ const calculateScheduleForTasks = (
         }
       }
     } else {
-      const planHours = task.totalHours > 0 ? task.totalHours : (task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : 1);
+      const planHours = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
       const worklogHours = task.worklogHours || 0;
       const isOver = planHours > 0 && worklogHours > planHours;
       const taskOverProgPct = isOver ? Math.round((worklogHours / planHours) * 100) : 0;
@@ -2271,7 +2322,7 @@ const calculateScheduleForTasks = (
 
     if (isDone) {
       const est = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
-      const actualHours = Math.max(task.totalHours || 0, task.worklogHours || 0);
+      const actualHours = (task.worklogHours && task.worklogHours > 0) ? task.worklogHours : (task.totalHours || 0);
       if (est > 0 && actualHours > est) {
         const taskOverPct = Math.round((actualHours / est) * 100);
         for (const tb of sorted) {
@@ -2279,7 +2330,7 @@ const calculateScheduleForTasks = (
         }
       }
     } else {
-      const planHours = task.totalHours > 0 ? task.totalHours : (task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : 1);
+      const planHours = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
       const worklogHours = task.worklogHours || 0;
       const isOver = planHours > 0 && worklogHours > planHours;
       const taskOverProgPct = isOver ? Math.round((worklogHours / planHours) * 100) : 0;
@@ -3280,7 +3331,9 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
 
                               const isSolidCard = !isNotAvailable;
                               const isCompletedTask = Boolean(isCompleted || task.isCompleted || task.isSolved);
-                              const actualTaskHours = isCompletedTask ? Math.max(task.totalHours || 0, task.worklogHours || 0) : (task.totalHours || 0);
+                              const actualTaskHours = isCompletedTask
+                                ? ((task.worklogHours && task.worklogHours > 0) ? task.worklogHours : (task.totalHours || 0))
+                                : (task.totalHours || 0);
                               const hasOverburn = Boolean(!isNotAvailable && (block.hasOverburnChunk || (block.overburnChunkHours && block.overburnChunkHours > 0) || (isCompletedTask && task.estimatedHours && actualTaskHours > task.estimatedHours)));
 
                               const isCutRight = Boolean(!isNotAvailable && isSplit && partIndex < totalParts);
@@ -3322,11 +3375,11 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               const isMuted = (Boolean(searchQuery?.trim()) || Boolean(selectedAuthorFilter)) && !isMatch;
 
                               const isOverburnedInProgress = Boolean(!isNotAvailable && !isCompleted && (block.isOverburnedInProgress || hasOverburn));
-                              const plannedTotal = task.totalHours > 0 ? task.totalHours : (block.plannedChunkHours || 1);
+                              const plannedTotal = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : (block.plannedChunkHours || 1));
                               const rawOver = block.rawOverburnHours !== undefined ? block.rawOverburnHours : (task.worklogHours && task.worklogHours > plannedTotal ? Math.round((task.worklogHours - plannedTotal) * 100) / 100 : 0);
                               const overProgressPct = block.overburnProgressPercent || (rawOver > 0 && task.worklogHours ? Math.round((task.worklogHours / plannedTotal) * 100) : 0);
 
-                              const overburnPct = block.overburnPercent || (task.estimatedHours && (task.totalHours || task.worklogHours) ? Math.round((Math.max(task.totalHours || 0, task.worklogHours || 0) / task.estimatedHours) * 100) : 0);
+                              const overburnPct = block.overburnPercent || (task.estimatedHours && actualTaskHours > task.estimatedHours ? Math.round((actualTaskHours / task.estimatedHours) * 100) : 0);
                               const isExtremeOverburn = isOverburnedInProgress ? overProgressPct > 200 : overburnPct > 200;
                               const overburnBarColorClass = isExtremeOverburn ? 'bg-red-500' : 'bg-orange-500';
 
@@ -3432,28 +3485,18 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                         }}
                                         className="h-full shrink-0 overflow-hidden flex bg-zinc-800"
                                       >
-                                        {isCompletedTask ? (
+                                        <>
                                           <div
                                             style={{
+                                              width: `${fillPct}%`,
                                               borderTopLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : cardRadius),
                                               borderBottomLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : cardRadius),
-                                              borderTopRightRadius: isCutRight ? '0px' : cardRadius,
-                                              borderBottomRightRadius: isCutRight ? '0px' : cardRadius,
+                                              borderTopRightRadius: (fillPct >= 99 && isCutRight) ? '0px' : (fillPct >= 99 ? cardRadius : '0px'),
+                                              borderBottomRightRadius: (fillPct >= 99 && isCutRight) ? '0px' : (fillPct >= 99 ? cardRadius : '0px'),
                                             }}
-                                            className={`w-full h-full ${overburnBarColorClass}`}
+                                            className={`h-full ${overburnBarColorClass} shrink-0`}
                                           />
-                                        ) : (
-                                          <>
-                                            <div
-                                              style={{
-                                                width: `${fillPct}%`,
-                                                borderTopLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : cardRadius),
-                                                borderBottomLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : cardRadius),
-                                                borderTopRightRadius: (fillPct >= 99 && isCutRight) ? '0px' : cardRadius,
-                                                borderBottomRightRadius: (fillPct >= 99 && isCutRight) ? '0px' : cardRadius,
-                                              }}
-                                              className={`h-full ${overburnBarColorClass} shrink-0`}
-                                            />
+                                          {fillPct < 100 && (
                                             <div
                                               style={{
                                                 width: `${100 - fillPct}%`,
@@ -3462,8 +3505,8 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                               }}
                                               className="h-full bg-zinc-800 shrink-0"
                                             />
-                                          </>
-                                        )}
+                                          )}
+                                        </>
                                       </div>
                                     </div>
                                   ) : (
@@ -4303,7 +4346,9 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                           const isSolidBlock = !isNotAvailable;
 
                           const isCompletedTask = Boolean(isCompleted || task.isCompleted || task.isSolved);
-                          const actualTaskHours = isCompletedTask ? Math.max(task.totalHours || 0, task.worklogHours || 0) : (task.totalHours || 0);
+                          const actualTaskHours = isCompletedTask
+                            ? ((task.worklogHours && task.worklogHours > 0) ? task.worklogHours : (task.totalHours || 0))
+                            : (task.totalHours || 0);
                           const hasOverburn = Boolean(!isNotAvailable && (block.hasOverburnChunk || (block.overburnChunkHours && block.overburnChunkHours > 0) || (isCompletedTask && task.estimatedHours && actualTaskHours > task.estimatedHours)));
 
                           const isCutRight = Boolean(!isNotAvailable && isSplit && partIndex < totalParts);
@@ -4344,11 +4389,11 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                           const isMuted = (Boolean(searchQuery?.trim()) || Boolean(selectedAuthorFilter)) && !isMatch;
 
                           const isOverburnedInProgress = Boolean(!isNotAvailable && !isCompleted && (block.isOverburnedInProgress || hasOverburn));
-                          const plannedTotal = task.totalHours > 0 ? task.totalHours : (block.plannedChunkHours || 1);
+                          const plannedTotal = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : (block.plannedChunkHours || 1));
                           const rawOver = block.rawOverburnHours !== undefined ? block.rawOverburnHours : (task.worklogHours && task.worklogHours > plannedTotal ? Math.round((task.worklogHours - plannedTotal) * 100) / 100 : 0);
                           const overProgressPct = block.overburnProgressPercent || (rawOver > 0 && task.worklogHours ? Math.round((task.worklogHours / plannedTotal) * 100) : 0);
 
-                          const overburnPct = block.overburnPercent || (task.estimatedHours && (task.totalHours || task.worklogHours) ? Math.round((Math.max(task.totalHours || 0, task.worklogHours || 0) / task.estimatedHours) * 100) : 0);
+                          const overburnPct = block.overburnPercent || (task.estimatedHours && actualTaskHours > task.estimatedHours ? Math.round((actualTaskHours / task.estimatedHours) * 100) : 0);
                           const isExtremeOverburn = isOverburnedInProgress ? overProgressPct > 200 : overburnPct > 200;
                           const overburnBarColorClass = isExtremeOverburn ? 'bg-red-500' : 'bg-orange-500';
 
@@ -4433,28 +4478,18 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                     }}
                                     className="h-full shrink-0 overflow-hidden flex bg-zinc-800"
                                   >
-                                    {isCompletedTask ? (
+                                    <>
                                       <div
                                         style={{
+                                          width: `${fillPct}%`,
                                           borderTopLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : '8px'),
                                           borderBottomLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : '8px'),
-                                          borderTopRightRadius: isCutRight ? '0px' : '8px',
-                                          borderBottomRightRadius: isCutRight ? '0px' : '8px',
+                                          borderTopRightRadius: (fillPct >= 99 && isCutRight) ? '0px' : (fillPct >= 99 ? '8px' : '0px'),
+                                          borderBottomRightRadius: (fillPct >= 99 && isCutRight) ? '0px' : (fillPct >= 99 ? '8px' : '0px'),
                                         }}
-                                        className={`w-full h-full ${overburnBarColorClass}`}
+                                        className={`h-full ${overburnBarColorClass} shrink-0`}
                                       />
-                                    ) : (
-                                      <>
-                                        <div
-                                          style={{
-                                            width: `${fillPct}%`,
-                                            borderTopLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : '8px'),
-                                            borderBottomLeftRadius: plannedWidthPct > 0 ? '0px' : (isCutLeft ? '0px' : '8px'),
-                                            borderTopRightRadius: (fillPct >= 99 && isCutRight) ? '0px' : '8px',
-                                            borderBottomRightRadius: (fillPct >= 99 && isCutRight) ? '0px' : '8px',
-                                          }}
-                                          className={`h-full ${overburnBarColorClass} shrink-0`}
-                                        />
+                                      {fillPct < 100 && (
                                         <div
                                           style={{
                                             width: `${100 - fillPct}%`,
@@ -4463,8 +4498,8 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                                           }}
                                           className="h-full bg-zinc-800 shrink-0"
                                         />
-                                      </>
-                                    )}
+                                      )}
+                                    </>
                                   </div>
                                 </div>
                               ) : (
@@ -4796,7 +4831,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                   )}
                   {Boolean(!hoveredTask.block.isCompleted && hoveredTask.block.isOverburnedInProgress) && (() => {
                     const task = hoveredTask.block.task;
-                    const plan = task.totalHours > 0 ? task.totalHours : (task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : 1);
+                    const plan = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
                     const wl = task.worklogHours || 0;
                     const pct = hoveredTask.block.overburnProgressPercent || (plan > 0 && wl > plan ? Math.round((wl / plan) * 100) : 0);
                     return pct > 0 ? (
@@ -4813,7 +4848,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                   {Boolean(hoveredTask.block.isCompleted && (hoveredTask.block.overburnPercent || hoveredTask.block.hasOverburnChunk)) && (() => {
                     const task = hoveredTask.block.task;
                     const est = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
-                    const act = Math.max(task.totalHours || 0, task.worklogHours || 0);
+                    const act = (task.worklogHours && task.worklogHours > 0) ? task.worklogHours : (task.totalHours || 0);
                     const pct = hoveredTask.block.overburnPercent || (est > 0 && act > est ? Math.round((act / est) * 100) : 0);
                     return pct > 0 ? (
                       <span className={`font-normal ${pct > 200 ? 'text-red-400' : 'text-orange-400'}`}>
@@ -4864,20 +4899,28 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
               </div>
               {(() => {
                 const task = hoveredTask.block.task;
-                const targetTaskId = task.taskIdentifier || task.taskId;
-                const targetReqId = task.requirementId;
-
-                const cleanTargetTaskId = targetTaskId?.replace(/^[TR]/i, '');
-                const cleanTargetReqId = targetReqId?.replace(/^[TR]/i, '');
+                const rawTaskIdent = task.taskIdentifier || (typeof task.taskId === 'string' && task.taskId.toUpperCase().startsWith('T') ? task.taskId : '');
+                const hasTaskTCode = Boolean(rawTaskIdent && rawTaskIdent.toUpperCase().startsWith('T'));
+                const tTargetDigits = rawTaskIdent ? rawTaskIdent.replace(/\D/g, '') : '';
+                const reqTargetDigits = task.requirementId ? task.requirementId.replace(/\D/g, '') : '';
 
                 const matchedLogs = (worklogTimelineEntries || []).filter((w) => {
-                  if (targetTaskId && (w.taskId === targetTaskId || w.parentTaskId === targetTaskId)) return true;
-                  if (targetReqId && w.reqId === targetReqId) return true;
-                  if (cleanTargetTaskId) {
-                    if (w.taskId?.replace(/^[TR]/i, '') === cleanTargetTaskId) return true;
-                    if (w.parentTaskId?.replace(/^[TR]/i, '') === cleanTargetTaskId) return true;
+                  const wTaskDigits = (w.taskId || w.parentTaskId || '').replace(/\D/g, '');
+                  const wReqDigits = (w.reqId || '').replace(/\D/g, '');
+
+                  // 1. Pokud má úkol v plánu konkrétní kód T (např. T793024):
+                  if (hasTaskTCode && tTargetDigits) {
+                    // Párujeme VÝHRADNĚ na shodný kód T (nikdy ne podle R)
+                    return wTaskDigits === tTargetDigits;
                   }
-                  if (cleanTargetReqId && w.reqId?.replace(/^[TR]/i, '') === cleanTargetReqId) return true;
+
+                  // 2. Pokud úkol v plánu nemá kód T, ale má kód R:
+                  if (reqTargetDigits && !hasTaskTCode) {
+                    return wReqDigits === reqTargetDigits;
+                  }
+
+                  // Fallback přímé rovnosti pro případ nestandardních ID
+                  if (task.taskId && (w.taskId === task.taskId || w.parentTaskId === task.taskId)) return true;
                   return false;
                 });
 
@@ -5067,9 +5110,9 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 min-[1366px]:grid-cols-4 min-[1921px]:grid-cols-5 gap-2.5">
             {allOverflowTasks.map(({ task, remainingHours, partIndex, totalParts, originalTotalHours }) => {
-              const originalTotal = originalTotalHours || task.totalHours || remainingHours;
-              const scheduledHours = Math.max(0, originalTotal - remainingHours);
-              const remainingWorklog = Math.max(0, (task.worklogHours || 0) - scheduledHours);
+              const originalTotal = originalTotalHours || task.estimatedHours || task.totalHours || remainingHours;
+              const scheduledInWeek = Math.max(0, originalTotal - remainingHours);
+              const remainingWorklog = Math.max(0, Math.round(((task.worklogHours || 0) - scheduledInWeek) * 100) / 100);
               const authorMatch = isTaskMatchingAuthor(task.author, selectedAuthorFilter);
               const queryMatch = isTaskMatchingQuery(task, searchQuery || '');
               const isMatch = authorMatch && queryMatch;
@@ -5081,7 +5124,11 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                   className={isMuted ? 'pointer-events-none' : ''}
                 >
                   <TaskCard
-                    task={{ ...task, totalHours: remainingHours, worklogHours: remainingWorklog }}
+                    task={{
+                      ...task,
+                      totalHours: remainingHours,
+                      worklogHours: remainingWorklog,
+                    }}
                     onOpenTask={onOpenTask}
                     onOpenCodeLink={onOpenCodeLink}
                     getTaskManagerUrl={getTaskManagerUrl}
@@ -5196,9 +5243,9 @@ const TaskCircleProgress: React.FC<TaskCircleProgressProps> = ({ task, size = 32
 
   if (isDone) {
     const plan = estimatedHours > 0 ? estimatedHours : (totalHours > 0 ? totalHours : 1);
-    const actual = Math.max(totalHours || 0, worklogHours || 0) || plan;
+    const actual = (worklogHours && worklogHours > 0) ? worklogHours : (totalHours || plan);
     if (actual > plan) {
-      const overburnH = Math.round((actual - plan) * 10) / 10;
+      const overburnH = Math.round((actual - plan) * 100) / 100;
       const overburnPct = Math.round((actual / plan) * 100);
       const isExtreme = overburnPct > 200;
       strokeColor = isExtreme ? '#ef4444' : '#f97316';
@@ -5214,7 +5261,7 @@ const TaskCircleProgress: React.FC<TaskCircleProgressProps> = ({ task, size = 32
       title = `Dokončeno v plánu (${actual}h / ${plan}h)`;
     }
   } else {
-    const plan = totalHours > 0 ? totalHours : 1;
+    const plan = estimatedHours > 0 ? estimatedHours : (totalHours > 0 ? totalHours : 1);
     if (worklogHours <= 0) {
       strokeColor = '#3f3f46';
       textColor = '#71717a';
@@ -5222,14 +5269,14 @@ const TaskCircleProgress: React.FC<TaskCircleProgressProps> = ({ task, size = 32
       fillPercent = 0;
       title = 'Nezačato (0% odpracováno)';
     } else if (worklogHours > plan) {
-      const overburnH = Math.round((worklogHours - plan) * 10) / 10;
+      const overburnH = Math.round((worklogHours - plan) * 100) / 100;
       const overburnPct = Math.round((worklogHours / plan) * 100);
       const isExtreme = overburnPct > 200;
       strokeColor = isExtreme ? '#ef4444' : '#f97316';
       textColor = isExtreme ? '#f87171' : '#fb923c';
       label = `${overburnPct}%`;
       fillPercent = 100;
-      title = `Nad odhad: +${overburnH}h (${overburnPct}%) • zapsáno ${worklogHours}h (plán ${plan}h)`;
+      title = `Nad odhad: +${overburnH}h (${overburnPct}%) • zapsáno ${worklogHours}h (odhad ${plan}h)`;
     } else {
       const pct = Math.min(100, Math.max(1, Math.round((worklogHours / plan) * 100)));
       strokeColor = '#10b981';
@@ -5614,17 +5661,17 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
   if (isDoneTask) {
     const plan = estHours > 0 ? estHours : totHours;
-    const actual = Math.max(totHours, workHours);
+    const actual = (workHours && workHours > 0) ? workHours : totHours;
     if (plan > 0 && actual > plan) {
       hasTaskOverburn = true;
       planHours = plan;
       actualHours = actual;
     }
   } else {
-    if (estHours > 0 && Math.max(totHours, workHours) > estHours) {
+    if (estHours > 0 && (workHours > estHours || totHours > estHours)) {
       hasTaskOverburn = true;
       planHours = estHours;
-      actualHours = Math.max(totHours, workHours);
+      actualHours = (workHours && workHours > 0) ? workHours : totHours;
     } else if (totHours > 0 && workHours > totHours) {
       hasTaskOverburn = true;
       planHours = totHours;
@@ -5698,16 +5745,16 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
         {/* Hours & Circle Progress */}
         <div className="flex items-center gap-2 shrink-0">
-          {overflowSplitInfo && overflowSplitInfo.totalParts > 1 ? (
-            <span className={`font-mono text-xs font-bold ${isDoneTask ? 'text-emerald-300' : 'text-gray-300'}`}>
-              {task.totalHours}h z {overflowSplitInfo.originalTotalHours}h
-            </span>
-          ) : hasTaskOverburn ? (
+          {hasTaskOverburn ? (
             <span
               className={`font-mono text-xs font-bold ${isExtremeOverburn ? 'text-red-400' : 'text-orange-400'} flex items-center gap-1 shrink-0`}
               title={`Původní plán: ${planClean}h • Aktuální čas po přesahu: ${actualClean}h (+${overburnDiff}h)`}
             >
               <span>{actualClean}h/{planClean}h</span>
+            </span>
+          ) : overflowSplitInfo && overflowSplitInfo.totalParts > 1 ? (
+            <span className={`font-mono text-xs font-bold ${isDoneTask ? 'text-emerald-300' : 'text-gray-300'}`}>
+              {task.totalHours}h z {overflowSplitInfo.originalTotalHours}h
             </span>
           ) : (
             <span className={`font-mono text-xs font-bold ${isDoneTask ? 'text-emerald-300' : 'text-gray-300'}`}>
@@ -5719,7 +5766,10 @@ const TaskCard: React.FC<TaskCardProps> = ({
       </div>
       {/* Middle & Bottom: Title and Project / Codes close together */}
       <div className="flex flex-col gap-1 min-w-0">
-        <div className="text-xs font-semibold leading-snug line-clamp-2 text-white">
+        <div
+          className="text-xs font-semibold leading-snug truncate text-white"
+          title={task.customName || task.title}
+        >
           {task.customName || task.title}
         </div>
 
@@ -5769,7 +5819,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
             )}
           </div>
 
-          {(showAssignee || Boolean(overflowSplitInfo)) && (
+          {((showAssignee && task.userName) || (overflowSplitInfo && overflowSplitInfo.totalParts > 1)) && (
             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
               {overflowSplitInfo && overflowSplitInfo.totalParts > 1 && (
                 <span
@@ -5779,11 +5829,11 @@ const TaskCard: React.FC<TaskCardProps> = ({
                   {overflowSplitInfo.partIndex}/{overflowSplitInfo.totalParts}
                 </span>
               )}
-              {task.userName && (
+              {showAssignee && task.userName && (
                 <div
                   className={`w-8 h-8 rounded-full font-mono text-[11px] font-bold flex items-center justify-center text-center shadow-sm select-none shrink-0 -my-1 ${
                     isMe
-                      ? 'bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-400/40'
+                      ? 'bg-indigo-500/20 text-indigo-300'
                       : 'bg-white/[0.08] text-gray-300'
                   }`}
                   title={`Přiřazeno: ${formatUserDisplayName(task.userName, availablePersons)}${isMe ? ' (Vy)' : ''}`}

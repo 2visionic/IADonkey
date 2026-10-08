@@ -14,7 +14,7 @@ import { AppConfig, LauncherItem, ActionLogEntry } from '../src/types';
 import { getMagicGateAutoLoginUrl } from './magicGate';
 import { testGitHubConnection, startGitHubDeviceFlow, pollGitHubDeviceToken, getActiveGitHubToken } from './githubService';
 import { faviconService } from './faviconService';
-import { fetchInstanceSectionRepos, runMultiRepoClone, downloadInstanceCmsContent, normalizeInstanceCmsPath, MagicGateSectionRepo } from './magicGateService';
+import { fetchInstanceSectionRepos, runMultiRepoClone, downloadInstanceCmsContent, normalizeInstanceCmsPath, MagicGateSectionRepo, createGitAuthEnv, createGitOutputSanitizer, executeGitProcess } from './magicGateService';
 import { InstallerService } from './installerService';
 import { diagnosticsService } from './diagnosticsService';
 import { notificationService } from './notificationService';
@@ -1381,7 +1381,7 @@ function setupIpcHandlers() {
     const author =
       params.data?.author?.trim() ||
       config.feedback?.authorName?.trim() ||
-      config.userName?.trim() ||
+      (config as any).userName?.trim() ||
       undefined;
     const feedbackData = { ...params.data, author };
     const res = await feedbackService.createFeedback(targetFolder, feedbackData, params.screenshotBase64);
@@ -1461,8 +1461,9 @@ function setupIpcHandlers() {
             const imgType = types.find((t: string) => t.startsWith('image/'));
             if (imgType && typeof cItem.getType === 'function') {
               const blob = await cItem.getType(imgType);
-              if (blob && blob.size > 0) {
-                const arrBuf = await blob.arrayBuffer();
+              const anyBlob = blob as any;
+              if (anyBlob && anyBlob.size > 0) {
+                const arrBuf = await anyBlob.arrayBuffer();
                 const buf = Buffer.from(arrBuf);
                 const img = nativeImage.createFromBuffer(buf);
                 if (img && !img.isEmpty()) {
@@ -2171,95 +2172,81 @@ function setupIpcHandlers() {
 
     const githubToken = getActiveGitHubToken(config?.github);
 
-    return new Promise((resolve) => {
+    const sanitizeOutput = createGitOutputSanitizer(githubToken);
+
+    return new Promise(async (resolve) => {
       // Determine folder name from repository url
       const cleanUrl = repoUrl.trim().replace(/\.git$/i, '');
       const parts = cleanUrl.split(/[/\\\\]/);
       const repoName = parts[parts.length - 1] || 'repository';
       const targetPath = path.join(targetDir, repoName);
 
-      const authArgs: string[] = [];
-      if (githubToken) {
-        try {
-          const parsed = new URL(repoUrl);
-          if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
-            const basicAuth = Buffer.from(`x-access-token:${githubToken}`).toString('base64');
-            const origin = `${parsed.protocol}//${parsed.host}`;
-            authArgs.push('-c', `http.${origin}/.extraheader=AUTHORIZATION: basic ${basicAuth}`);
-          }
-        } catch {
-          // Omit if invalid URL or SSH
-        }
-      }
-
-      const args = [...authArgs, 'clone'];
-      if (recursive) {
-        args.push('--recursive');
-      }
-      args.push(repoUrl, targetPath);
-
-      const gitProcess = spawn('git', args, {
-        cwd: targetDir,
-        shell: false,
-        windowsHide: true,
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-      });
+      const { env: gitEnv, authArgs } = createGitAuthEnv(repoUrl, githubToken);
+      const args = [...authArgs, 'clone', repoUrl, targetPath];
 
       let stdout = '';
-      let stderr = '';
 
-      const sanitizeOutput = (text: string) => {
-        if (!text) return text;
-        let res = text;
-        if (githubToken) {
-          res = res.split(githubToken).join('[REDACTED]');
-          const basicAuth = Buffer.from(`x-access-token:${githubToken}`).toString('base64');
-          res = res.split(basicAuth).join('[REDACTED]');
-        }
-        return res;
-      };
-
-      gitProcess.stdout.on('data', (data) => {
-        stdout += data.toString();
+      const cloneRes = await executeGitProcess(args, {
+        cwd: targetDir,
+        env: gitEnv,
+        onLog: (line) => {
+          stdout += line;
+        },
+        sanitize: sanitizeOutput,
       });
 
-      gitProcess.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
+      if (!cloneRes.success) {
+        const combinedErr = cloneRes.output || cloneRes.error || 'Příkaz git clone selhal';
+        const isAlreadyExists =
+          /already exists and is not an empty directory/i.test(combinedErr) ||
+          /již existuje a není prázdná/i.test(combinedErr);
 
-      gitProcess.on('close', (code) => {
-        if (code === 0) {
-          resolve({ success: true, targetPath, output: sanitizeOutput(stdout) });
-        } else {
-          const combinedErr = stderr || stdout || `Příkaz git clone selhal s kódem ${code}`;
-          const isAlreadyExists =
-            /already exists and is not an empty directory/i.test(combinedErr) ||
-            /již existuje a není prázdná/i.test(combinedErr);
-
-          if (isAlreadyExists) {
-            resolve({
-              success: true,
-              targetPath,
-              alreadyExists: true,
-              output: `Repozitář již existuje v cílové složce.`,
-            });
-          } else {
-            resolve({
-              success: false,
-              targetPath,
-              error: sanitizeOutput(combinedErr),
-            });
+        if (isAlreadyExists) {
+          // If recursive is requested and .gitmodules exists, ensure submodules are updated even if directory exists
+          const gitmodulesPath = path.join(targetPath, '.gitmodules');
+          if (recursive && fs.existsSync(gitmodulesPath)) {
+            await executeGitProcess(['submodule', 'sync', '--recursive'], { cwd: targetPath, env: gitEnv, sanitize: sanitizeOutput });
+            await executeGitProcess(['submodule', 'update', '--init', '--recursive'], { cwd: targetPath, env: gitEnv, sanitize: sanitizeOutput });
           }
+          resolve({
+            success: true,
+            targetPath,
+            alreadyExists: true,
+            output: 'Repozitář již existuje v cílové složce.',
+          });
+          return;
         }
-      });
 
-      gitProcess.on('error', (err) => {
         resolve({
           success: false,
           targetPath,
-          error: sanitizeOutput(err.message) || 'Nepodařilo se spustit příkaz git. Ujistěte se, že máte Git nainstalovaný a v systémové cestě PATH.',
+          error: sanitizeOutput(combinedErr),
         });
-      });
+        return;
+      }
+
+      // If recursive is requested and .gitmodules exists, explicitly sync & update submodules
+      const gitmodulesPath = path.join(targetPath, '.gitmodules');
+      if (recursive && fs.existsSync(gitmodulesPath)) {
+        await executeGitProcess(['submodule', 'sync', '--recursive'], {
+          cwd: targetPath,
+          env: gitEnv,
+          onLog: (line) => {
+            stdout += `\n[Submoduly] ${line}`;
+          },
+          sanitize: sanitizeOutput,
+        });
+        await executeGitProcess(['submodule', 'update', '--init', '--recursive'], {
+          cwd: targetPath,
+          env: gitEnv,
+          onLog: (line) => {
+            stdout += `\n[Submoduly] ${line}`;
+          },
+          sanitize: sanitizeOutput,
+        });
+      }
+
+      resolve({ success: true, targetPath, output: sanitizeOutput(stdout) });
     });
   });
 
@@ -2591,10 +2578,11 @@ function setupIpcHandlers() {
     const config = store.getConfig();
     const targetDir = baseDir?.trim() || config.github?.defaultCloneDir?.trim();
     if (!targetDir || !fs.existsSync(targetDir)) {
-      return [];
+      return { repos: [], instanceSubRepos: {} };
     }
     try {
       const repoNames = new Set<string>();
+      const instanceSubRepos: Record<string, Array<{ name: string; path: string }>> = {};
 
       // 1. Direct subdirectories of targetDir (standard GitHub / git repositories)
       const entries = fs.readdirSync(targetDir, { withFileTypes: true });
@@ -2623,7 +2611,47 @@ function setupIpcHandlers() {
                 try {
                   const subEntries = fs.readdirSync(mgSubPath);
                   if (subEntries.length > 0) {
-                    repoNames.add(`magicgate/${mgEntry.name.toLowerCase()}`);
+                    const instKey = mgEntry.name.toLowerCase();
+                    repoNames.add(`magicgate/${instKey}`);
+
+                    // Detect section subrepositories
+                    const subList: Array<{ name: string; path: string }> = [];
+
+                    // 2a. Check repos.json first (written by multi repo clone)
+                    const reposJsonPath = path.join(mgSubPath, 'repos.json');
+                    if (fs.existsSync(reposJsonPath)) {
+                      try {
+                        const parsed = JSON.parse(fs.readFileSync(reposJsonPath, 'utf8'));
+                        if (Array.isArray(parsed)) {
+                          for (const r of parsed) {
+                            if (r.targetSubdir) {
+                              const sPath = path.join(mgSubPath, r.targetSubdir);
+                              if (fs.existsSync(sPath) && fs.statSync(sPath).isDirectory()) {
+                                subList.push({ name: r.targetSubdir, path: sPath });
+                              }
+                            }
+                          }
+                        }
+                      } catch {}
+                    }
+
+                    // 2b. Fallback: scan subdirectories containing .git if repos.json was missing or empty
+                    if (subList.length === 0) {
+                      const childEntries = fs.readdirSync(mgSubPath, { withFileTypes: true });
+                      for (const child of childEntries) {
+                        if (child.isDirectory() && !child.name.startsWith('.') && child.name !== 'node_modules') {
+                          const childPath = path.join(mgSubPath, child.name);
+                          const gitPath = path.join(childPath, '.git');
+                          if (fs.existsSync(gitPath)) {
+                            subList.push({ name: child.name, path: childPath });
+                          }
+                        }
+                      }
+                    }
+
+                    if (subList.length > 0) {
+                      instanceSubRepos[instKey] = subList;
+                    }
                   }
                 } catch {}
               }
@@ -2632,10 +2660,13 @@ function setupIpcHandlers() {
         } catch {}
       }
 
-      return Array.from(repoNames);
+      return {
+        repos: Array.from(repoNames),
+        instanceSubRepos,
+      };
     } catch (err) {
       console.warn('[Main] Error reading existing cloned repos:', err);
-      return [];
+      return { repos: [], instanceSubRepos: {} };
     }
   });
 

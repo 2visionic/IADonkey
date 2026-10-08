@@ -42,22 +42,6 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
     - Implementace servisy pro volání `https://frog.magicware.cz/api/v1/sub-requirements` a načítání uživatelů (`/api/v1/users`).
     - Spotlight dialog pro příkaz `/task` (název, závažnost, zkratka řešitele např. MCH, projekt).
 
-- [ ] **5. MagicGate: Oprava stahování packages při rekurzivním klonování repozitářů**
-  - **Popis**: Při rekurzivním klonování sekčních repozitářů v MagicGate (volba `--recursive`) se nestáhnou balíčky/packages (submoduly repozitáře).
-  - **Klíčové body k analýze a realizaci**:
-    - **Propagace autentizace do submodulů**: Při klonování s GitHub tokenem přes `-c http.${origin}/.extraheader=...` se autentizační hlavička v `git clone --recursive` nepředává automaticky do git submodulů klonovaných v subprocesech. Ověřit a doplnit explicitní `git submodule update --init --recursive` s předáním auth hlaviček pro všechny domény submodulů.
-    - **Konfigurace a flagy**: Doplnit konfiguraci pro submoduly (např. `submodule.recurse true` nebo předání do kontextu repozitáře).
-    - **NuGet / packages závislosti**: Prověřit, zda projekt nepoužívá specifické packages úložiště / NuGet balíčky, a zajistit jejich správné stažení po naklonování repozitáře.
-    - **Diagnostický log**: Rozšířit logování výstupu klonování v `GitCloneModal`, aby bylo zřetelně vidět volání a výsledek stahování jednotlivých submodulů a packages.
-
-- [ ] **6. MagicPlan: Oprava párování logů nesouvisejících s T a korekce výpočtu Overburnu**
-  - **Popis**: U požadavků dochází k chybné aplikaci výkazů práce (worklogů), které nesouvisí s konkrétním úkolem/bublinou (T), a následně k chybnému výpočtu přesahu (Overburnu).
-  - **Klíčové body k analýze a nápravě**:
-    - **Striktní vazba logů na úkol T**: Zajistit, aby se k úkolům v plánu párovaly pouze výkazy práce skutečně náležející danému úkolu (SubRequirement / T). Logy vykázané na úrovni celého požadavku (Requirement / R) nebo na jiná T nesmí zkreslovat odpracovaný čas konkrétního úkolu.
-    - **Přezkum párovacích pravidel v `magicPlanService.ts`**: Revize logiky párování podle názvu/kódu, aby nedocházelo k falešným shodám u úkolů bez explicitního kódu T nebo při pouhé shodě čísla R.
-    - **Korekce výpočtu Overburnu**: Přepočet vzorce a indikace přesahu – poměr skutečného worklogu vůči plánovanému odhadu (hodiny i procenta), zohlednění stavu úkolu (vyřešený / rozpracovaný / nepřekročený) a jednotný výpočet napříč denním, týdenním pohledem i přetékajícími úkoly.
-    - **Vizuální konzistence**: Ověřit zobrazování worklog baru, zobrazení poměru hodin (např. `2h/1h`) a barevného zvýraznění při extrémním přesahu (> 200 %).
-
 ---
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)

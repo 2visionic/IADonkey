@@ -1,6 +1,6 @@
 {
-  "version": "2.1.7",
-  "releaseNotes": "• Zpětná vazba & Notifikace: Striktní pravidla doručování – vývojář dostává upozornění na nové podněty, běžný uživatel na změny stavů jím zadaných podnětů.\n• Nastavení notifikací: Možnost kdykoliv vypnout a zapnout notifikace zpětné vazby v záložce Notifikace i Systém.\n• Ikony & Vizuál: Unikátní ikony pro chyby, nápady i vyřešené podněty. Odstraněny zbytečné bordery a dividery.\n• Vývojářský režim: Striktní respektování deaktivačního stavu bez vynucování přes běhové prostředí.\n• Přepínače & Mazání: Segmentovaný přepínač priorit a spolehlivé mazání podnětů.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.7/IADonkey-Setup-2.1.7.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.7/IADonkey-2.1.7.zip"
+  "version": "2.1.8",
+  "releaseNotes": "• MagicGate rekurzivní klonování: Ve výchozím stavu se pro instance stahují i všechny balíčky a submoduly (packages/*).\n• Větve repozitářů i balíčků: Automatický checkout aktivních větví pro sekční repozitáře i submoduly (odstraněn stav detached HEAD).\n• Rozpad repozitářů pro VS Code: V nabídce akcí (Shift+Enter) možnost otevřít přímo jednotlivé podsložky repozitářů sekcí, při jedné sekci se neotevírá prázdná nadřazená složka.\n• Spotlight info stránkování: Kompaktní mřížka 2×2 (4 položky na stránku) s navigací šipkami i tlačítky.\n• Úkoly & Vizuál: Vyčištěn border u kruhového indikátoru v kartách úkolů.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.8/IADonkey-Setup-2.1.8.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.8/IADonkey-2.1.8.zip"
 }

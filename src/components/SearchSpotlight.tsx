@@ -169,6 +169,8 @@ interface SearchSpotlightProps {
   snippets?: SnippetsConfig;
 }
 
+const INFO_ITEMS_PER_PAGE = 4; // 2x2 grid (2 columns x 2 rows)
+
 export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   items,
   mlogBaseUrl,
@@ -206,6 +208,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   const [selectedActionIndex, setSelectedActionIndex] = useState<number>(0);
   const [infoPage, setInfoPage] = useState<number>(0);
   const [existingClonedRepos, setExistingClonedRepos] = useState<Set<string>>(new Set());
+  const [instanceSubRepos, setInstanceSubRepos] = useState<Record<string, Array<{ name: string; path: string }>>>({});
   const [copiedInfoKey, setCopiedInfoKey] = useState<string | null>(null);
   const [savedQueryBeforeSubitems, setSavedQueryBeforeSubitems] = useState<string>('');
   const [savedIndexBeforeSubitems, setSavedIndexBeforeSubitems] = useState<number>(0);
@@ -470,7 +473,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   };
 
   const goToWizardStep = (targetIndex: number) => {
-    if (!wizardItem) return;
+    if (!wizardItem || !wizardItem.wizard) return;
     if (targetIndex < 0) {
       exitWizard();
       return;
@@ -624,6 +627,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
 
     setWizardError(null);
+    if (!wizardItem?.wizard) return;
     const updatedValues = { ...wizardValues, [currentWizardStep.id]: chosenValue };
     setWizardValues(updatedValues);
 
@@ -1159,9 +1163,16 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   // Fetch existing cloned repos for instant VS Code action availability
   const refreshExistingClonedRepos = () => {
     if (window.electronAPI?.getExistingClonedRepos) {
-      window.electronAPI.getExistingClonedRepos(defaultCloneDir).then((repos) => {
-        if (repos && Array.isArray(repos)) {
-          setExistingClonedRepos(new Set(repos.map((r) => r.toLowerCase())));
+      window.electronAPI.getExistingClonedRepos(defaultCloneDir).then((res: any) => {
+        if (Array.isArray(res)) {
+          setExistingClonedRepos(new Set(res.map((r: string) => r.toLowerCase())));
+        } else if (res && typeof res === 'object') {
+          if (Array.isArray(res.repos)) {
+            setExistingClonedRepos(new Set(res.repos.map((r: string) => r.toLowerCase())));
+          }
+          if (res.instanceSubRepos) {
+            setInstanceSubRepos(res.instanceSubRepos);
+          }
         }
       });
     }
@@ -1464,15 +1475,60 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       } else {
         // Not Android (MagicGate or regular web/backend repo) -> VS Code only
         if (vscodeEnabled) {
-          const hasVscodeAction = baseActions.some((a) => a.action === 'vscode');
-          if (!hasVscodeAction) {
-            baseActions.unshift({
-              name: isMagicGate ? 'Otevřít repozitáře ve VS Code' : 'Otevřít ve VS Code',
-              action: 'vscode',
-              location: localPath,
-              icon: 'code',
-              settings: 'vscode',
-            });
+          if (isMagicGate) {
+            // Remove any generic vscode actions to properly reconstruct with subrepositories
+            baseActions = baseActions.filter((a) => a.action !== 'vscode');
+
+            const folderName = getRepoFolderName(item)?.toLowerCase() || '';
+            const subRepos = instanceSubRepos[folderName] || [];
+
+            if (subRepos.length === 1) {
+              // Exactly 1 section repository -> directly open that repository instead of the parent folder
+              baseActions.unshift({
+                name: `Otevřít ${subRepos[0].name} ve VS Code`,
+                action: 'vscode',
+                location: subRepos[0].path,
+                icon: 'code',
+                settings: 'vscode',
+              });
+            } else if (subRepos.length > 1) {
+              // Multiple section repositories -> break down per repository + optional full instance
+              const vscodeActions: LauncherAction[] = subRepos.map((sub) => ({
+                name: `Otevřít ${sub.name} ve VS Code`,
+                action: 'vscode',
+                location: sub.path,
+                icon: 'code',
+                settings: 'vscode',
+              }));
+              vscodeActions.push({
+                name: 'Otevřít celou instanci ve VS Code',
+                action: 'vscode',
+                location: localPath,
+                icon: 'code',
+                settings: 'vscode',
+              });
+              baseActions.unshift(...vscodeActions);
+            } else {
+              // Fallback if subrepositories were not yet detected
+              baseActions.unshift({
+                name: 'Otevřít repozitáře ve VS Code',
+                action: 'vscode',
+                location: localPath,
+                icon: 'code',
+                settings: 'vscode',
+              });
+            }
+          } else {
+            const hasVscodeAction = baseActions.some((a) => a.action === 'vscode');
+            if (!hasVscodeAction) {
+              baseActions.unshift({
+                name: 'Otevřít ve VS Code',
+                action: 'vscode',
+                location: localPath,
+                icon: 'code',
+                settings: 'vscode',
+              });
+            }
           }
         }
       }
@@ -2618,7 +2674,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         repoName: parent.name,
         adminUrl: effectiveLocation,
         isInstanceMode: true,
-        initialRecursive: actionType === 'mgclonerecursive',
+        initialRecursive: true,
       });
       setTimeout(() => {
         window.electronAPI?.hideWindow?.();
@@ -2844,7 +2900,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     if (actionsParentItem) {
       const actionsList = getItemActions(actionsParentItem);
       const allInfoEntries = Object.entries(actionsParentItem.info || {});
-      const totalInfoPages = Math.ceil(allInfoEntries.length / 8);
+      const totalInfoPages = Math.ceil(allInfoEntries.length / INFO_ITEMS_PER_PAGE);
 
       if (e.key === 'ArrowRight') {
         if (totalInfoPages > 1) {
@@ -3350,7 +3406,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             }`}
           >
             {wizardItem
-              ? getWizardStepIcon(currentWizardStep, wizardItem.icon)
+              ? getWizardStepIcon(currentWizardStep || undefined, wizardItem.icon || undefined)
               : isPaletteMode
               ? 'palette'
               : isEasyClipMode
@@ -3759,7 +3815,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           <div className="px-4 py-1.5 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
               <span className="material-symbols-outlined text-purple-400 text-lg">
-                {getWizardStepIcon(currentWizardStep, wizardItem.icon)}
+                {getWizardStepIcon(currentWizardStep || undefined, wizardItem.icon || undefined)}
               </span>
               <span>{currentWizardStep?.title}</span>
               {currentWizardStep?.required ? (
@@ -3854,7 +3910,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-black/30 hover:bg-white/[0.06] text-gray-300 transition cursor-pointer min-w-0"
                       >
                         <span className="text-[11px] text-gray-400 truncate shrink-0 max-w-[45%] select-none font-medium flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[13px]">{getWizardStepIcon(st, wizardItem?.icon)}</span>
+                          <span className="material-symbols-outlined text-[13px]">{getWizardStepIcon(st, wizardItem?.icon || undefined)}</span>
                           <span>{st.title}</span>
                         </span>
                         <div className="flex items-center gap-1.5 truncate">
@@ -3938,7 +3994,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                             }}
                           >
                             <span className="material-symbols-outlined text-[20px]">
-                              {getWizardOptionIcon(currentWizardStep, opt)}
+                              {getWizardOptionIcon(currentWizardStep || undefined, opt)}
                             </span>
                           </div>
                         )}
@@ -4072,7 +4128,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               </div>
             ) : hasItemInfo(actionsParentItem) && (() => {
               const allInfoEntries = Object.entries(actionsParentItem.info!);
-              const ITEMS_PER_PAGE = 8;
+              const ITEMS_PER_PAGE = INFO_ITEMS_PER_PAGE;
               const totalPages = Math.ceil(allInfoEntries.length / ITEMS_PER_PAGE);
               const safePage = Math.min(infoPage, Math.max(0, totalPages - 1));
               const visibleEntries = allInfoEntries.slice(safePage * ITEMS_PER_PAGE, (safePage + 1) * ITEMS_PER_PAGE);

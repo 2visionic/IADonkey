@@ -72,8 +72,13 @@ declare global {
       openInAndroidStudio: (folderPath: string) => Promise<{ success: boolean; error?: string }>;
       selectAndroidStudioPath: (defaultPath?: string) => Promise<string | null>;
       detectAndroidStudioPath: () => Promise<string | null>;
-      isAndroidProject: (folderPath: string) => Promise<boolean>;
-      getExistingClonedRepos: (baseDir?: string) => Promise<string[]>;
+      getExistingClonedRepos: (baseDir?: string) => Promise<
+        | string[]
+        | {
+            repos: string[];
+            instanceSubRepos?: Record<string, Array<{ name: string; path: string }>>;
+          }
+      >;
       fetchInstanceRepos: (adminUrl: string) => Promise<{
         ok: boolean;
         repos: Array<{

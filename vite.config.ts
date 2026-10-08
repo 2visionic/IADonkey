@@ -4,6 +4,9 @@ import electron from 'vite-plugin-electron/simple'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  server: {
+    port: 5172, // <-- sem zadejte váš požadovaný port
+  },
   plugins: [
     react(),
     electron({

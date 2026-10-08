@@ -4,6 +4,14 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.8] - 9. 10. 2026
+### MagicGate rekurzivní klonování balíčků, větve submodulů, rozpad sekcí pro VS Code a kompaktní stránkování
+- **MagicGate – Rekurzivní klonování balíčků (submodulů)**: Ve výchozím stavu je pro instance MagicGate aktivováno rekurzivní stahování repozitářů včetně balíčků (`packages/*`). Odstraněn problém s chybějícími moduly při stažení nové instance.
+- **MagicGate – Automatický checkout větví repozitářů i balíčků**: Zajištěno, že hlavní repozitář sekce i všechny jeho submoduly z `.gitmodules` se po stažení automaticky přepnou na aktivní větve (přednostně větev instance jako `brenna`, případně `main`), namísto ponechání v odpojeném stavu (detached HEAD).
+- **MagicGate – Otevírání sekcí ve VS Code (rozpad na podsložky)**: Po stisku `Shift+Enter` (nabídka akcí položky) se u instancí s více repozitáři zobrazí přímý rozpad na jednotlivé sekce (`Otevřít <Sekce> ve VS Code`), u instancí s jedním repozitářem se přímo otevírá podsložka tohoto repozitáře namísto prázdné nadřazené složky.
+- **Spotlight – Kompaktní stránkování informací (2×2)**: Karta informací o položce ve Spotlightu nově stránkuje po 4 položkách v mřížce 2×2 namísto původních 8, což zajišťuje kompaktnější a přehlednější zobrazení.
+- **Úkoly & Zpětná vazba – Odstranění borderu u surface kruhu**: Vyčištěn border u kruhového indikátoru v kartách úkolů pro čistší Material 3 vizuál.
+
 ## [2.1.7] - 8. 10. 2026
 ### Notifikace zpětné vazby, striktní role vývojář/uživatel, přepínače v Nastavení a UI optimalizace
 - **Zpětná vazba – Striktní pravidla doručování notifikací**: Notifikace o nově založených podnětech chodí výhradně uživatelům v aktivním vývojářském režimu. Běžným uživatelům chodí pouze notifikace o změnách stavu jejich vlastních podnětů (rozpracováno, odloženo, vyřešeno ve verzi).
