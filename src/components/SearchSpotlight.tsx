@@ -70,13 +70,68 @@ export const FEEDBACK_WIZARD_DEFINITION: LauncherWizard = {
       id: 'screenshot',
       title: 'Snímek obrazovky ze schránky',
       placeholder: 'Vyberte snímek ze schránky nebo stiskněte Enter pro přeskočení...',
-      icon: 'image',
+      icon: 'photo_library',
       required: false,
       type: 'select',
       dynamicOption: 'clipboard',
       settings: 'screens',
     },
   ],
+};
+
+/**
+ * Resolves the icon for a wizard step applying fallback rules:
+ * 1) Explicit step icon
+ * 2) dynamicOption === 'clipboard' && settings === 'screens' -> 'photo_library'
+ * 3) any dynamicOption -> 'dynamic_form'
+ * 4) type === 'select' -> 'category'
+ * 5) type === 'text' (or fallback) -> 'edit'
+ */
+export const getWizardStepIcon = (step?: WizardStep, fallbackParentIcon?: string): string => {
+  if (step?.icon?.trim()) return step.icon.trim();
+
+  if (step?.dynamicOption === 'clipboard' && step?.settings === 'screens') {
+    return 'photo_library';
+  }
+
+  if (step?.dynamicOption) {
+    return 'dynamic_form';
+  }
+
+  if (step?.type === 'select') {
+    return 'category';
+  }
+
+  if (step?.type === 'text') {
+    return 'edit';
+  }
+
+  return fallbackParentIcon || 'edit';
+};
+
+/**
+ * Resolves the icon for a wizard step option applying fallback rules:
+ * 1) Explicit option icon
+ * 2) dynamicOption === 'clipboard' && settings === 'screens' -> 'image'
+ * 3) any dynamicOption -> 'cards_star'
+ * 4) type === 'select' -> 'cards_stack'
+ */
+export const getWizardOptionIcon = (step?: WizardStep, opt?: WizardOption): string => {
+  if (opt?.icon?.trim()) return opt.icon.trim();
+
+  if (step?.dynamicOption === 'clipboard' && step?.settings === 'screens') {
+    return 'image';
+  }
+
+  if (step?.dynamicOption) {
+    return 'cards_star';
+  }
+
+  if (step?.type === 'select') {
+    return 'cards_stack';
+  }
+
+  return 'check_circle';
 };
 
 type PaletteListItem =
@@ -3119,7 +3174,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             }`}
           >
             {wizardItem
-              ? currentWizardStep?.icon || wizardItem.icon || 'rate_review'
+              ? getWizardStepIcon(currentWizardStep, wizardItem.icon)
               : isPaletteMode
               ? 'palette'
               : isEasyClipMode
@@ -3528,7 +3583,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           <div className="px-4 py-1.5 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
               <span className="material-symbols-outlined text-purple-400 text-lg">
-                {currentWizardStep?.icon || 'edit'}
+                {getWizardStepIcon(currentWizardStep, wizardItem.icon)}
               </span>
               <span>{currentWizardStep?.title}</span>
               {currentWizardStep?.required ? (
@@ -3602,7 +3657,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                             }}
                           >
                             <span className="material-symbols-outlined text-[20px]">
-                              {opt.icon || 'check_circle'}
+                              {getWizardOptionIcon(currentWizardStep, opt)}
                             </span>
                           </div>
                         )}
@@ -3673,7 +3728,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                       if (matchedOpt) {
                         displayVal = matchedOpt.text;
                         badgeColor = matchedOpt.color;
-                        badgeIcon = matchedOpt.icon;
+                        badgeIcon = getWizardOptionIcon(st, matchedOpt);
                       } else {
                         displayVal = String(val ?? '—');
                       }
@@ -3682,8 +3737,19 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         displayVal = 'Snímek připojen';
                         const matchedOpt = wizardDynamicOptions.find((o) => o.value === val);
                         imagePreview = matchedOpt?.imagePreview || (val.startsWith('data:image') ? val : undefined);
+                        badgeIcon = matchedOpt ? getWizardOptionIcon(st, matchedOpt) : 'image';
                       } else {
                         displayVal = 'Bez snímku';
+                      }
+                    } else if (st.dynamicOption) {
+                      const matchedOpt = wizardDynamicOptions.find((o) => o.value === val);
+                      if (matchedOpt) {
+                        displayVal = matchedOpt.text;
+                        badgeColor = matchedOpt.color;
+                        badgeIcon = getWizardOptionIcon(st, matchedOpt);
+                      } else {
+                        displayVal = String(val ?? '—');
+                        badgeIcon = getWizardOptionIcon(st);
                       }
                     } else {
                       displayVal = val ? String(val) : '—';
@@ -3697,7 +3763,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-black/30 hover:bg-white/[0.06] text-gray-300 transition cursor-pointer min-w-0"
                       >
                         <span className="text-[11px] text-gray-400 truncate shrink-0 max-w-[45%] select-none font-medium flex items-center gap-1">
-                          {st.icon && <span className="material-symbols-outlined text-[13px]">{st.icon}</span>}
+                          <span className="material-symbols-outlined text-[13px]">{getWizardStepIcon(st, wizardItem?.icon)}</span>
                           <span>{st.title}</span>
                         </span>
                         <div className="flex items-center gap-1.5 truncate">
