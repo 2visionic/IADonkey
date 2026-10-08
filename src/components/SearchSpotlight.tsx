@@ -18,6 +18,7 @@ import {
   formatColorValue,
 } from '../utils/colorMaster';
 import { applyPrimaryColor, applyActionsColor } from '../utils/theme';
+import { isTaskForUser } from './MagicPlanWindow';
 
 export const FEEDBACK_WIZARD_DEFINITION: LauncherWizard = {
   action: 'createfeedback',
@@ -245,6 +246,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   const [isWizardLoadingDynamic, setIsWizardLoadingDynamic] = useState<boolean>(false);
   const [wizardError, setWizardError] = useState<string | null>(null);
   const [isSubmittingWizard, setIsSubmittingWizard] = useState<boolean>(false);
+  const [currentMagicPlanConfig, setCurrentMagicPlanConfig] = useState<MagicPlanSettings | undefined>(magicPlanConfig);
+
+  useEffect(() => {
+    if (magicPlanConfig) {
+      setCurrentMagicPlanConfig(magicPlanConfig);
+    }
+  }, [magicPlanConfig]);
 
   const isColorMasterActive = Boolean(donkeyToolsEnabled && colorMasterConfig?.enabled === true);
   const isQuickCapActive = Boolean(donkeyToolsEnabled && (quickCapConfig?.enabled === true || fastSnapConfig?.enabled === true));
@@ -901,11 +909,18 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
     });
 
+    const unsubConfig = window.electronAPI?.onConfigUpdated?.((newCfg: AppConfig) => {
+      if (newCfg?.magicplan) {
+        setCurrentMagicPlanConfig(newCfg.magicplan);
+      }
+    });
+
     return () => {
       unsubUpdated?.();
       unsubPalettes?.();
       unsubPlan?.();
       unsubMode?.();
+      unsubConfig?.();
     };
   }, []);
 
@@ -1914,7 +1929,17 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       const isTPrefix = cleanSearch.startsWith(tPref.toLowerCase()) || cleanSearch.startsWith('t');
       const isRPrefix = cleanSearch.startsWith(rPref.toLowerCase()) || cleanSearch.startsWith('r');
 
-      const allTasks = [...(magicPlanData.myTasks || []), ...(magicPlanData.unassignedTasks || [])];
+      const effectivePlanCfg = currentMagicPlanConfig || magicPlanConfig;
+      const currentUser = effectivePlanCfg?.currentUserColumn?.trim();
+      const showOnlyMyTasks = effectivePlanCfg?.showAllTasks !== undefined
+        ? !effectivePlanCfg.showAllTasks
+        : Boolean(currentUser);
+
+      const rawTasks = [...(magicPlanData.myTasks || []), ...(magicPlanData.unassignedTasks || [])];
+      const allTasks = (showOnlyMyTasks && currentUser)
+        ? rawTasks.filter((t) => isTaskForUser(t, currentUser, magicPlanData.availablePersons))
+        : rawTasks;
+
       const seenTaskIds = new Set<string>();
 
       const matchedTasks = allTasks.filter((t: PlanTaskItem) => {
@@ -2235,7 +2260,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
 
     return list;
-  }, [query, items, parentItem, searchGoogle, defaultSearchEngine, mlogBaseUrl, mlogTaskPrefix, mlogRequestPrefix, engineFavicons, magicPlanEnabled, magicPlanData, magicPlanConfig]);
+  }, [query, items, parentItem, searchGoogle, defaultSearchEngine, mlogBaseUrl, mlogTaskPrefix, mlogRequestPrefix, engineFavicons, magicPlanEnabled, magicPlanData, magicPlanConfig, currentMagicPlanConfig]);
 
   // Keep selected index within bounds or restore saved index when returning from subitems
   useEffect(() => {
