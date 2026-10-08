@@ -2141,8 +2141,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       banlist: [...banlist, newBanned],
     };
     setFormData(updated);
-    handleSave(updated);
-    onTriggerSync();
+    handleSave(updated, true);
   };
 
   const handleUnbanItem = (bannedItem: BannedItem) => {
@@ -2157,8 +2156,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       banlist: updatedBanlist,
     };
     setFormData(updated);
-    handleSave(updated);
-    onTriggerSync();
+    handleSave(updated, true);
   };
 
   const triggerInspectSource = async (targetSource?: DataSource) => {

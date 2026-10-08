@@ -1518,13 +1518,20 @@ function setupIpcHandlers() {
       JSON.stringify(newConfig.magicplan?.urls || []) !== JSON.stringify(oldConfig.magicplan?.urls || []) ||
       newConfig.magicplan?.url !== oldConfig.magicplan?.url;
 
+    const magicPlanOtherChanged =
+      newConfig.extensions?.magicplan !== oldConfig.extensions?.magicplan ||
+      newConfig.magicplan?.enabled !== oldConfig.magicplan?.enabled ||
+      newConfig.magicplan?.pollIntervalMinutes !== oldConfig.magicplan?.pollIntervalMinutes ||
+      newConfig.magicplan?.worklogUrl !== oldConfig.magicplan?.worklogUrl ||
+      newConfig.magicplan?.unassignedColumn !== oldConfig.magicplan?.unassignedColumn;
+
     if (magicPlanConfigChanged) {
       magicPlanService?.onUserColumnChanged(
         newConfig.magicplan?.userColumn,
         newConfig.magicplan?.userColumns,
         newConfig.magicplan?.urls
       );
-    } else {
+    } else if (magicPlanOtherChanged) {
       magicPlanService?.restart();
     }
 
