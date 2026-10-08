@@ -387,6 +387,17 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       try {
         const opts: WizardOption[] = [];
 
+        // 0. If not required, put "Nevybráno" as the FIRST option
+        if (!step.required) {
+          opts.push({
+            text: 'Nevybráno',
+            value: null,
+            icon: 'block',
+            color: '#9ca3af',
+            description: 'Pokračovat bez snímku obrazovky',
+          });
+        }
+
         // 1. Current clipboard image if any
         if (window.electronAPI?.getClipboardImage) {
           const currentImg = await window.electronAPI.getClipboardImage();
@@ -422,26 +433,15 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           }
         }
 
-        // 3. Skip option if not required
-        if (!step.required) {
-          opts.push({
-            text: 'Pokračovat bez snímku obrazovky',
-            value: null,
-            icon: 'skip_next',
-            color: '#6b7280',
-            description: 'Enter bez výběru pokračuje dál',
-          });
-        }
-
         setWizardDynamicOptions(opts);
       } catch (err) {
         console.error('Failed to load dynamic clipboard options:', err);
         setWizardDynamicOptions(!step.required ? [{
-          text: 'Pokračovat bez snímku obrazovky',
+          text: 'Nevybráno',
           value: null,
-          icon: 'skip_next',
-          color: '#6b7280',
-          description: 'Přeskočit',
+          icon: 'block',
+          color: '#9ca3af',
+          description: 'Pokračovat bez snímku obrazovky',
         }] : []);
       } finally {
         setIsWizardLoadingDynamic(false);
@@ -498,10 +498,32 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
   const currentWizardOptions = useMemo<WizardOption[]>(() => {
     if (!currentWizardStep) return [];
+    let baseOptions: WizardOption[] = [];
     if (currentWizardStep.dynamicOption) {
-      return wizardDynamicOptions;
+      baseOptions = wizardDynamicOptions;
+    } else {
+      baseOptions = currentWizardStep.options || [];
     }
-    return currentWizardStep.options || [];
+
+    if (!currentWizardStep.required && baseOptions.length > 0) {
+      const hasUnselected = baseOptions.some(
+        (o) => o.value === null || o.value === '' || o.value === undefined
+      );
+      if (!hasUnselected) {
+        const unselectedOpt: WizardOption = {
+          text: 'Nevybráno',
+          value: null,
+          icon: 'block',
+          color: '#9ca3af',
+          description: currentWizardStep.dynamicOption === 'clipboard'
+            ? 'Pokračovat bez snímku obrazovky'
+            : 'Pokračovat bez výběru',
+        };
+        return [unselectedOpt, ...baseOptions];
+      }
+    }
+
+    return baseOptions;
   }, [currentWizardStep, wizardDynamicOptions]);
 
   const isWizardSelectStep = Boolean(
@@ -2294,7 +2316,22 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     const container = listRef.current;
     if (!container) return;
 
-    if (actionsParentItem) {
+    if (wizardItem && isWizardSelectStep) {
+      if (wizardSelectedOptionIndex === 0) {
+        container.scrollTop = 0;
+        return;
+      }
+      const activeEl = container.querySelector<HTMLElement>('[data-wizard-selected="true"]');
+      if (activeEl) {
+        const containerRect = container.getBoundingClientRect();
+        const activeRect = activeEl.getBoundingClientRect();
+        if (activeRect.top < containerRect.top) {
+          container.scrollTop -= (containerRect.top - activeRect.top + 8);
+        } else if (activeRect.bottom > containerRect.bottom) {
+          container.scrollTop += (activeRect.bottom - containerRect.bottom + 8);
+        }
+      }
+    } else if (actionsParentItem) {
       if (selectedActionIndex === 0) {
         container.scrollTop = 0;
         return;
@@ -2340,7 +2377,16 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         }
       }
     }
-  }, [selectedIndex, selectedActionIndex, actionsParentItem, isEasyClipMode, easyClipSelectedIndex]);
+  }, [
+    selectedIndex,
+    selectedActionIndex,
+    actionsParentItem,
+    isEasyClipMode,
+    easyClipSelectedIndex,
+    wizardItem,
+    isWizardSelectStep,
+    wizardSelectedOptionIndex,
+  ]);
 
   // Smooth close helper - fades out in CSS before hiding native window
   const handleClose = () => {
@@ -3757,6 +3803,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                     return (
                       <div
                         key={`${opt.value}-${idx}`}
+                        data-wizard-selected={isSelected}
+                        data-selected={isSelected}
                         onClick={() => submitCurrentWizardStep(opt.value)}
                         className={`relative flex items-center px-3.5 py-2.5 rounded-2xl cursor-pointer transition-all duration-150 gap-3.5 overflow-hidden ${
                           isSelected
@@ -3864,6 +3912,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         displayVal = matchedOpt.text;
                         badgeColor = matchedOpt.color;
                         badgeIcon = getWizardOptionIcon(st, matchedOpt);
+                      } else if (val === null || val === '') {
+                        displayVal = 'Nevybráno';
+                        badgeColor = '#9ca3af';
+                        badgeIcon = 'block';
                       } else {
                         displayVal = String(val ?? '—');
                       }
@@ -3874,7 +3926,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         imagePreview = matchedOpt?.imagePreview || (val.startsWith('data:image') ? val : undefined);
                         badgeIcon = matchedOpt ? getWizardOptionIcon(st, matchedOpt) : 'image';
                       } else {
-                        displayVal = 'Bez snímku';
+                        displayVal = 'Nevybráno';
+                        badgeColor = '#9ca3af';
+                        badgeIcon = 'block';
                       }
                     } else if (st.dynamicOption) {
                       const matchedOpt = wizardDynamicOptions.find((o) => o.value === val);
