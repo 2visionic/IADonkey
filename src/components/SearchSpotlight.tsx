@@ -406,7 +406,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               text: 'Aktuální snímek ze schránky (Ctrl+V)',
               value: currentImg,
               icon: 'content_paste',
-              color: '#6366f1',
               imagePreview: currentImg,
               description: 'Právě zkopírovaný snímek obrazovky',
             });
@@ -425,7 +424,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 text: `Snímek obrazovky ${it.width && it.height ? `(${it.width}×${it.height})` : ''}`,
                 value: fullSource,
                 icon: 'image',
-                color: '#3b82f6',
                 imagePreview: it.dataUrl,
                 description: new Date(it.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
               });
@@ -3786,103 +3784,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
           {/* Main Step Interaction View */}
           <div ref={listRef} className="max-h-[360px] overflow-y-auto px-2 py-1 space-y-2 focus:outline-none relative">
-            {isWizardSelectStep ? (
-              <div className="space-y-1.5">
-                {isWizardLoadingDynamic ? (
-                  <div className="p-8 text-center text-sm text-gray-400 flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined animate-spin text-purple-400">progress_activity</span>
-                    <span>Načítám možnosti...</span>
-                  </div>
-                ) : filteredWizardOptions.length === 0 ? (
-                  <div className="p-6 text-center text-xs text-gray-400">
-                    Žádná možnost neodpovídá hledání.
-                  </div>
-                ) : (
-                  filteredWizardOptions.map((opt, idx) => {
-                    const isSelected = idx === wizardSelectedOptionIndex;
-                    return (
-                      <div
-                        key={`${opt.value}-${idx}`}
-                        data-wizard-selected={isSelected}
-                        data-selected={isSelected}
-                        onClick={() => submitCurrentWizardStep(opt.value)}
-                        className={`relative flex items-center px-3.5 py-2.5 rounded-2xl cursor-pointer transition-all duration-150 gap-3.5 overflow-hidden ${
-                          isSelected
-                            ? 'bg-purple-500/20 text-white shadow-sm'
-                            : 'hover:bg-white/[0.04] text-gray-300'
-                        }`}
-                      >
-                        {/* Left vertical indicator */}
-                        <div
-                          className={`w-[3px] h-7 rounded-full shrink-0 transition-all ${
-                            isSelected ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-50'
-                          }`}
-                          style={{
-                            backgroundColor: isSelected ? (opt.color || '#a855f7') : 'transparent',
-                          }}
-                        />
-
-                        {/* Icon or image preview */}
-                        {opt.imagePreview ? (
-                          <div className="w-12 h-9 rounded-lg bg-black/40 overflow-hidden flex items-center justify-center shrink-0 border border-white/10 shadow-sm">
-                            <img
-                              src={opt.imagePreview}
-                              alt={opt.text}
-                              className="max-h-full max-w-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div
-                            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                            style={{
-                              backgroundColor: opt.color ? `${opt.color}25` : 'rgba(255,255,255,0.06)',
-                              color: opt.color || '#a855f7',
-                            }}
-                          >
-                            <span className="material-symbols-outlined text-[20px]">
-                              {getWizardOptionIcon(currentWizardStep, opt)}
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-sm font-medium truncate ${isSelected ? 'text-white font-semibold' : 'text-gray-200'}`}>
-                              {opt.text}
-                            </span>
-                          </div>
-                          {opt.description && (
-                            <div className="text-xs text-gray-400 truncate">
-                              {opt.description}
-                            </div>
-                          )}
-                        </div>
-
-                        {isSelected && (
-                          <div className="flex items-center gap-1 text-[11px] font-medium text-purple-300 shrink-0">
-                            <kbd className="px-1.5 py-0.5 bg-white/[0.08] rounded-full font-mono text-[9px]">Enter</kbd>
-                            <span>Vybrat</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            ) : (
-              /* Text Input Guidance Card */
-              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
-                <div className="text-xs text-gray-300">
-                  {currentWizardStep?.placeholder || 'Zadejte požadovanou hodnotu přímo do vyhledávacího pole výše.'}
-                </div>
-                <div className="flex items-center gap-2 text-[11px] text-gray-400 font-mono">
-                  <span className="material-symbols-outlined text-sm text-purple-400">keyboard_return</span>
-                  <span>Stiskněte Enter pro přechod na další krok</span>
-                </div>
-              </div>
-            )}
-
-            {/* Information Preview Section ("Dosud zadané údaje") */}
+            {/* Information Preview Section ("Dosud zadané údaje") - shown at the top like MagicGate actions */}
             {wizardStepIndex > 0 && (
               <div className="p-3 rounded-2xl bg-white/[0.03] shadow-sm space-y-2">
                 <div className="flex items-center justify-between px-1">
@@ -3970,6 +3872,110 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {isWizardSelectStep ? (
+              <div className="space-y-1.5">
+                {isWizardLoadingDynamic ? (
+                  <div className="p-8 text-center text-sm text-gray-400 flex items-center justify-center gap-2">
+                    <span className="material-symbols-outlined animate-spin text-purple-400">progress_activity</span>
+                    <span>Načítám možnosti...</span>
+                  </div>
+                ) : filteredWizardOptions.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-gray-400">
+                    Žádná možnost neodpovídá hledání.
+                  </div>
+                ) : (
+                  filteredWizardOptions.map((opt, idx) => {
+                    const isSelected = idx === wizardSelectedOptionIndex;
+                    return (
+                      <div
+                        key={`${opt.value}-${idx}`}
+                        data-wizard-selected={isSelected}
+                        data-selected={isSelected}
+                        onClick={() => submitCurrentWizardStep(opt.value)}
+                        className={`relative flex items-center px-3.5 py-2.5 rounded-2xl cursor-pointer transition-all duration-150 gap-3.5 overflow-hidden ${
+                          isSelected
+                            ? 'bg-purple-500/20 text-white shadow-sm'
+                            : 'hover:bg-white/[0.04] text-gray-300'
+                        }`}
+                      >
+                        {/* Left vertical indicator */}
+                        <div
+                          className={`w-[3px] h-7 rounded-full shrink-0 transition-all ${
+                            isSelected
+                              ? currentWizardStep?.dynamicOption === 'clipboard' || !opt.color
+                                ? 'm3-actions-indicator opacity-100 scale-y-100'
+                                : 'opacity-100 scale-y-100'
+                              : 'opacity-0 scale-y-50'
+                          }`}
+                          style={{
+                            backgroundColor: isSelected
+                              ? currentWizardStep?.dynamicOption === 'clipboard' || !opt.color
+                                ? undefined
+                                : opt.color
+                              : 'transparent',
+                          }}
+                        />
+
+                        {/* Icon or image preview */}
+                        {opt.imagePreview ? (
+                          <div className="w-12 h-9 rounded-lg bg-black/40 overflow-hidden flex items-center justify-center shrink-0 border border-white/10 shadow-sm">
+                            <img
+                              src={opt.imagePreview}
+                              alt={opt.text}
+                              className="max-h-full max-w-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                            style={{
+                              backgroundColor: opt.color ? `${opt.color}25` : 'rgba(255,255,255,0.06)',
+                              color: opt.color || '#a855f7',
+                            }}
+                          >
+                            <span className="material-symbols-outlined text-[20px]">
+                              {getWizardOptionIcon(currentWizardStep, opt)}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium truncate ${isSelected ? 'text-white font-semibold' : 'text-gray-200'}`}>
+                              {opt.text}
+                            </span>
+                          </div>
+                          {opt.description && (
+                            <div className="text-xs text-gray-400 truncate">
+                              {opt.description}
+                            </div>
+                          )}
+                        </div>
+
+                        {isSelected && (
+                          <div className="flex items-center gap-1 text-[11px] font-medium text-purple-300 shrink-0">
+                            <kbd className="px-1.5 py-0.5 bg-white/[0.08] rounded-full font-mono text-[9px]">Enter</kbd>
+                            <span>Vybrat</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : (
+              /* Text Input Guidance Card */
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
+                <div className="text-xs text-gray-300">
+                  {currentWizardStep?.placeholder || 'Zadejte požadovanou hodnotu přímo do vyhledávacího pole výše.'}
+                </div>
+                <div className="flex items-center gap-2 text-[11px] text-gray-400 font-mono">
+                  <span className="material-symbols-outlined text-sm text-purple-400">keyboard_return</span>
+                  <span>Stiskněte Enter pro přechod na další krok</span>
                 </div>
               </div>
             )}
