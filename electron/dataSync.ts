@@ -434,6 +434,11 @@ export class DataSyncManager {
         ? raw.info
         : undefined;
 
+    const rawWizard =
+      raw.wizard && typeof raw.wizard === 'object' && Array.isArray(raw.wizard.steps)
+        ? raw.wizard
+        : undefined;
+
     return {
       id,
       name: String(getValue('name', raw.name || 'Položka bez názvu')),
@@ -447,6 +452,7 @@ export class DataSyncManager {
       options: subOptions,
       actions: rawActions && rawActions.length > 0 ? rawActions : undefined,
       info: rawInfo && Object.keys(rawInfo).length > 0 ? rawInfo : undefined,
+      wizard: rawWizard,
     };
   }
 

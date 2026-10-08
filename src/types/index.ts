@@ -6,6 +6,35 @@ export interface LauncherAction {
   settings?: 'git' | string | null;
 }
 
+export interface WizardOption {
+  text: string;
+  value: any;
+  icon?: string;
+  color?: string;
+  description?: string;
+  imagePreview?: string;
+}
+
+export type WizardDynamicOptionType = 'clipboard' | string;
+
+export interface WizardStep {
+  id: string;
+  title: string;
+  placeholder?: string;
+  icon?: string;
+  type?: 'text' | 'select';
+  required?: boolean;
+  options?: WizardOption[];
+  dynamicOption?: WizardDynamicOptionType;
+  settings?: 'screens' | 'images' | string;
+}
+
+export interface LauncherWizard {
+  action: 'createfeedback' | string;
+  openWindowAfter?: boolean;
+  steps: WizardStep[];
+}
+
 export interface LauncherItem {
   id?: string;
   name: string;
@@ -22,6 +51,7 @@ export interface LauncherItem {
   info?: Record<string, any>;
   colorPreview?: string;
   imagePreview?: string;
+  wizard?: LauncherWizard;
 }
 
 export type SourceType = 'file' | 'api' | 'static';

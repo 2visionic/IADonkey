@@ -11412,6 +11412,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="py-3 flex items-center justify-between">
                     <div>
+                      <span className="font-medium text-white">Průvodce a formuláře (Wizard / Stepper)</span>
+                      <p className="text-gray-400 text-xs mt-0.5">Spustí vícekrokový formulář (např. /feedback, /chyba, /napad) s navigací Enter (další krok), Esc (krok zpět) a výběrem možností šipkami.</p>
+                    </div>
+                    <kbd className="px-3 py-1 bg-white/10 rounded-full font-mono text-gray-200 font-semibold whitespace-nowrap">Enter / Esc</kbd>
+                  </div>
+
+                  <div className="py-3 flex items-center justify-between">
+                    <div>
                       <span className="font-medium text-white">Akce položky</span>
                       <p className="text-gray-400 text-xs mt-0.5">Zobrazí nabídku dostupných akcí položky (např. klonování repozitáře, otevření na GitHubu).</p>
                     </div>

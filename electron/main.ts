@@ -1377,7 +1377,13 @@ function setupIpcHandlers() {
   ipcMain.handle('feedback-create', async (_event, params: { folderPath?: string; data: any; screenshotBase64?: string }) => {
     const config = store.getConfig();
     const targetFolder = params?.folderPath || config.feedback?.sharedFolder || feedbackService.getDefaultFolderPath();
-    const res = await feedbackService.createFeedback(targetFolder, params.data, params.screenshotBase64);
+    const author =
+      params.data?.author?.trim() ||
+      config.feedback?.authorName?.trim() ||
+      config.userName?.trim() ||
+      undefined;
+    const feedbackData = { ...params.data, author };
+    const res = await feedbackService.createFeedback(targetFolder, feedbackData, params.screenshotBase64);
     if (res.success && res.item) {
       // Notifikace o založení se řídí pravidlem: pouze pro vývojáře, nikdy běžnému uživateli
       feedbackNotificationService.onFeedbackCreated(res.item);
@@ -1428,11 +1434,57 @@ function setupIpcHandlers() {
     return null;
   });
 
-  ipcMain.handle('feedback-get-clipboard-image', () => {
-    const img = (clipboard as any).readImage?.();
-    if (img && !img.isEmpty()) {
-      return img.toDataURL();
-    }
+  ipcMain.handle('feedback-get-clipboard-image', async () => {
+    // 1. Přímé nativní čtení z clipboardu
+    try {
+      const img = (clipboard as any).readImage?.();
+      if (img && !img.isEmpty()) {
+        const size = img.getSize();
+        if (size.width > 0 && size.height > 0) {
+          return img.toDataURL();
+        }
+      }
+    } catch {}
+
+    // 2. Moderní čtení přes ClipboardItem / Blob API
+    try {
+      if (typeof clipboard.read === 'function') {
+        const rawItems = clipboard.read();
+        const clipItems = rawItems instanceof Promise ? await rawItems : rawItems;
+        if (Array.isArray(clipItems)) {
+          for (const cItem of clipItems) {
+            const types: string[] = cItem?.types || [];
+            const imgType = types.find((t: string) => t.startsWith('image/'));
+            if (imgType && typeof cItem.getType === 'function') {
+              const blob = await cItem.getType(imgType);
+              if (blob && blob.size > 0) {
+                const arrBuf = await blob.arrayBuffer();
+                const buf = Buffer.from(arrBuf);
+                const img = nativeImage.createFromBuffer(buf);
+                if (img && !img.isEmpty()) {
+                  return img.toDataURL();
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch {}
+
+    // 3. Fallback na nejčerstvější snímek z EasyClipu (pokud vznikl před méně než 60s)
+    try {
+      const items = await easyClipService.getItems();
+      const topItem = items && items[0];
+      if (topItem && topItem.type === 'image' && topItem.filePath && fs.existsSync(topItem.filePath)) {
+        if (Date.now() - topItem.timestamp < 60000) {
+          const fileImg = nativeImage.createFromPath(topItem.filePath);
+          if (fileImg && !fileImg.isEmpty()) {
+            return fileImg.toDataURL();
+          }
+        }
+      }
+    } catch {}
+
     return null;
   });
 

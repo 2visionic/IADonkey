@@ -89,16 +89,22 @@ export class FeedbackService {
       let screenshotFilename: string | undefined;
       let hasScreenshot = false;
 
-      // Uložení screenshotu (pokud byl předán)
-      if (screenshotBase64 && screenshotBase64.length > 50) {
-        const cleanBase64 = screenshotBase64.replace(/^data:image\/\w+;base64,/, '');
+      // Uložení screenshotu (pokud byl předán jako base64 nebo cesta k souboru)
+      if (screenshotBase64 && screenshotBase64.length > 5) {
         screenshotFilename = `${id}.png`;
         const ssPath = path.join(targetFolder, screenshotFilename);
         const ssTmpPath = `${ssPath}.tmp`;
 
-        await fs.promises.writeFile(ssTmpPath, Buffer.from(cleanBase64, 'base64'));
-        await fs.promises.rename(ssTmpPath, ssPath);
-        hasScreenshot = true;
+        if (!screenshotBase64.startsWith('data:') && fs.existsSync(screenshotBase64)) {
+          await fs.promises.copyFile(screenshotBase64, ssTmpPath);
+          await fs.promises.rename(ssTmpPath, ssPath);
+          hasScreenshot = true;
+        } else if (screenshotBase64.startsWith('data:') || screenshotBase64.length > 50) {
+          const cleanBase64 = screenshotBase64.replace(/^data:image\/\w+;base64,/, '');
+          await fs.promises.writeFile(ssTmpPath, Buffer.from(cleanBase64, 'base64'));
+          await fs.promises.rename(ssTmpPath, ssPath);
+          hasScreenshot = true;
+        }
       }
 
       const item: FeedbackItem = {
@@ -156,17 +162,24 @@ export class FeedbackService {
         updatedAt: nowIso,
       };
 
-      // Nový screenshot, pokud byl přiložen
-      if (newScreenshotBase64 && newScreenshotBase64.length > 50) {
-        const cleanBase64 = newScreenshotBase64.replace(/^data:image\/\w+;base64,/, '');
+      // Nový screenshot, pokud byl přiložen (base64 nebo cesta k souboru)
+      if (newScreenshotBase64 && newScreenshotBase64.length > 5) {
         const screenshotFilename = `${item.id}.png`;
         const ssPath = path.join(targetFolder, screenshotFilename);
         const ssTmpPath = `${ssPath}.tmp`;
 
-        await fs.promises.writeFile(ssTmpPath, Buffer.from(cleanBase64, 'base64'));
-        await fs.promises.rename(ssTmpPath, ssPath);
-        updatedItem.screenshotFilename = screenshotFilename;
-        updatedItem.hasScreenshot = true;
+        if (!newScreenshotBase64.startsWith('data:') && fs.existsSync(newScreenshotBase64)) {
+          await fs.promises.copyFile(newScreenshotBase64, ssTmpPath);
+          await fs.promises.rename(ssTmpPath, ssPath);
+          updatedItem.screenshotFilename = screenshotFilename;
+          updatedItem.hasScreenshot = true;
+        } else if (newScreenshotBase64.startsWith('data:') || newScreenshotBase64.length > 50) {
+          const cleanBase64 = newScreenshotBase64.replace(/^data:image\/\w+;base64,/, '');
+          await fs.promises.writeFile(ssTmpPath, Buffer.from(cleanBase64, 'base64'));
+          await fs.promises.rename(ssTmpPath, ssPath);
+          updatedItem.screenshotFilename = screenshotFilename;
+          updatedItem.hasScreenshot = true;
+        }
       }
 
       // Atomický zápis aktualizovaného JSONu

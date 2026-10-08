@@ -362,6 +362,14 @@ export const DataSourcesGuideModal: React.FC<DataSourcesGuideModalProps> = ({
                     </div>
                   </div>
 
+                  {/* wizard */}
+                  <div className="p-3 grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <div className="font-mono text-indigo-300 font-semibold">wizard</div>
+                    <div className="md:col-span-3 text-gray-300 leading-relaxed">
+                      <span className="text-white font-medium">Definice vícekrokového průvodce (Stepper)</span> (<code className="font-mono text-gray-200">&#123; "action": "createfeedback", "steps": [...] &#125;</code>). Po výběru položky se spustí formulářový průvodce s kroky (textový vstup, výběrový seznam <code className="font-mono text-gray-200">options</code> nebo dynamické možnosti <code className="font-mono text-gray-200">dynamicOption: "clipboard"</code>), validací a následným spuštěním navázané akce.
+                    </div>
+                  </div>
+
                 </div>
               </div>
             </div>

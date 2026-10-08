@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DISPLAY_APP_VERSION, IS_DEV } from '../changelog';
-import { LauncherItem, LauncherAction, SyncProgress, SnippetsConfig, ColorMasterSettings, QuickCapSettings, FastSnapSettings, ScreenRulerSettings, EasyClipSettings, EasyClipItem, ColorPalette, AppConfig, MagicPlanSettings, MagicPlanData, PlanTaskItem } from '../types';
+import { LauncherItem, LauncherAction, SyncProgress, SnippetsConfig, ColorMasterSettings, QuickCapSettings, FastSnapSettings, ScreenRulerSettings, EasyClipSettings, EasyClipItem, ColorPalette, AppConfig, MagicPlanSettings, MagicPlanData, PlanTaskItem, LauncherWizard, WizardStep, WizardOption } from '../types';
 import { MaterialIcon } from './MaterialIcon';
 import { evaluateExpression } from '../utils/calculator';
 import { detectUrl } from '../utils/urlHelper';
@@ -18,6 +18,66 @@ import {
   formatColorValue,
 } from '../utils/colorMaster';
 import { applyPrimaryColor, applyActionsColor } from '../utils/theme';
+
+export const FEEDBACK_WIZARD_DEFINITION: LauncherWizard = {
+  action: 'createfeedback',
+  openWindowAfter: true,
+  steps: [
+    {
+      id: 'title',
+      title: 'Název podnětu',
+      placeholder: 'Zadejte stručný a výstižný název...',
+      icon: 'edit',
+      required: true,
+      type: 'text',
+    },
+    {
+      id: 'type',
+      title: 'Typ podnětu',
+      placeholder: 'Vyberte typ podnětu (šipky ↑/↓ a Enter)...',
+      icon: 'category',
+      required: true,
+      type: 'select',
+      options: [
+        { text: 'Chyba / Problém', value: 'bug', icon: 'bug_report', color: '#ef4444', description: 'Něco nefunguje správně nebo spadlo' },
+        { text: 'Námět / Vylepšení', value: 'idea', icon: 'lightbulb', color: '#f59e0b', description: 'Návrh na novou funkci nebo zlepšení' },
+        { text: 'Jiné / Dotaz', value: 'other', icon: 'help_outline', color: '#6b7280', description: 'Obecný dotaz nebo připomínka' },
+      ],
+    },
+    {
+      id: 'priority',
+      title: 'Priorita',
+      placeholder: 'Zvolte prioritu podnětu...',
+      icon: 'flag',
+      required: true,
+      type: 'select',
+      options: [
+        { text: 'Nízká', value: 'low', icon: 'arrow_downward', color: '#10b981', description: 'Drobnost, nespěchá' },
+        { text: 'Normální', value: 'normal', icon: 'remove', color: '#3b82f6', description: 'Standardní priorita pro řešení' },
+        { text: 'Vysoká', value: 'high', icon: 'arrow_upward', color: '#f97316', description: 'Významná překážka v práci' },
+        { text: 'Kritická', value: 'critical', icon: 'priority_high', color: '#ef4444', description: 'Blokující problém, nelze pokračovat' },
+      ],
+    },
+    {
+      id: 'description',
+      title: 'Podrobný popis',
+      placeholder: 'Zadejte detailnější popis (Enter pro přeskočení)...',
+      icon: 'description',
+      required: false,
+      type: 'text',
+    },
+    {
+      id: 'screenshot',
+      title: 'Snímek obrazovky ze schránky',
+      placeholder: 'Vyberte snímek ze schránky nebo stiskněte Enter pro přeskočení...',
+      icon: 'image',
+      required: false,
+      type: 'select',
+      dynamicOption: 'clipboard',
+      settings: 'screens',
+    },
+  ],
+};
 
 type PaletteListItem =
   | { type: 'add' }
@@ -121,6 +181,16 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   const [magicPlanData, setMagicPlanData] = useState<MagicPlanData | null>(null);
   const [isOpeningMagicPlan, setIsOpeningMagicPlan] = useState(false);
 
+  // Wizard (Stepper) states
+  const [wizardItem, setWizardItem] = useState<LauncherItem | null>(null);
+  const [wizardStepIndex, setWizardStepIndex] = useState<number>(0);
+  const [wizardValues, setWizardValues] = useState<Record<string, any>>({});
+  const [wizardSelectedOptionIndex, setWizardSelectedOptionIndex] = useState<number>(0);
+  const [wizardDynamicOptions, setWizardDynamicOptions] = useState<WizardOption[]>([]);
+  const [isWizardLoadingDynamic, setIsWizardLoadingDynamic] = useState<boolean>(false);
+  const [wizardError, setWizardError] = useState<string | null>(null);
+  const [isSubmittingWizard, setIsSubmittingWizard] = useState<boolean>(false);
+
   const isColorMasterActive = Boolean(donkeyToolsEnabled && colorMasterConfig?.enabled === true);
   const isQuickCapActive = Boolean(donkeyToolsEnabled && (quickCapConfig?.enabled === true || fastSnapConfig?.enabled === true));
   const isScreenRulerActive = Boolean(donkeyToolsEnabled && screenRulerConfig?.enabled === true);
@@ -214,6 +284,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     setActionsParentItem(null);
     setIsEasyClipMode(false);
     setIsPaletteMode(false);
+    setWizardItem(null);
+    setWizardStepIndex(0);
+    setWizardValues({});
+    setWizardSelectedOptionIndex(0);
+    setWizardDynamicOptions([]);
+    setWizardError(null);
+    setIsSubmittingWizard(false);
     setQuery('');
     setSelectedIndex(0);
     setEasyClipSelectedIndex(0);
@@ -221,6 +298,270 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     savedParentItemRef.current = null;
     restoringIndexRef.current = null;
     isEyedropperRef.current = false;
+  };
+
+  const exitWizard = () => {
+    setIsDonkeyToolsOpen(false);
+    setWizardItem(null);
+    setWizardStepIndex(0);
+    setWizardValues({});
+    setWizardSelectedOptionIndex(0);
+    setWizardDynamicOptions([]);
+    setWizardError(null);
+    setIsSubmittingWizard(false);
+    setQuery('');
+    setSelectedIndex(0);
+    setIsRevealed(true);
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+  };
+
+  const loadStepDynamicOptions = async (step?: WizardStep) => {
+    if (!step) return;
+    if (step.dynamicOption === 'clipboard') {
+      setIsWizardLoadingDynamic(true);
+      try {
+        const opts: WizardOption[] = [];
+
+        // 1. Current clipboard image if any
+        if (window.electronAPI?.getClipboardImage) {
+          const currentImg = await window.electronAPI.getClipboardImage();
+          if (currentImg && currentImg.startsWith('data:image')) {
+            opts.push({
+              text: 'Aktuální snímek ze schránky (Ctrl+V)',
+              value: currentImg,
+              icon: 'content_paste',
+              color: '#6366f1',
+              imagePreview: currentImg,
+              description: 'Právě zkopírovaný snímek obrazovky',
+            });
+          }
+        }
+
+        // 2. EasyClip history images
+        if (window.electronAPI?.getEasyClipItems) {
+          const easyClipItems = await window.electronAPI.getEasyClipItems();
+          if (Array.isArray(easyClipItems)) {
+            const imageItems = easyClipItems.filter((it) => it && it.type === 'image' && (it.filePath || it.dataUrl));
+            imageItems.slice(0, 10).forEach((it) => {
+              const fullSource = it.filePath || it.dataUrl;
+              if (opts.some((o) => o.value === fullSource || (it.dataUrl && o.value === it.dataUrl))) return;
+              opts.push({
+                text: `Snímek obrazovky ${it.width && it.height ? `(${it.width}×${it.height})` : ''}`,
+                value: fullSource,
+                icon: 'image',
+                color: '#3b82f6',
+                imagePreview: it.dataUrl,
+                description: new Date(it.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              });
+            });
+          }
+        }
+
+        // 3. Skip option if not required
+        if (!step.required) {
+          opts.push({
+            text: 'Pokračovat bez snímku obrazovky',
+            value: null,
+            icon: 'skip_next',
+            color: '#6b7280',
+            description: 'Enter bez výběru pokračuje dál',
+          });
+        }
+
+        setWizardDynamicOptions(opts);
+      } catch (err) {
+        console.error('Failed to load dynamic clipboard options:', err);
+        setWizardDynamicOptions(!step.required ? [{
+          text: 'Pokračovat bez snímku obrazovky',
+          value: null,
+          icon: 'skip_next',
+          color: '#6b7280',
+          description: 'Přeskočit',
+        }] : []);
+      } finally {
+        setIsWizardLoadingDynamic(false);
+      }
+    } else {
+      setWizardDynamicOptions([]);
+    }
+  };
+
+  const startWizard = async (item: LauncherItem) => {
+    if (!item?.wizard || !Array.isArray(item.wizard.steps) || item.wizard.steps.length === 0) return;
+    setIsDonkeyToolsOpen(false);
+    setActionsParentItem(null);
+    setParentItem(null);
+    setIsEasyClipMode(false);
+    setIsPaletteMode(false);
+    setWizardItem(item);
+    setWizardStepIndex(0);
+    setWizardValues({});
+    setWizardSelectedOptionIndex(0);
+    setWizardError(null);
+    setIsSubmittingWizard(false);
+    setQuery('');
+    loadStepDynamicOptions(item.wizard.steps[0]);
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+  };
+
+  const goToWizardStep = (targetIndex: number) => {
+    if (!wizardItem) return;
+    if (targetIndex < 0) {
+      exitWizard();
+      return;
+    }
+    if (targetIndex >= wizardItem.wizard.steps.length) return;
+    setWizardStepIndex(targetIndex);
+    const targetStep = wizardItem.wizard.steps[targetIndex];
+    const existingVal = wizardValues[targetStep.id];
+    if (typeof existingVal === 'string' && (!targetStep.options && !targetStep.dynamicOption)) {
+      setQuery(existingVal);
+    } else {
+      setQuery('');
+    }
+    setWizardSelectedOptionIndex(0);
+    setWizardError(null);
+    loadStepDynamicOptions(targetStep);
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+  };
+
+  const currentWizardStep = wizardItem?.wizard?.steps?.[wizardStepIndex] || null;
+
+  const currentWizardOptions = useMemo<WizardOption[]>(() => {
+    if (!currentWizardStep) return [];
+    if (currentWizardStep.dynamicOption) {
+      return wizardDynamicOptions;
+    }
+    return currentWizardStep.options || [];
+  }, [currentWizardStep, wizardDynamicOptions]);
+
+  const isWizardSelectStep = Boolean(
+    currentWizardStep &&
+    (currentWizardStep.type === 'select' ||
+      (currentWizardOptions && currentWizardOptions.length > 0) ||
+      Boolean(currentWizardStep.dynamicOption))
+  );
+
+  const filteredWizardOptions = useMemo<WizardOption[]>(() => {
+    if (!currentWizardStep || !isWizardSelectStep) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return currentWizardOptions;
+    const normQ = removeDiacritics(q);
+    return currentWizardOptions.filter((opt) => {
+      const normText = removeDiacritics(opt.text.toLowerCase());
+      const normDesc = opt.description ? removeDiacritics(opt.description.toLowerCase()) : '';
+      return normText.includes(normQ) || normDesc.includes(normQ);
+    });
+  }, [currentWizardStep, isWizardSelectStep, currentWizardOptions, query]);
+
+  const executeWizardAction = async (wizard: LauncherWizard, values: Record<string, any>) => {
+    setIsSubmittingWizard(true);
+    try {
+      if (wizard.action === 'createfeedback') {
+        const title = values.title || 'Nový podnět';
+        const type = values.type || 'bug';
+        const priority = values.priority || 'normal';
+        const description = values.description || '';
+        const screenshotBase64 = values.screenshot || undefined;
+
+        if (window.electronAPI?.createFeedback) {
+          const res = await window.electronAPI.createFeedback({
+            data: {
+              title,
+              type,
+              priority,
+              description,
+            },
+            screenshotBase64,
+          });
+
+          if (res?.success) {
+            window.electronAPI?.logAction?.({
+              type: 'action',
+              title: `Vytvořen feedback: ${title}`,
+              details: `Typ: ${type}, Priorita: ${priority}`,
+              status: 'success',
+            });
+          }
+        }
+
+        exitWizard();
+        setIsRevealed(false);
+        await window.electronAPI?.resetAndHideSpotlight?.();
+
+        if (wizard.openWindowAfter && window.electronAPI?.openFeedbackWindow) {
+          await window.electronAPI.openFeedbackWindow('user');
+        }
+      } else {
+        console.warn('Neznámá akce wizardu:', wizard.action, values);
+        exitWizard();
+        setIsRevealed(false);
+        await window.electronAPI?.resetAndHideSpotlight?.();
+      }
+    } catch (err) {
+      console.error('Chyba při provádění akce wizardu:', err);
+      setWizardError('Chyba při ukládání: ' + String(err));
+    } finally {
+      setIsSubmittingWizard(false);
+    }
+  };
+
+  const submitCurrentWizardStep = async (explicitValue?: any) => {
+    if (!wizardItem || !currentWizardStep) return;
+
+    let chosenValue = explicitValue;
+
+    if (chosenValue === undefined) {
+      if (isWizardSelectStep) {
+        const option = filteredWizardOptions[wizardSelectedOptionIndex] || filteredWizardOptions[0];
+        if (option) {
+          chosenValue = option.value;
+        } else if (!currentWizardStep.required) {
+          chosenValue = null;
+        } else {
+          setWizardError('Vyberte prosím jednu z nabízených možností.');
+          return;
+        }
+      } else {
+        const textVal = query.trim();
+        if (currentWizardStep.required && !textVal) {
+          setWizardError('Tento údaj je povinný, prosím vyplňte jej.');
+          return;
+        }
+        chosenValue = textVal || null;
+      }
+    }
+
+    setWizardError(null);
+    const updatedValues = { ...wizardValues, [currentWizardStep.id]: chosenValue };
+    setWizardValues(updatedValues);
+
+    const isLastStep = wizardStepIndex >= wizardItem.wizard.steps.length - 1;
+
+    if (isLastStep) {
+      await executeWizardAction(wizardItem.wizard, updatedValues);
+    } else {
+      const nextIdx = wizardStepIndex + 1;
+      setWizardStepIndex(nextIdx);
+      const nextStep = wizardItem.wizard.steps[nextIdx];
+      const existingVal = updatedValues[nextStep.id];
+      if (typeof existingVal === 'string' && (!nextStep.options && !nextStep.dynamicOption)) {
+        setQuery(existingVal);
+      } else {
+        setQuery('');
+      }
+      setWizardSelectedOptionIndex(0);
+      loadStepDynamicOptions(nextStep);
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+    }
   };
 
   const enterEasyClip = async () => {
@@ -1231,12 +1572,20 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         feedbackCommands.push({
           id: 'feedback-user-command',
           name: 'Zpětná vazba a nápady',
-          location: 'Zadání podnětu, návrhu na vylepšení či nahlášení chyby',
-          action: 'feedback-user',
+          location: 'Spustit průvodce vytvořením podnětu (vícekrokový režim)',
+          action: 'feedback-wizard',
           icon: 'rate_review',
           priority: -1.1,
           sourceId: 'feedback',
           shortcuts: fbUserShortcuts,
+          wizard: FEEDBACK_WIZARD_DEFINITION,
+          actions: [
+            {
+              name: 'Otevřít přehled zpětné vazby',
+              action: 'feedback-user',
+              icon: 'open_in_new',
+            },
+          ],
         });
       }
 
@@ -1627,6 +1976,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           icon: 'rate_review',
           priority: -0.95,
           sourceId: 'feedback',
+          shortcuts: ['/feedback', '/chyba', '/napad'],
         });
       }
     }
@@ -1832,6 +2182,11 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       details: `Akce: ${item.action || 'open'}, cíl: ${isCalculator ? item.name : (item.location || item.name)}`,
       status: 'info',
     });
+
+    if (item.wizard && Array.isArray(item.wizard.steps) && item.wizard.steps.length > 0) {
+      startWizard(item);
+      return;
+    }
 
     if (item.action === 'pick-color') {
       await handlePickColor();
@@ -2197,6 +2552,61 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // 0. If in wizard mode
+    if (wizardItem && currentWizardStep) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (wizardStepIndex > 0) {
+          goToWizardStep(wizardStepIndex - 1);
+        } else {
+          exitWizard();
+        }
+        return;
+      }
+
+      if (e.key === 'Backspace' && query === '' && wizardStepIndex > 0) {
+        e.preventDefault();
+        goToWizardStep(wizardStepIndex - 1);
+        return;
+      }
+
+      if (isWizardSelectStep) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (filteredWizardOptions.length > 0) {
+            setWizardSelectedOptionIndex((prev) => (prev + 1) % filteredWizardOptions.length);
+          }
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (filteredWizardOptions.length > 0) {
+            setWizardSelectedOptionIndex((prev) => (prev - 1 + filteredWizardOptions.length) % filteredWizardOptions.length);
+          }
+          return;
+        }
+      }
+
+      // If user presses Ctrl+V on screenshot step, read clipboard directly
+      if (e.ctrlKey && e.key.toLowerCase() === 'v' && currentWizardStep.dynamicOption === 'clipboard') {
+        if (window.electronAPI?.getClipboardImage) {
+          window.electronAPI.getClipboardImage().then((img) => {
+            if (img && img.startsWith('data:image')) {
+              submitCurrentWizardStep(img);
+            }
+          });
+        }
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitCurrentWizardStep();
+        return;
+      }
+
+      return;
+    }
+
     // If in actions mode
     if (actionsParentItem) {
       const actionsList = getItemActions(actionsParentItem);
@@ -2687,7 +3097,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         <div className="w-9 h-9 rounded-full bg-white/[0.05] shadow-sm flex items-center justify-center shrink-0">
           <span
             className={`material-symbols-outlined select-none text-[20px] transition-colors duration-150 ${
-              isPaletteMode
+              wizardItem
+                ? 'text-amber-400'
+                : isPaletteMode
                 ? 'text-rose-400'
                 : isEasyClipMode
                 ? 'text-rose-400'
@@ -2704,7 +3116,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 : 'text-gray-400'
             }`}
           >
-            {isPaletteMode
+            {wizardItem
+              ? currentWizardStep?.icon || wizardItem.icon || 'rate_review'
+              : isPaletteMode
               ? 'palette'
               : isEasyClipMode
               ? 'content_paste'
@@ -2731,7 +3145,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           }}
           onKeyDown={handleKeyDown}
           placeholder={
-            isPaletteMode
+            wizardItem
+              ? currentWizardStep?.placeholder ||
+                `Krok ${wizardStepIndex + 1} z ${wizardItem.wizard?.steps.length}: ${currentWizardStep?.title}...`
+              : isPaletteMode
               ? isCreatingPalette
                 ? 'Název nové palety (Enter spustí lištu, Ctrl+Enter otevře detail)...'
                 : 'Hledat v barevných paletách...'
@@ -2753,7 +3170,23 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           autoFocus
           spellCheck={false}
         />
-        {actionsParentItem ? (
+        {wizardItem ? (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 font-medium select-none shadow-sm flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span>
+                {wizardStepIndex + 1} / {wizardItem.wizard?.steps.length}
+              </span>
+            </span>
+            <button
+              onClick={exitWizard}
+              className="w-8 h-8 rounded-full bg-white/[0.04] hover:bg-white/[0.09] text-gray-400 hover:text-white transition flex items-center justify-center cursor-pointer shrink-0"
+              title="Ukončit průvodce (Esc)"
+            >
+              <span className="material-symbols-outlined text-[18px] leading-none select-none">close</span>
+            </button>
+          </div>
+        ) : actionsParentItem ? (
           <button
             onClick={exitActions}
             className="w-8 h-8 rounded-full bg-white/[0.04] hover:bg-white/[0.09] text-gray-400 hover:text-white transition flex items-center justify-center cursor-pointer shrink-0"
@@ -2778,7 +3211,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         ) : null}
 
         {/* DonkeyTools Quick Tools Button & Subextensions Flyout */}
-        {showDonkeyToolsIcon && (
+        {showDonkeyToolsIcon && !wizardItem && (
           <div className="relative shrink-0 self-center" ref={donkeyToolsRef}>
             <button
               type="button"
@@ -3039,8 +3472,286 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         </div>
       )}
 
-      {/* Actions Mode View */}
-      {actionsParentItem ? (
+      {/* Wizard (Stepper) Mode View */}
+      {wizardItem ? (
+        <>
+          {/* Wizard Header & Stepper Progress Banner */}
+          <div
+            onClick={() => (wizardStepIndex > 0 ? goToWizardStep(wizardStepIndex - 1) : exitWizard())}
+            className="m-2 p-2 px-4 flex items-center justify-between text-xs text-gray-300 transition cursor-pointer select-none"
+            title={wizardStepIndex > 0 ? 'Předchozí krok (Esc / Backspace)' : 'Zrušit průvodce (Esc)'}
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="material-symbols-outlined text-base text-white">arrow_back</span>
+              <span>
+                Průvodce:{' '}
+                <strong className="text-white font-medium">{wizardItem.name}</strong>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Stepper pills */}
+              <div className="flex items-center gap-1.5">
+                {wizardItem.wizard?.steps.map((st, sIdx) => {
+                  const isPassed = sIdx < wizardStepIndex;
+                  const isCurrent = sIdx === wizardStepIndex;
+                  return (
+                    <div
+                      key={st.id}
+                      onClick={(e) => {
+                        if (isPassed) {
+                          e.stopPropagation();
+                          goToWizardStep(sIdx);
+                        }
+                      }}
+                      className={`h-2 rounded-full transition-all duration-200 ${
+                        isPassed
+                          ? 'w-5 bg-amber-400 cursor-pointer hover:bg-amber-300'
+                          : isCurrent
+                          ? 'w-7 bg-amber-400 shadow-sm animate-pulse'
+                          : 'w-2 bg-white/10'
+                      }`}
+                      title={`Krok ${sIdx + 1}: ${st.title}`}
+                    />
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-mono ml-2">
+                <kbd className="inline-flex items-center justify-center px-2 py-0.5 bg-white/[0.08] text-gray-200 rounded-full font-mono text-[9px] font-bold leading-none whitespace-nowrap">
+                  Esc
+                </kbd>
+                <span className="text-gray-300">{wizardStepIndex > 0 ? 'Zpět' : 'Zrušit'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Current Step Title & Required Badge */}
+          <div className="px-4 py-1.5 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <span className="material-symbols-outlined text-amber-400 text-lg">
+                {currentWizardStep?.icon || 'edit'}
+              </span>
+              <span>{currentWizardStep?.title}</span>
+              {currentWizardStep?.required ? (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300">
+                  povinné
+                </span>
+              ) : (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/10 text-gray-400">
+                  volitelné
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Validation Error Message */}
+          {wizardError && (
+            <div className="mx-4 mb-2 p-2.5 px-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs flex items-center gap-2 animate-in fade-in duration-150">
+              <span className="material-symbols-outlined text-rose-400 text-base">error</span>
+              <span>{wizardError}</span>
+            </div>
+          )}
+
+          {/* Main Step Interaction View */}
+          <div ref={listRef} className="max-h-[360px] overflow-y-auto px-2 py-1 space-y-2 focus:outline-none relative">
+            {isWizardSelectStep ? (
+              <div className="space-y-1.5">
+                {isWizardLoadingDynamic ? (
+                  <div className="p-8 text-center text-sm text-gray-400 flex items-center justify-center gap-2">
+                    <span className="material-symbols-outlined animate-spin text-amber-400">progress_activity</span>
+                    <span>Načítám možnosti...</span>
+                  </div>
+                ) : filteredWizardOptions.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-gray-400">
+                    Žádná možnost neodpovídá hledání.
+                  </div>
+                ) : (
+                  filteredWizardOptions.map((opt, idx) => {
+                    const isSelected = idx === wizardSelectedOptionIndex;
+                    return (
+                      <div
+                        key={`${opt.value}-${idx}`}
+                        onClick={() => submitCurrentWizardStep(opt.value)}
+                        className={`relative flex items-center px-3.5 py-2.5 rounded-2xl cursor-pointer transition-all duration-150 gap-3.5 overflow-hidden ${
+                          isSelected
+                            ? 'bg-amber-500/20 text-white shadow-sm'
+                            : 'hover:bg-white/[0.04] text-gray-300'
+                        }`}
+                      >
+                        {/* Left vertical indicator */}
+                        <div
+                          className={`absolute left-0 top-2 bottom-2 w-1 rounded-r transition-all duration-150 ${
+                            isSelected ? 'bg-amber-400' : 'bg-transparent'
+                          }`}
+                        />
+
+                        {/* Icon or image preview */}
+                        {opt.imagePreview ? (
+                          <div className="w-12 h-9 rounded-lg bg-black/40 overflow-hidden flex items-center justify-center shrink-0 border border-white/10 shadow-sm">
+                            <img
+                              src={opt.imagePreview}
+                              alt={opt.text}
+                              className="max-h-full max-w-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                            style={{
+                              backgroundColor: opt.color ? `${opt.color}25` : 'rgba(255,255,255,0.06)',
+                              color: opt.color || '#f59e0b',
+                            }}
+                          >
+                            <span className="material-symbols-outlined text-[20px]">
+                              {opt.icon || 'check_circle'}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium truncate ${isSelected ? 'text-white font-semibold' : 'text-gray-200'}`}>
+                              {opt.text}
+                            </span>
+                          </div>
+                          {opt.description && (
+                            <div className="text-xs text-gray-400 truncate">
+                              {opt.description}
+                            </div>
+                          )}
+                        </div>
+
+                        {isSelected && (
+                          <div className="flex items-center gap-1 text-[11px] font-medium text-amber-300 shrink-0">
+                            <kbd className="px-1.5 py-0.5 bg-white/[0.08] rounded-full font-mono text-[9px]">Enter</kbd>
+                            <span>Vybrat</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : (
+              /* Text Input Guidance Card */
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
+                <div className="text-xs text-gray-300">
+                  {currentWizardStep?.placeholder || 'Zadejte požadovanou hodnotu přímo do vyhledávacího pole výše.'}
+                </div>
+                <div className="flex items-center gap-2 text-[11px] text-gray-400 font-mono">
+                  <span className="material-symbols-outlined text-sm text-amber-400">keyboard_return</span>
+                  <span>Stiskněte Enter pro přechod na další krok</span>
+                </div>
+              </div>
+            )}
+
+            {/* Information Preview Section ("Dosud zadané údaje") */}
+            {wizardStepIndex > 0 && (
+              <div className="p-3 rounded-2xl bg-white/[0.03] shadow-sm space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-300">
+                    <span className="material-symbols-outlined text-sm text-amber-400">task_alt</span>
+                    <span>Dosud zadané údaje</span>
+                    <span className="text-[10px] text-gray-500 font-mono">
+                      ({wizardStepIndex} z {wizardItem.wizard?.steps.length})
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-gray-500 font-mono">
+                    kliknutím upravit
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {wizardItem.wizard?.steps.slice(0, wizardStepIndex).map((st, stIdx) => {
+                    const val = wizardValues[st.id];
+                    let displayVal = '—';
+                    let badgeColor = undefined;
+                    let badgeIcon = undefined;
+                    let imagePreview = undefined;
+
+                    if (st.options) {
+                      const matchedOpt = st.options.find((o) => o.value === val);
+                      if (matchedOpt) {
+                        displayVal = matchedOpt.text;
+                        badgeColor = matchedOpt.color;
+                        badgeIcon = matchedOpt.icon;
+                      } else {
+                        displayVal = String(val ?? '—');
+                      }
+                    } else if (st.dynamicOption === 'clipboard') {
+                      if (val && typeof val === 'string' && (val.startsWith('data:image') || val.length > 5)) {
+                        displayVal = 'Snímek připojen';
+                        const matchedOpt = wizardDynamicOptions.find((o) => o.value === val);
+                        imagePreview = matchedOpt?.imagePreview || (val.startsWith('data:image') ? val : undefined);
+                      } else {
+                        displayVal = 'Bez snímku';
+                      }
+                    } else {
+                      displayVal = val ? String(val) : '—';
+                    }
+
+                    return (
+                      <div
+                        key={st.id}
+                        onClick={() => goToWizardStep(stIdx)}
+                        title={`Kliknutím se vrátíte ke kroku „${st.title}“`}
+                        className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-black/30 hover:bg-white/[0.06] text-gray-300 transition cursor-pointer min-w-0"
+                      >
+                        <span className="text-[11px] text-gray-400 truncate shrink-0 max-w-[45%] select-none font-medium flex items-center gap-1">
+                          {st.icon && <span className="material-symbols-outlined text-[13px]">{st.icon}</span>}
+                          <span>{st.title}</span>
+                        </span>
+                        <div className="flex items-center gap-1.5 truncate">
+                          {imagePreview ? (
+                            <img src={imagePreview} alt="thumb" className="w-5 h-4 object-cover rounded shrink-0 border border-white/10" />
+                          ) : null}
+                          <span
+                            className="text-xs font-mono truncate select-all font-semibold flex items-center gap-1"
+                            style={{ color: badgeColor || '#f8fafc' }}
+                          >
+                            {badgeIcon && <span className="material-symbols-outlined text-[12px]">{badgeIcon}</span>}
+                            <span className="truncate">{displayVal}</span>
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Wizard Footer Action Bar */}
+          <div className="p-3 px-4 flex items-center justify-between text-xs text-gray-300 border-t border-white/5 select-none">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-semibold flex items-center gap-1.5">
+                <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-amber-400 rounded-full font-mono text-[9px] leading-none select-none">
+                  Enter
+                </kbd>
+                <span className="text-white">
+                  {wizardStepIndex === (wizardItem.wizard?.steps.length ?? 0) - 1 ? 'Dokončit a odeslat' : 'Další krok'}
+                </span>
+              </span>
+              <span className="text-xs font-semibold flex items-center gap-1.5">
+                <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-gray-300 rounded-full font-mono text-[9px] leading-none select-none">
+                  Esc
+                </kbd>
+                <span className="text-gray-400">Zpět</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {isSubmittingWizard && (
+                <span className="text-xs text-amber-400 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                  <span>Odesílám...</span>
+                </span>
+              )}
+              <span className="rounded-full px-2.5 py-0.5 bg-white/[0.04] text-gray-400 font-mono text-[11px]">
+                Krok {wizardStepIndex + 1} z {wizardItem.wizard?.steps.length}
+              </span>
+            </div>
+          </div>
+        </>
+      ) : actionsParentItem ? (
         <>
           {/* Actions & Info Banner */}
           <div
@@ -3980,7 +4691,19 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         </span>
 
                         {/* Standalone action/info chip in rounded-full pill style */}
-                        {hasActionsOrInfo && !hasAnyChip && (
+                        {item.wizard && (
+                          <span
+                            className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-300 shadow-sm flex items-center gap-1 select-none"
+                            title="Vícekrokový průvodce (Enter)"
+                          >
+                            <span className="material-symbols-outlined text-[12px] leading-none">
+                              auto_awesome
+                            </span>
+                            <span>Průvodce</span>
+                          </span>
+                        )}
+
+                        {hasActionsOrInfo && !hasAnyChip && !item.wizard && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -4145,6 +4868,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                           <span className="text-xs font-semibold text-sky-400 animate-in fade-in duration-100">
                             Subpoložky
                           </span>
+                        ) : item.wizard ? (
+                          <span className="text-xs font-semibold text-amber-400 animate-in fade-in duration-100">
+                            Spustit průvodce
+                          </span>
                         ) : (item.action === 'copy' || item.action === 'paste') ? (
                           <span className="text-xs font-semibold text-emerald-400 animate-in fade-in duration-100">
                             Kopírovat
@@ -4164,7 +4891,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             {/* Material 3 Floating Action Bar */}
             <div className="m-2.5 p-2 px-3.5 flex items-center justify-between text-xs text-gray-400 select-none">
               <div className="flex items-center gap-4 flex-wrap">
-                {results[selectedIndex]?.action === 'copy' || results[selectedIndex]?.action === 'paste' ? (
+                {results[selectedIndex]?.wizard ? (
+                  <span className="text-xs font-semibold flex items-center gap-1.5">
+                    <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-amber-400 rounded-full font-mono text-[9px] leading-none select-none">
+                      Enter
+                    </kbd>
+                    <span className="text-white">Spustit průvodce</span>
+                  </span>
+                ) : results[selectedIndex]?.action === 'copy' || results[selectedIndex]?.action === 'paste' ? (
                   <span className="text-xs font-semibold flex items-center gap-1.5">
                     <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-emerald-400 rounded-full font-mono text-[9px] leading-none select-none">
                       Enter

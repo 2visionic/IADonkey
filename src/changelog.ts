@@ -599,6 +599,8 @@ export const CHANGELOG_HISTORY: VersionEntry[] = [
  * Po dokončení releasu se tyto položky přesunou přímo pod vydávanou verzi a toto pole se vyprázdní.
  */
 export const UPCOMING_CHANGELOG: string[] = [
+  'Spotlight – Vícekrokový průvodce (Wizard Stepper): Obecný rozšiřitelný mechanismus pro provádění vícekrokových formulářů a průvodců přímo ve vyhledávacím okně Spotlight. Podporuje definici kroků (textový vstup, výběrový seznam s ikonami a barvami, dynamické načítání např. screenshotů ze schránky), validaci povinných polí, vizuální indikátor postupu, živý informační přehled dosud zadaných údajů s možností návratu a spuštění navázané akce (např. createfeedback).',
+  'Spotlight – Průvodce pro zpětnou vazbu (/feedback, /chyba, /napad): Spuštěním příkazu z vyhledávání se aktivuje režim průvodce pro rychlé zadání podnětu (název, typ, priorita, popis a přiložení snímku obrazovky ze schránky). Poslední krok podnět atomicky uloží a ihned zobrazí okno se všemi podněty.',
   'Instalátor – Sjednocené pozadí a borderless styl: Sjednocení odstínu pozadí celého okna (#121319) napříč postranním panelem, obsahem, hlavičkou i patičkou; odstranění bočního i horního divideru pro čistý borderless vizuál se zachováním oddělovače patičky.',
   'Instalátor – Zvětšení výšky okna: Zvětšení výchozí výšky instalačního okna i náhledu v Nastavení o 50 px (na 640 px) pro vyšší komfort zobrazení.',
   'Instalátor – Moderní UI checkboxy: Náhrada systémových checkboxů za vyladěné komponenty s plynulými animacemi, zaoblenými rohy a indigo indikátorem výběru.',
