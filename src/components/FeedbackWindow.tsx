@@ -923,13 +923,14 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
       </div>
 
       {/* Hlavní obsah - Seznam karet */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-zinc-500 gap-3">
-            <span className="material-symbols-outlined text-3xl animate-spin">refresh</span>
-            <span className="text-xs">Načítám připomínky...</span>
-          </div>
-        ) : error ? (
+      <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+        <div className="w-full max-w-[800px] mx-auto space-y-3">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-zinc-500 gap-3">
+              <span className="material-symbols-outlined text-3xl animate-spin">refresh</span>
+              <span className="text-xs">Načítám připomínky...</span>
+            </div>
+          ) : error ? (
           <div className="p-6 rounded-2xl bg-red-500/10 text-red-300 text-xs text-center space-y-2">
             <span className="material-symbols-outlined text-2xl text-red-400">error</span>
             <p className="font-semibold">{error}</p>
@@ -1307,6 +1308,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
             );
           })
         )}
+        </div>
       </div>
 
       {/* DETAIL DRAWER / MODAL */}
