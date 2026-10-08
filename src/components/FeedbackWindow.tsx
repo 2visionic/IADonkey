@@ -1103,7 +1103,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                 </div>
 
                 {/* Titulek */}
-                <h3 className="text-sm font-bold text-white leading-snug group-hover:text-indigo-300 transition">
+                <h3 className="text-sm font-bold text-white leading-snug group-hover:text-indigo-300 transition pt-1.5">
                   {item.title}
                 </h3>
 
@@ -1122,7 +1122,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
 
                 {/* Spodní lišta akcí */}
                 <div
-                  className="mt-1 pt-1.5 flex items-center justify-between text-xs text-zinc-400"
+                  className="mt-2 pt-3 border-t border-white/[0.08] flex items-center justify-between text-xs text-zinc-400"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-mono">
