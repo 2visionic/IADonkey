@@ -3100,7 +3100,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           <span
             className={`material-symbols-outlined select-none text-[20px] transition-colors duration-150 ${
               wizardItem
-                ? 'text-amber-400'
+                ? 'text-purple-400'
                 : isPaletteMode
                 ? 'text-rose-400'
                 : isEasyClipMode
@@ -3174,8 +3174,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         />
         {wizardItem ? (
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 font-medium select-none shadow-sm flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-[11px] font-mono px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-300 font-medium select-none shadow-sm flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
               <span>
                 {wizardStepIndex + 1} / {wizardItem.wizard?.steps.length}
               </span>
@@ -3534,7 +3534,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           {/* Current Step Title & Required Badge */}
           <div className="px-4 py-1.5 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <span className="material-symbols-outlined text-amber-400 text-lg">
+              <span className="material-symbols-outlined text-purple-400 text-lg">
                 {currentWizardStep?.icon || 'edit'}
               </span>
               <span>{currentWizardStep?.title}</span>
@@ -3564,7 +3564,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               <div className="space-y-1.5">
                 {isWizardLoadingDynamic ? (
                   <div className="p-8 text-center text-sm text-gray-400 flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined animate-spin text-amber-400">progress_activity</span>
+                    <span className="material-symbols-outlined animate-spin text-purple-400">progress_activity</span>
                     <span>Načítám možnosti...</span>
                   </div>
                 ) : filteredWizardOptions.length === 0 ? (
@@ -3580,14 +3580,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         onClick={() => submitCurrentWizardStep(opt.value)}
                         className={`relative flex items-center px-3.5 py-2.5 rounded-2xl cursor-pointer transition-all duration-150 gap-3.5 overflow-hidden ${
                           isSelected
-                            ? 'bg-amber-500/20 text-white shadow-sm'
+                            ? 'bg-purple-500/20 text-white shadow-sm'
                             : 'hover:bg-white/[0.04] text-gray-300'
                         }`}
                       >
                         {/* Left vertical indicator */}
                         <div
                           className={`absolute left-0 top-2 bottom-2 w-1 rounded-r transition-all duration-150 ${
-                            isSelected ? 'bg-amber-400' : 'bg-transparent'
+                            isSelected ? 'bg-purple-500' : 'bg-transparent'
                           }`}
                         />
 
@@ -3605,7 +3605,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                             className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
                             style={{
                               backgroundColor: opt.color ? `${opt.color}25` : 'rgba(255,255,255,0.06)',
-                              color: opt.color || '#f59e0b',
+                              color: opt.color || '#a855f7',
                             }}
                           >
                             <span className="material-symbols-outlined text-[20px]">
@@ -3628,7 +3628,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         </div>
 
                         {isSelected && (
-                          <div className="flex items-center gap-1 text-[11px] font-medium text-amber-300 shrink-0">
+                          <div className="flex items-center gap-1 text-[11px] font-medium text-purple-300 shrink-0">
                             <kbd className="px-1.5 py-0.5 bg-white/[0.08] rounded-full font-mono text-[9px]">Enter</kbd>
                             <span>Vybrat</span>
                           </div>
@@ -3645,7 +3645,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                   {currentWizardStep?.placeholder || 'Zadejte požadovanou hodnotu přímo do vyhledávacího pole výše.'}
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-gray-400 font-mono">
-                  <span className="material-symbols-outlined text-sm text-amber-400">keyboard_return</span>
+                  <span className="material-symbols-outlined text-sm text-purple-400">keyboard_return</span>
                   <span>Stiskněte Enter pro přechod na další krok</span>
                 </div>
               </div>
@@ -3656,7 +3656,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               <div className="p-3 rounded-2xl bg-white/[0.03] shadow-sm space-y-2">
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-300">
-                    <span className="material-symbols-outlined text-sm text-amber-400">task_alt</span>
+                    <span className="material-symbols-outlined text-sm text-purple-400">task_alt</span>
                     <span>Dosud zadané údaje</span>
                     <span className="text-[10px] text-gray-500 font-mono">
                       ({wizardStepIndex} z {wizardItem.wizard?.steps.length})
@@ -3731,7 +3731,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           <div className="p-3 px-4 flex items-center justify-between text-xs text-gray-300 border-t border-white/5 select-none">
             <div className="flex items-center gap-3">
               <span className="text-xs font-semibold flex items-center gap-1.5">
-                <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-amber-400 rounded-full font-mono text-[9px] leading-none select-none">
+                <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-purple-400 rounded-full font-mono text-[9px] leading-none select-none">
                   Enter
                 </kbd>
                 <span className="text-white">
@@ -3747,7 +3747,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             </div>
             <div className="flex items-center gap-2">
               {isSubmittingWizard && (
-                <span className="text-xs text-amber-400 flex items-center gap-1">
+                <span className="text-xs text-purple-400 flex items-center gap-1">
                   <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
                   <span>Odesílám...</span>
                 </span>
@@ -4700,7 +4700,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         {/* Standalone action/info chip in rounded-full pill style */}
                         {item.wizard && (
                           <span
-                            className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-300 shadow-sm flex items-center gap-1 select-none"
+                            className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/15 text-purple-300 shadow-sm flex items-center gap-1 select-none"
                             title="Vícekrokový průvodce (Enter)"
                           >
                             <span className="material-symbols-outlined text-[12px] leading-none">
@@ -4788,14 +4788,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                             {item.shortcuts.slice(0, 2).map((shortcut) => (
                               <span
                                 key={shortcut}
-                                className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium select-none shadow-sm"
+                                className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 font-medium select-none shadow-sm"
                               >
                                 {shortcut}
                               </span>
                             ))}
                           </div>
                         ) : item.sourceId === 'feedback' ? (
-                          <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium shadow-sm">
+                          <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300 font-medium shadow-sm">
                             Feedback
                           </span>
                         ) : null}
@@ -4876,7 +4876,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                             Subpoložky
                           </span>
                         ) : item.wizard ? (
-                          <span className="text-xs font-semibold text-amber-400 animate-in fade-in duration-100">
+                          <span className="text-xs font-semibold text-purple-400 animate-in fade-in duration-100">
                             Spustit průvodce
                           </span>
                         ) : (item.action === 'copy' || item.action === 'paste') ? (
@@ -4900,7 +4900,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               <div className="flex items-center gap-4 flex-wrap">
                 {results[selectedIndex]?.wizard ? (
                   <span className="text-xs font-semibold flex items-center gap-1.5">
-                    <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-amber-400 rounded-full font-mono text-[9px] leading-none select-none">
+                    <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-purple-400 rounded-full font-mono text-[9px] leading-none select-none">
                       Enter
                     </kbd>
                     <span className="text-white">Spustit průvodce</span>
