@@ -40,9 +40,9 @@ export const FEEDBACK_WIZARD_DEFINITION: LauncherWizard = {
       required: true,
       type: 'select',
       options: [
-        { text: 'Chyba / Problém', value: 'bug', icon: 'bug_report', color: '#ef4444', description: 'Něco nefunguje správně nebo spadlo' },
-        { text: 'Námět / Vylepšení', value: 'idea', icon: 'lightbulb', color: '#f59e0b', description: 'Návrh na novou funkci nebo zlepšení' },
-        { text: 'Jiné / Dotaz', value: 'other', icon: 'help_outline', color: '#6b7280', description: 'Obecný dotaz nebo připomínka' },
+        { text: 'Chyba', value: 'bug', icon: 'bug_report', color: '#f43f5e', description: 'Něco nefunguje správně nebo došlo k chybě' },
+        { text: 'Nápad', value: 'idea', icon: 'lightbulb', color: '#a855f7', description: 'Návrh na novou funkci nebo vylepšení' },
+        { text: 'Dotaz', value: 'other', icon: 'chat', color: '#0ea5e9', description: 'Obecný dotaz, nejasnost nebo připomínka' },
       ],
     },
     {
@@ -53,10 +53,10 @@ export const FEEDBACK_WIZARD_DEFINITION: LauncherWizard = {
       required: true,
       type: 'select',
       options: [
-        { text: 'Nízká', value: 'low', icon: 'arrow_downward', color: '#10b981', description: 'Drobnost, nespěchá' },
-        { text: 'Normální', value: 'normal', icon: 'remove', color: '#3b82f6', description: 'Standardní priorita pro řešení' },
-        { text: 'Vysoká', value: 'high', icon: 'arrow_upward', color: '#f97316', description: 'Významná překážka v práci' },
-        { text: 'Kritická', value: 'critical', icon: 'priority_high', color: '#ef4444', description: 'Blokující problém, nelze pokračovat' },
+        { text: 'Nízká', value: 'low', icon: 'arrow_downward', color: '#9ca3af', description: 'Drobnost, nespěchá' },
+        { text: 'Normální', value: 'normal', icon: 'remove', color: '#818cf8', description: 'Standardní priorita pro řešení' },
+        { text: 'Vysoká', value: 'high', icon: 'arrow_upward', color: '#f59e0b', description: 'Významná překážka v práci' },
+        { text: 'Kritická', value: 'critical', icon: 'priority_high', color: '#f43f5e', description: 'Blokující problém, nelze pokračovat' },
       ],
     },
     {
@@ -3767,8 +3767,11 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         {/* Left vertical indicator */}
                         <div
                           className={`w-[3px] h-7 rounded-full shrink-0 transition-all ${
-                            isSelected ? 'bg-purple-500 opacity-100 scale-y-100' : 'bg-transparent opacity-0 scale-y-50'
+                            isSelected ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-50'
                           }`}
+                          style={{
+                            backgroundColor: isSelected ? (opt.color || '#a855f7') : 'transparent',
+                          }}
                         />
 
                         {/* Icon or image preview */}
