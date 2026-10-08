@@ -13,6 +13,7 @@ import { getDynamicSnippets } from '../utils/snippets';
 import { MaterialIcon } from './MaterialIcon';
 import { IconPickerInput } from './IconPickerInput';
 import { pickScreenColor, parseColorQuery, formatColorValue } from '../utils/colorMaster';
+import { isItemBanned } from '../utils/banlist';
 
 interface SettingsModalProps {
   config: AppConfig;
@@ -1966,12 +1967,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     handleUpdateCustomSnippet(id, { shortcuts: updatedShortcuts });
   };
 
-  // Compute indexed search items counts (main items, git items, subitems, dynamic system snippets, and total)
+  // Compute indexed search items counts (main items, git items, subitems, dynamic system snippets, and total), excluding banned items
   const { mainItemsCount, gitItemsCount, subItemsCount, snippetsCount, totalIndexedCount } = useMemo(() => {
-    const gitCount = items.filter((it) => it.settings === 'git' || it.sourceId === 'github').length;
-    const mainOnlyCount = items.filter((it) => !(it.settings === 'git' || it.sourceId === 'github')).length;
-    const subCount = items.reduce((acc, it) => acc + (it.options?.length || 0), 0);
-    const snipCount = getDynamicSnippets(':', formData.snippets).length;
+    const banlist = formData.banlist || [];
+    const unbannedItems = items.filter((it) => !isItemBanned(it, banlist));
+    const gitCount = unbannedItems.filter((it) => it.settings === 'git' || it.sourceId === 'github').length;
+    const mainOnlyCount = unbannedItems.filter((it) => !(it.settings === 'git' || it.sourceId === 'github')).length;
+    const subCount = unbannedItems.reduce((acc, it) => acc + (it.options?.filter((sub) => !isItemBanned(sub, banlist)).length || 0), 0);
+    const snipCount = getDynamicSnippets(':', formData.snippets).filter((it) => !isItemBanned(it, banlist)).length;
     return {
       mainItemsCount: mainOnlyCount,
       gitItemsCount: gitCount,
@@ -1979,7 +1982,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       snippetsCount: snipCount,
       totalIndexedCount: mainOnlyCount + gitCount + subCount + snipCount,
     };
-  }, [items, formData.snippets]);
+  }, [items, formData.snippets, formData.banlist]);
 
   // Keep formData in sync when config prop updates from main process
   useEffect(() => {

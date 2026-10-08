@@ -22,6 +22,7 @@ import { FeedbackWindow } from './components/FeedbackWindow';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CURRENT_APP_VERSION, IS_DEV, getLatestRelease } from './changelog';
 import { applyPrimaryColor, applyActionsColor } from './utils/theme';
+import { isItemBanned } from './utils/banlist';
 
 const DEFAULT_CONFIG: AppConfig = {
   hotkey: 'Ctrl+Alt+Space',
@@ -769,18 +770,31 @@ export const App: React.FC = () => {
     );
   }
 
-  // Filter items by enabled extensions
+  // Filter items by enabled extensions and banlist
   const visibleItems = useMemo(() => {
-    return items.filter((item) => {
-      if (config?.extensions?.magicgate === false && item.sourceId === 'magicgate-xml') {
-        return false;
-      }
-      if (config?.extensions?.github === false && item.sourceId === 'github') {
-        return false;
-      }
-      return true;
-    });
-  }, [items, config?.extensions]);
+    return items
+      .filter((item) => {
+        if (isItemBanned(item, config?.banlist)) {
+          return false;
+        }
+        if (config?.extensions?.magicgate === false && item.sourceId === 'magicgate-xml') {
+          return false;
+        }
+        if (config?.extensions?.github === false && item.sourceId === 'github') {
+          return false;
+        }
+        return true;
+      })
+      .map((item) => {
+        if (!item.options || item.options.length === 0) return item;
+        const unbannedOptions = item.options.filter((sub) => !isItemBanned(sub, config?.banlist));
+        if (unbannedOptions.length === item.options.length) return item;
+        return {
+          ...item,
+          options: unbannedOptions,
+        };
+      });
+  }, [items, config?.extensions, config?.banlist]);
 
   // Floating Spotlight Search Bar mode
   return (

@@ -3,6 +3,7 @@ import { LauncherItem, DataSource, BannedItem, SnippetsConfig } from '../types';
 import { MaterialIcon } from './MaterialIcon';
 import { getDynamicSnippets } from '../utils/snippets';
 import { removeDiacritics } from '../utils/text';
+import { isItemBanned } from '../utils/banlist';
 
 interface SearchItemsViewerModalProps {
   isOpen: boolean;
@@ -103,11 +104,12 @@ export const SearchItemsViewerModal: React.FC<SearchItemsViewerModalProps> = ({
     return /^https?:\/\//i.test(str) || /^[a-zA-Z]:[\\\/]/i.test(str);
   };
 
-  // Combine all launcher items with dynamic system snippets
+  // Combine all launcher items with dynamic system snippets, excluding banned items
   const allCombinedItems = useMemo(() => {
     const dynamicSnippets = getDynamicSnippets(':', snippetsConfig);
-    return [...dynamicSnippets, ...items];
-  }, [items, snippetsConfig]);
+    const combined = [...dynamicSnippets, ...items];
+    return combined.filter((it) => !isItemBanned(it, banlist));
+  }, [items, snippetsConfig, banlist]);
 
   // Sort items primarily by priority ascending (same as Spotlight) then alphabetically by name
   const sortedItems = useMemo(() => {
@@ -128,12 +130,14 @@ export const SearchItemsViewerModal: React.FC<SearchItemsViewerModalProps> = ({
       return sortedItems.map((item) => ({
         item,
         subitems: item.options
-          ? [...item.options].sort((a, b) => {
-              const pA = a.priority ?? 0;
-              const pB = b.priority ?? 0;
-              if (pA !== pB) return pA - pB;
-              return (a.name || '').localeCompare(b.name || '');
-            })
+          ? [...item.options]
+              .filter((sub) => !isItemBanned(sub, banlist))
+              .sort((a, b) => {
+                const pA = a.priority ?? 0;
+                const pB = b.priority ?? 0;
+                if (pA !== pB) return pA - pB;
+                return (a.name || '').localeCompare(b.name || '');
+              })
           : [],
       }));
     }
@@ -149,7 +153,8 @@ export const SearchItemsViewerModal: React.FC<SearchItemsViewerModalProps> = ({
       const itemShortcutMatch = item.shortcuts?.some((sc) => removeDiacritics(sc.toLowerCase()).includes(normQ));
       const isParentMatch = itemNameMatch || itemLocMatch || itemActionMatch || itemSourceMatch || Boolean(itemShortcutMatch);
 
-      const matchedSubitems = (item.options || []).filter((sub) => {
+      const unbannedSubs = (item.options || []).filter((sub) => !isItemBanned(sub, banlist));
+      const matchedSubitems = unbannedSubs.filter((sub) => {
         const subName = removeDiacritics(sub.name?.toLowerCase() || '').includes(normQ);
         const subLoc = sub.location ? removeDiacritics(sub.location.toLowerCase()).includes(normQ) : false;
         const subAction = sub.action ? sub.action.toLowerCase().includes(q) : false;
@@ -157,8 +162,8 @@ export const SearchItemsViewerModal: React.FC<SearchItemsViewerModalProps> = ({
       });
 
       if (isParentMatch || matchedSubitems.length > 0) {
-        // If parent matched, show all its subitems (or only matched ones if filter active)
-        const subList = isParentMatch ? item.options || [] : matchedSubitems;
+        // If parent matched, show all its unbanned subitems (or only matched ones if filter active)
+        const subList = isParentMatch ? unbannedSubs : matchedSubitems;
         const sortedSubs = [...subList].sort((a, b) => {
           const pA = a.priority ?? 0;
           const pB = b.priority ?? 0;
@@ -174,7 +179,7 @@ export const SearchItemsViewerModal: React.FC<SearchItemsViewerModalProps> = ({
     }
 
     return results;
-  }, [sortedItems, filterQuery]);
+  }, [sortedItems, filterQuery, banlist]);
 
   // Counts calculation
   const totalSnippetCount = useMemo(() => {
@@ -192,8 +197,8 @@ export const SearchItemsViewerModal: React.FC<SearchItemsViewerModalProps> = ({
   }, [allCombinedItems]);
 
   const totalSubCount = useMemo(() => {
-    return allCombinedItems.reduce((acc, it) => acc + (it.options?.length || 0), 0);
-  }, [allCombinedItems]);
+    return allCombinedItems.reduce((acc, it) => acc + (it.options?.filter((sub) => !isItemBanned(sub, banlist))?.length || 0), 0);
+  }, [allCombinedItems, banlist]);
 
   const filteredSnippetCount = useMemo(() => {
     return filteredData.filter((d) => d.item.sourceId === 'snippet').length;
