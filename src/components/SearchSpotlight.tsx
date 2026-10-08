@@ -3766,8 +3766,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                       >
                         {/* Left vertical indicator */}
                         <div
-                          className={`absolute left-0 top-2 bottom-2 w-1 rounded-r transition-all duration-150 ${
-                            isSelected ? 'bg-purple-500' : 'bg-transparent'
+                          className={`w-[3px] h-7 rounded-full shrink-0 transition-all ${
+                            isSelected ? 'bg-purple-500 opacity-100 scale-y-100' : 'bg-transparent opacity-0 scale-y-50'
                           }`}
                         />
 
