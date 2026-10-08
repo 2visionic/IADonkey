@@ -3148,8 +3148,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           onKeyDown={handleKeyDown}
           placeholder={
             wizardItem
-              ? currentWizardStep?.placeholder ||
-                `Krok ${wizardStepIndex + 1} z ${wizardItem.wizard?.steps.length}: ${currentWizardStep?.title}...`
+              ? currentWizardStep?.placeholder || `${currentWizardStep?.title || 'Zadejte hodnotu'}...`
               : isPaletteMode
               ? isCreatingPalette
                 ? 'Název nové palety (Enter spustí lištu, Ctrl+Enter otevře detail)...'
@@ -3174,12 +3173,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         />
         {wizardItem ? (
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-300 font-medium select-none shadow-sm flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
-              <span>
-                {wizardStepIndex + 1} / {wizardItem.wizard?.steps.length}
-              </span>
-            </span>
             <button
               onClick={exitWizard}
               className="w-8 h-8 rounded-full bg-white/[0.04] hover:bg-white/[0.09] text-gray-400 hover:text-white transition flex items-center justify-center cursor-pointer shrink-0"
@@ -3752,9 +3745,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                   <span>Odesílám...</span>
                 </span>
               )}
-              <span className="rounded-full px-2.5 py-0.5 bg-white/[0.04] text-gray-400 font-mono text-[11px]">
-                Krok {wizardStepIndex + 1} z {wizardItem.wizard?.steps.length}
-              </span>
             </div>
           </div>
         </>
