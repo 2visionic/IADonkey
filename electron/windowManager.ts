@@ -1014,14 +1014,15 @@ export class WindowManager {
   }
 
   public async openMagicPlanWindow(filter?: string): Promise<BrowserWindow> {
+    const safeFilter = typeof filter === 'string' && filter.trim() ? filter.trim() : undefined;
     const query = new URLSearchParams({
       window: 'magicplan',
-      ...(filter ? { filter } : {}),
+      ...(safeFilter ? { filter: safeFilter } : {}),
     }).toString();
 
     if (this.magicPlanWindow && !this.magicPlanWindow.isDestroyed()) {
-      if (filter) {
-        this.magicPlanWindow.webContents.send('magicplan-set-filter', filter);
+      if (safeFilter) {
+        this.magicPlanWindow.webContents.send('magicplan-set-filter', safeFilter);
       }
       if (this.magicPlanWindow.isMinimized()) this.magicPlanWindow.restore();
       this.magicPlanWindow.show();

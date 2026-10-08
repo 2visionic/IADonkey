@@ -644,7 +644,6 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
       if (initialFilter) {
         setSearchQuery(initialFilter);
         setIsSearchOpen(true);
-        setShowOnlyMyTasks(false);
         setActiveTab('timeline');
         setFilterTrigger(Date.now());
       }
@@ -659,7 +658,6 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
       if (filterText) {
         setSearchQuery(filterText);
         setIsSearchOpen(true);
-        setShowOnlyMyTasks(false);
         setActiveTab('timeline');
         setFilterTrigger(Date.now());
         setTimeout(() => {

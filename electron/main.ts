@@ -1349,7 +1349,8 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('open-magicplan-window', async (_event, options?: { filter?: string }) => {
-    await windowManager.openMagicPlanWindow(options?.filter);
+    const filter = typeof options?.filter === 'string' && options.filter.trim() ? options.filter.trim() : undefined;
+    await windowManager.openMagicPlanWindow(filter);
     return true;
   });
 

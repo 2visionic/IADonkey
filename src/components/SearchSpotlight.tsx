@@ -699,7 +699,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }, 50);
   };
 
-  const openMagicPlan = async (filter?: string) => {
+  const openMagicPlan = async (filterArg?: string | unknown) => {
+    const filter = typeof filterArg === 'string' && filterArg.trim() ? filterArg.trim() : undefined;
     if (isOpeningMagicPlan) return;
     setIsOpeningMagicPlan(true);
     try {
@@ -3514,7 +3515,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         {isMagicPlanActive && (
           <button
             type="button"
-            onClick={openMagicPlan}
+            onClick={() => openMagicPlan()}
             disabled={isOpeningMagicPlan}
             className="relative w-8 h-8 rounded-full bg-white/[0.04] hover:bg-white/[0.09] text-white hover:text-white transition flex items-center justify-center cursor-pointer disabled:cursor-default shrink-0 self-center shadow-sm"
             title="MagicPlan – Časová osa a přehled úkolů"
