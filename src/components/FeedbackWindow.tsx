@@ -974,7 +974,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
               <div
                 key={item.id}
                 onClick={() => setDetailItem(item)}
-                className={`group p-4 rounded-2xl transition-all duration-200 cursor-pointer flex flex-col gap-2.5 relative shadow-sm hover:shadow-md ${
+                className={`group p-8 rounded-2xl transition-all duration-200 cursor-pointer flex flex-col gap-2.5 relative shadow-sm hover:shadow-md ${
                   item.status === 'resolved'
                     ? 'bg-emerald-950/25 hover:bg-emerald-950/40'
                     : item.status === 'in_progress'
