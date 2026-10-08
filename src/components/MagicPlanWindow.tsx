@@ -350,6 +350,7 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
   );
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterTrigger, setFilterTrigger] = useState<number>(0);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [selectedAuthorFilter, setSelectedAuthorFilter] = useState<string | null>(null);
@@ -644,6 +645,8 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
         setSearchQuery(initialFilter);
         setIsSearchOpen(true);
         setShowOnlyMyTasks(false);
+        setActiveTab('timeline');
+        setFilterTrigger(Date.now());
       }
     } catch (err) {
       console.error('Failed to parse URL filter parameter:', err);
@@ -657,6 +660,8 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
         setSearchQuery(filterText);
         setIsSearchOpen(true);
         setShowOnlyMyTasks(false);
+        setActiveTab('timeline');
+        setFilterTrigger(Date.now());
         setTimeout(() => {
           searchInputRef.current?.focus();
         }, 50);
@@ -1303,6 +1308,7 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
           ) : activeTab === 'timeline' ? (
             /* TAB 2: TIMELINE (Po-Pá, 8h denně = 40h týdně, posouvající se linka) */
             <TimelineGridView
+              filterTrigger={filterTrigger}
               days={workWeekDays}
               tasks={timelineTasks}
               timeProgressPercent={timeProgressPercent}
@@ -1639,6 +1645,7 @@ interface TimelineGridViewProps {
   actionsColor?: string;
   dailyUserWorklogs?: Record<string, Record<string, number>>;
   worklogTimelineEntries?: WorklogTimelineEntry[];
+  filterTrigger?: number;
 }
 
 interface TimelineScheduledBlock {
@@ -2364,6 +2371,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
   actionsColor,
   dailyUserWorklogs,
   worklogTimelineEntries,
+  filterTrigger,
 }) => {
   const devColor = primaryColor || '#6366f1';
   const serviceColor = actionsColor || '#a855f7';
@@ -2805,6 +2813,42 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
   const currentSelectedDay = useMemo(() => {
     return days[selectedDayIndex] || days[0];
   }, [days, selectedDayIndex]);
+
+  // Auto-navigate to planned day when filterTrigger is fired or searchQuery matches a task
+  const lastHandledTriggerRef = useRef<number>(0);
+  useEffect(() => {
+    if (!filterTrigger) return;
+    if (lastHandledTriggerRef.current === filterTrigger && lastHandledTriggerRef.current !== 0) return;
+    const q = searchQuery?.trim();
+    if (!q) return;
+
+    // Find if the task has scheduled blocks in the work week
+    const matchingBlocks = userSchedules.flatMap((u) =>
+      u.scheduledBlocks.filter((b) => !b.isNotAvailable && isTaskMatchingQuery(b.task, q))
+    );
+
+    if (matchingBlocks.length > 0) {
+      const dayIndices = matchingBlocks.map((b) => b.dayIndex);
+      const targetDay = dayIndices.includes(todayIdx) ? todayIdx : dayIndices[0];
+      setSelectedDayIndex(targetDay);
+      setViewMode('day');
+      lastHandledTriggerRef.current = filterTrigger;
+    } else if (userSchedules.length > 0) {
+      // If task overflowed into next week (allOverflowTasks) or has no blocks in current week
+      // Stay on today so it is visible in the overflow list at the bottom
+      setSelectedDayIndex(todayIdx !== -1 ? todayIdx : 0);
+      setViewMode('day');
+      lastHandledTriggerRef.current = filterTrigger;
+
+      // Gently scroll to the overflow section if it exists
+      setTimeout(() => {
+        const overflowEl = document.getElementById('timeline-overflow-section');
+        if (overflowEl) {
+          overflowEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 150);
+    }
+  }, [filterTrigger, searchQuery, userSchedules, todayIdx]);
 
   return (
     <div className="space-y-6">
@@ -5018,7 +5062,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
 
       {/* Overflow Tasks Section */}
       {allOverflowTasks.length > 0 && (
-        <div className="space-y-3 pt-2">
+        <div id="timeline-overflow-section" className="space-y-3 pt-2">
           <h4 className="text-xs font-semibold text-gray-300 flex items-center gap-2 select-none">
             <span className="material-symbols-outlined text-sm text-indigo-400">arrow_forward</span>
             <span>Úkoly přesahující do dalšího týdne ({allOverflowTasks.length})</span>
