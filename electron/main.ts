@@ -1387,6 +1387,7 @@ function setupIpcHandlers() {
     if (res.success && res.item) {
       // Notifikace o založení se řídí pravidlem: pouze pro vývojáře, nikdy běžnému uživateli
       feedbackNotificationService.onFeedbackCreated(res.item);
+      windowManager.getFeedbackWindow()?.webContents.send('feedback-refresh');
     }
     return res;
   });
@@ -1397,6 +1398,7 @@ function setupIpcHandlers() {
     const res = await feedbackService.updateFeedback(targetFolder, params.item, params.screenshotBase64);
     if (res.success && res.item) {
       feedbackNotificationService.onFeedbackUpdated(res.item);
+      windowManager.getFeedbackWindow()?.webContents.send('feedback-refresh');
     }
     return res;
   });
@@ -1407,6 +1409,7 @@ function setupIpcHandlers() {
     const res = await feedbackService.deleteFeedback(targetFolder, params.feedbackId);
     if (res.success) {
       feedbackNotificationService.onFeedbackDeleted(params.feedbackId);
+      windowManager.getFeedbackWindow()?.webContents.send('feedback-refresh');
     }
     return res;
   });

@@ -292,6 +292,7 @@ declare global {
       selectFeedbackFolder?: () => Promise<string | null>;
       getClipboardImage?: () => Promise<string | null>;
       onFeedbackModeChanged?: (callback: (mode: 'user' | 'dev') => void) => () => void;
+      onFeedbackRefresh?: (callback: () => void) => () => void;
     };
   }
 }

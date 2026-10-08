@@ -496,6 +496,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         await window.electronAPI?.resetAndHideSpotlight?.();
 
         if (wizard.openWindowAfter && window.electronAPI?.openFeedbackWindow) {
+          // Krátká prodleva pro zajištění kompletního zápisu souborů na disk před aktivací okna
+          await new Promise((r) => setTimeout(r, 80));
           await window.electronAPI.openFeedbackWindow('user');
         }
       } else {
@@ -3489,7 +3491,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {/* Stepper pills */}
+              {/* Stepper circles */}
               <div className="flex items-center gap-1.5">
                 {wizardItem.wizard?.steps.map((st, sIdx) => {
                   const isPassed = sIdx < wizardStepIndex;
@@ -3503,14 +3505,19 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                           goToWizardStep(sIdx);
                         }
                       }}
-                      className={`h-2 rounded-full transition-all duration-200 ${
+                      className={`w-2.5 h-2.5 rounded-full transition-all duration-200 ${
                         isPassed
-                          ? 'w-5 bg-amber-400 cursor-pointer hover:bg-amber-300'
+                          ? 'bg-emerald-500 cursor-pointer hover:bg-emerald-400 hover:scale-125 shadow-sm'
                           : isCurrent
-                          ? 'w-7 bg-amber-400 shadow-sm animate-pulse'
-                          : 'w-2 bg-white/10'
+                          ? 'bg-purple-500 shadow-sm ring-2 ring-purple-400/50 scale-125'
+                          : 'bg-white/20'
                       }`}
-                      title={`Krok ${sIdx + 1}: ${st.title}`}
+                      style={
+                        isCurrent
+                          ? { backgroundColor: 'var(--color-actions-hex, #a855f7)' }
+                          : undefined
+                      }
+                      title={`Krok ${sIdx + 1}: ${st.title} (${isPassed ? 'Hotovo' : isCurrent ? 'Aktivní' : 'Čeká'})`}
                     />
                   );
                 })}

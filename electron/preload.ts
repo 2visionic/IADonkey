@@ -453,4 +453,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('feedback-mode-changed', handler);
     return () => ipcRenderer.removeListener('feedback-mode-changed', handler);
   },
+  onFeedbackRefresh: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('feedback-refresh', handler);
+    return () => ipcRenderer.removeListener('feedback-refresh', handler);
+  },
 });

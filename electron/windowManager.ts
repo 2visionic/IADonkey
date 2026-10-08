@@ -1120,6 +1120,7 @@ export class WindowManager {
 
     if (this.feedbackWindow && !this.feedbackWindow.isDestroyed()) {
       this.feedbackWindow.webContents.send('feedback-mode-changed', mode);
+      this.feedbackWindow.webContents.send('feedback-refresh');
       if (this.feedbackWindow.isMinimized()) this.feedbackWindow.restore();
       this.feedbackWindow.show();
       this.feedbackWindow.focus();
@@ -1174,6 +1175,10 @@ export class WindowManager {
         event.preventDefault();
         this.feedbackWindow?.hide();
       }
+    });
+
+    this.feedbackWindow.on('show', () => {
+      this.feedbackWindow?.webContents.send('feedback-refresh');
     });
 
     this.feedbackWindow.on('closed', () => {

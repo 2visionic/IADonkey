@@ -145,19 +145,39 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
     loadFeedbacks();
   }, [loadFeedbacks]);
 
-  // Posluchač změny režimu z Electronu
+  // Automatický refresh při získání fokusu okna
+  useEffect(() => {
+    const handleFocus = () => {
+      loadFeedbacks();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [loadFeedbacks]);
+
+  // Posluchač změny režimu z Electronu (při přepnutí nebo znovuotevření okna)
   useEffect(() => {
     if (window.electronAPI?.onFeedbackModeChanged) {
       const unsub = window.electronAPI.onFeedbackModeChanged((newMode) => {
         if (newMode === 'dev' && !isDevAvailable) {
           setMode('user');
-          return;
+        } else {
+          setMode(newMode);
         }
-        setMode(newMode);
+        loadFeedbacks();
       });
       return () => unsub();
     }
-  }, [isDevAvailable]);
+  }, [isDevAvailable, loadFeedbacks]);
+
+  // Posluchač explicitní výzvy k obnovení (např. po uložení nového feedbacku z wizardu)
+  useEffect(() => {
+    if (window.electronAPI?.onFeedbackRefresh) {
+      const unsub = window.electronAPI.onFeedbackRefresh(() => {
+        loadFeedbacks();
+      });
+      return () => unsub();
+    }
+  }, [loadFeedbacks]);
 
   // Výběr sdílené složky
   const handleSelectFolder = async () => {
