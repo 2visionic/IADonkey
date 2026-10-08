@@ -62,8 +62,4 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-- [x] **Spotlight: Vícekrokový průvodce (Wizard Stepper) a zadávání zpětné vazby (`/feedback`)**
-  - Obecný stepper engine pro Spotlight položky s definicí kroků (`WizardStep[]`), validací povinných polí, indikátorem kroků a klávesovou navigací.
-  - Podpora pro textové vstupy, výběr z možností s ikonami i dynamické načítání (`dynamicOption: "clipboard"` se screeningem obrázků).
-  - Živý informační panel dosud zadaných údajů s možností návratu ke konkrétnímu kroku.
-  - Spuštění akce `createfeedback` s atomickým zápisem do sdílené složky a otevřením okna zpětné vazby.
+*Žádné dokončené úkoly nečekají na kontrolu.*
