@@ -21,6 +21,8 @@ export const CHANGELOG_HISTORY: VersionEntry[] = [
       'MagicGate – Rekurzivní klonování balíčků (submodulů): Ve výchozím stavu je pro instance MagicGate aktivováno rekurzivní stahování repozitářů včetně balíčků (packages/*). Odstraněn problém s chybějícími moduly při stažení nové instance.',
       'MagicGate – Automatický checkout větví repozitářů i balíčků: Zajištěno, že hlavní repozitář sekce i všechny jeho submoduly z .gitmodules se po stažení automaticky přepnou na aktivní větve (přednostně větev instance jako brenna, případně main), namísto ponechání v odpojeném stavu (detached HEAD).',
       'MagicGate – Otevírání sekcí ve VS Code (rozpad na podsložky): Po stisku Shift+Enter (nabídka akcí položky) se u instancí s více repozitáři zobrazí přímý rozpad na jednotlivé sekce (Otevřít <Sekce> ve VS Code), u instancí s jedním repozitářem se přímo otevírá podsložka tohoto repozitáře namísto prázdné nadřazené složky.',
+      'Spotlight – Vícekrokový průvodce (Wizard Stepper): Obecný rozšiřitelný mechanismus pro provádění vícekrokových formulářů a průvodců přímo ve vyhledávacím okně Spotlight. Podporuje definici kroků (textový vstup, výběrový seznam s ikonami a barvami, dynamické načítání např. screenshotů ze schránky), validaci povinných polí, vizuální indikátor postupu, živý informační přehled dosud zadaných údajů s možností návratu a spuštění navázané akce.',
+      'Spotlight – Průvodce pro zpětnou vazbu (/feedback, /chyba, /napad): Spuštěním příkazu z vyhledávání se aktivuje režim průvodce pro rychlé zadání podnětu (název, typ, priorita, popis a přiložení snímku obrazovky ze schránky). Poslední krok podnět atomicky uloží a ihned zobrazí okno se všemi podněty.',
       'Spotlight – Kompaktní stránkování informací (2×2): Karta informací o položce ve Spotlightu nově stránkuje po 4 položkách v mřížce 2×2 namísto původních 8, což zajišťuje kompaktnější a přehlednější zobrazení.',
       'Úkoly & Zpětná vazba – Odstranění borderu u surface kruhu: Vyčištěn border u kruhového indikátoru v kartách úkolů pro čistší Material 3 vizuál.',
     ],
@@ -610,18 +612,7 @@ export const CHANGELOG_HISTORY: VersionEntry[] = [
  * Zde se průběžně zapisují novinky pro budoucí verzi.
  * Po dokončení releasu se tyto položky přesunou přímo pod vydávanou verzi a toto pole se vyprázdní.
  */
-export const UPCOMING_CHANGELOG: string[] = [
-  'Spotlight – Vícekrokový průvodce (Wizard Stepper): Obecný rozšiřitelný mechanismus pro provádění vícekrokových formulářů a průvodců přímo ve vyhledávacím okně Spotlight. Podporuje definici kroků (textový vstup, výběrový seznam s ikonami a barvami, dynamické načítání např. screenshotů ze schránky), validaci povinných polí, vizuální indikátor postupu, živý informační přehled dosud zadaných údajů s možností návratu a spuštění navázané akce (např. createfeedback).',
-  'Spotlight – Průvodce pro zpětnou vazbu (/feedback, /chyba, /napad): Spuštěním příkazu z vyhledávání se aktivuje režim průvodce pro rychlé zadání podnětu (název, typ, priorita, popis a přiložení snímku obrazovky ze schránky). Poslední krok podnět atomicky uloží a ihned zobrazí okno se všemi podněty.',
-  'Instalátor – Sjednocené pozadí a borderless styl: Sjednocení odstínu pozadí celého okna (#121319) napříč postranním panelem, obsahem, hlavičkou i patičkou; odstranění bočního i horního divideru pro čistý borderless vizuál se zachováním oddělovače patičky.',
-  'Instalátor – Zvětšení výšky okna: Zvětšení výchozí výšky instalačního okna i náhledu v Nastavení o 50 px (na 640 px) pro vyšší komfort zobrazení.',
-  'Instalátor – Moderní UI checkboxy: Náhrada systémových checkboxů za vyladěné komponenty s plynulými animacemi, zaoblenými rohy a indigo indikátorem výběru.',
-  'Okna s vlastní horní lištou – Odstranění horního zaoblení obsahu: Odstranění nechtěného horního border radiusu (28 px z třídy m3-surface-main) u obsahu a záhlaví navazujícího na WindowTitleBar. Vertikální posuvník (scrollbar) tak nyní u pravého okraje začíná přesně v rovině bez vizuálního vykousnutí nebo odskoku.',
-  'MagicPlan – Pozice ikony kritické priority na kartách úkolů: Na kartách úkolů (Nástěnka a přetékající úkoly pod plánem) byla ikona kritické priority přesunuta mezi název typu úkolu a čip zadavatele. Ikona a název typu požadavku tak zůstávají těsně u sebe a nevzniká nežádoucí zobrazení dvou ikon těsně za sebou.',
-  'MagicPlan – Integrace denních worklogů z MLogu (Logs.aspx): Automatické načítání reálně odpracovaných hodin pro dny od pondělí do dnešního dne. Reálný čas se sumarizuje a zaokrouhluje na celých 0,5 h; úkoly odpracované mimo plán se automaticky založí jako splněné. V časové ose se v minulých dnech servisy řadí na vyhrazené poslední 3 h (s přetékáním do dalších dnů a vzájemným doplňováním volného času s vývojem dle stanovených priorit).',
-  'MagicPlan – Podkresové zelené vyplnění šířky dle worklogu: U dosud nesplněných úkolů s vykázaným worklogem se pozadí karty proporcionálně podbarvuje zelenou barvou úspěchu podle procenta odpracování (např. 1 h ze 4 h = 25 % zeleně; u rozdělených dílů v timeline se procento počítá přesně na délku daného bloku, např. 1 h odpracováno v dílu 1/2 o délce 3 h z celkových 4 h = 33 % šířky).',
-  'MagicPlan – Zobrazení přepáleného času (červený podkres zprava): U hotových úkolů, kde reálný čas z worklogu přesáhl původní odhad z plánu (např. T792571: odhad 1 h, skutečnost 2 h), se rozdíl vizualizuje jako červený podkres z pravé strany karty (50 % červeně) a v záhlaví se zobrazí údaj o překročení (+50 %).',
-];
+export const UPCOMING_CHANGELOG: string[] = [];
 
 export function getLatestRelease(): VersionEntry {
   return CHANGELOG_HISTORY[0];
