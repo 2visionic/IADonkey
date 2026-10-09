@@ -46,5 +46,7 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-*Žádné dokončené úkoly nečekají na kontrolu.*
+- [x] **MagicPlan: Oprava výpočtu přesahu (overburn) a plánu při přetečení úkolu do dalšího týdne**
+  - Do `overflowTasks` pro další týden se přenáší pouze čistý zbývající plán (např. 1h z 6h), nikoli přesah z aktuálního týdne; worklog v dalším týdnu je 0h (0% overburn).
+  - Pro část úkolu v aktuálním týdnu se procento přesahu vztahuje k plánu alokovanému na tento týden (např. 7,9h logu z 5h plánu = 158% / +2,9h), při zachování vizuální šířky bloku v mřížce dne.
 

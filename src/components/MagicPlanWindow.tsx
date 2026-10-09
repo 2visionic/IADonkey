@@ -2134,10 +2134,10 @@ const calculateScheduleForTasks = (
     break;
   }
 
-  // Overflow tasks (zbylé úkoly, které se nevešly do týdne)
+  // Overflow tasks (zbylé úkoly, které se nevešly do týdne – přenáší se pouze zbylý plán, nikoli přesah z aktuálního týdne)
   const overflowTasks: { task: PlanTaskItem; remainingHours: number; partIndex?: number; totalParts?: number; originalTotalHours?: number }[] = [];
   for (const q of compQueue) {
-    const rem = q.remainingPlannedHours + q.remainingOverburnHours;
+    const rem = q.remainingPlannedHours;
     if (rem > 0) {
       overflowTasks.push({
         task: q.task,
@@ -2146,7 +2146,7 @@ const calculateScheduleForTasks = (
     }
   }
   for (const q of subsequentQueue) {
-    const rem = q.remainingPlannedHours + q.remainingOverburnHours;
+    const rem = q.remainingPlannedHours;
     if (rem > 0) {
       overflowTasks.push({
         task: q.task,
@@ -2185,9 +2185,13 @@ const calculateScheduleForTasks = (
 
     const isDone = Boolean(task.isCompleted || task.isSolved);
     const sorted = [...tBlocks].sort((a, b) => a.partIndex - b.partIndex || a.startCol - b.startCol);
+    const hasOverflow = overflowTasks.some((o) => o.task.taskId === task.taskId);
+    const scheduledPlanInWeek = sorted.reduce((sum, b) => sum + (b.plannedChunkHours ?? b.chunkHours), 0);
 
     if (isDone) {
-      const est = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
+      const est = hasOverflow && scheduledPlanInWeek > 0
+        ? scheduledPlanInWeek
+        : (task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1));
       const actualHours = (task.worklogHours && task.worklogHours > 0) ? task.worklogHours : (task.totalHours || 0);
       if (est > 0 && actualHours > est) {
         const taskOverPct = Math.round((actualHours / est) * 100);
@@ -2198,8 +2202,10 @@ const calculateScheduleForTasks = (
     } else {
       const planHours = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
       const worklogHours = task.worklogHours || 0;
-      const isOver = planHours > 0 && worklogHours > planHours;
-      const taskOverProgPct = isOver ? Math.round((worklogHours / planHours) * 100) : 0;
+      const effectivePlanHours = hasOverflow && scheduledPlanInWeek > 0 ? scheduledPlanInWeek : planHours;
+      const isOver = effectivePlanHours > 0 && worklogHours > effectivePlanHours;
+      const taskOverProgPct = isOver ? Math.round((worklogHours / effectivePlanHours) * 100) : 0;
+      const rawOverH = isOver ? Math.round((worklogHours - effectivePlanHours) * 100) / 100 : 0;
 
       if (worklogHours > 0) {
         let accumulatedHours = 0;
@@ -2215,6 +2221,7 @@ const calculateScheduleForTasks = (
           if (isOver) {
             b.isOverburnedInProgress = true;
             b.overburnProgressPercent = taskOverProgPct;
+            b.rawOverburnHours = rawOverH;
           }
         }
       }
@@ -2319,9 +2326,12 @@ const calculateScheduleForTasks = (
 
     const isDone = Boolean(task.isCompleted || task.isSolved);
     const sorted = [...tBlocks].sort((a, b) => a.partIndex - b.partIndex || a.startCol - b.startCol);
+    const scheduledPlanInWeek = sorted.reduce((sum, tb) => sum + (tb.plannedChunkHours ?? tb.chunkHours), 0);
 
     if (isDone) {
-      const est = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
+      const est = hasOverflow && scheduledPlanInWeek > 0
+        ? scheduledPlanInWeek
+        : (task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1));
       const actualHours = (task.worklogHours && task.worklogHours > 0) ? task.worklogHours : (task.totalHours || 0);
       if (est > 0 && actualHours > est) {
         const taskOverPct = Math.round((actualHours / est) * 100);
@@ -2332,8 +2342,10 @@ const calculateScheduleForTasks = (
     } else {
       const planHours = task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : (task.totalHours > 0 ? task.totalHours : 1);
       const worklogHours = task.worklogHours || 0;
-      const isOver = planHours > 0 && worklogHours > planHours;
-      const taskOverProgPct = isOver ? Math.round((worklogHours / planHours) * 100) : 0;
+      const effectivePlanHours = hasOverflow && scheduledPlanInWeek > 0 ? scheduledPlanInWeek : planHours;
+      const isOver = effectivePlanHours > 0 && worklogHours > effectivePlanHours;
+      const taskOverProgPct = isOver ? Math.round((worklogHours / effectivePlanHours) * 100) : 0;
+      const rawOverH = isOver ? Math.round((worklogHours - effectivePlanHours) * 100) / 100 : 0;
 
       if (worklogHours > 0) {
         let accumulatedHours = 0;
@@ -2349,6 +2361,7 @@ const calculateScheduleForTasks = (
           if (isOver) {
             tb.isOverburnedInProgress = true;
             tb.overburnProgressPercent = taskOverProgPct;
+            tb.rawOverburnHours = rawOverH;
           }
         }
       }
@@ -2383,7 +2396,9 @@ const calculateScheduleForTasks = (
     const totalParts = partsInWeek > 0 ? partsInWeek + 1 : 1;
     ot.partIndex = totalParts;
     ot.totalParts = totalParts;
-    ot.originalTotalHours = ot.task.totalHours || ot.remainingHours;
+    ot.originalTotalHours = (ot.task.estimatedHours && ot.task.estimatedHours > 0)
+      ? ot.task.estimatedHours
+      : (ot.task.totalHours || ot.remainingHours);
   }
 
   return {
@@ -5111,8 +5126,6 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 min-[1366px]:grid-cols-4 min-[1921px]:grid-cols-5 gap-2.5">
             {allOverflowTasks.map(({ task, remainingHours, partIndex, totalParts, originalTotalHours }) => {
               const originalTotal = originalTotalHours || task.estimatedHours || task.totalHours || remainingHours;
-              const scheduledInWeek = Math.max(0, originalTotal - remainingHours);
-              const remainingWorklog = Math.max(0, Math.round(((task.worklogHours || 0) - scheduledInWeek) * 100) / 100);
               const authorMatch = isTaskMatchingAuthor(task.author, selectedAuthorFilter);
               const queryMatch = isTaskMatchingQuery(task, searchQuery || '');
               const isMatch = authorMatch && queryMatch;
@@ -5127,7 +5140,8 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                     task={{
                       ...task,
                       totalHours: remainingHours,
-                      worklogHours: remainingWorklog,
+                      worklogHours: 0,
+                      estimatedHours: remainingHours,
                     }}
                     onOpenTask={onOpenTask}
                     onOpenCodeLink={onOpenCodeLink}
