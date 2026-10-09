@@ -42,14 +42,17 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
     - Implementace servisy pro volání `https://frog.magicware.cz/api/v1/sub-requirements` a načítání uživatelů (`/api/v1/users`).
     - Spotlight dialog pro příkaz `/task` (název, závažnost, zkratka řešitele např. MCH, projekt).
 
+- [ ] **5. Vylepšení úvodní obrazovky (Splash screen)**
+  - **Popis**: Modernizace, vizuální doladění a technické vylepšení Splash screenu zobrazovaného při startu aplikace a simulaci.
+  - **Klíčové body k realizaci**:
+    - **Dynamický průběh načítání (Progress & Status text)**: Napojení komponenty `SplashScreen.tsx` na IPC událost `splash-status` (předávanou z backendu `windowManager.updateSplashStatus`), zobrazení reálného textu aktuálního kroku inicializace (např. *Načítání konfigurace*, *Synchronizace dat*, *Příprava oken*...) namísto statického nápisu *Spouštění...*.
+    - **Vizuální indikátor postupu**: Doplnění tenkého elegantního progress baru se zaoblením dle M3 stylu v dolní části karty.
+    - **Vizuální styl a sladění**: Sjednocení s primární barvou aplikace, plynulé animace náběhu a ukončení (fade in/out), případně dynamické barevné zvýraznění verze (dev vs produkce).
+    - **Plynulý přechod do hlavního okna**: Zajištění hladkého předání fokusu a zobrazení hlavního okna/Spotlightu bez probliknutí.
+
 ---
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-- [x] **MagicPlan: Oprava výpočtu přesahu (overburn) a plánu při přetečení úkolu do dalšího týdne**
-  - Do `overflowTasks` pro další týden se přenáší pouze čistý zbývající plán (např. 1h z 6h), nikoli přesah z aktuálního týdne; worklog v dalším týdnu je 0h (0% overburn).
-  - Pro část úkolu v aktuálním týdnu se procento přesahu vztahuje k plánu alokovanému na tento týden (např. 7,9h logu z 5h plánu = 158% / +2,9h), při zachování vizuální šířky bloku v mřížce dne.
-
-- [x] **MagicPlan: Skrytí ikony kritické priority u dokončených úkolů v týdenním pohledu**
-  - V týdenním pohledu časové osy i v informačním tooltipu se u dokončených a vyřešených úkolů již nezobrazuje červená ikona kritické priority, ale výhradně zelený indikátor dokončení (`check_circle`).
+*Žádné dokončené úkoly nečekají na kontrolu.*
 
