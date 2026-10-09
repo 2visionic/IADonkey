@@ -4,6 +4,11 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.9] - 10. 10. 2026
+### MagicPlan oprava přesahu (overburn) při přetečení týdne a skrytí kritické ikony u dokončených úkolů
+- **MagicPlan – Přesah (overburn) při přetečení do dalšího týdne**: Do přehledu úkolů přesahujících do dalšího týdne se přenáší pouze čistý zbývající plán (např. 1h z 6h), nikoli přesah z aktuálního týdne. Worklog pro další týden je inicializován na 0h (0% overburn). V aktuálním týdnu se procento přesahu vztahuje k plánu alokovanému na daný týden (např. 7,9h logu z 5h plánu = 158% / +2,9h) při zachování vizuální šířky bloku v mřížce dne.
+- **MagicPlan – Skrytí ikony kritické priority u dokončených úkolů**: V týdenním pohledu časové osy i v informačním tooltipu se u dokončených a vyřešených úkolů již nezobrazuje červená varovná ikona kritické priority, ale výhradně zelený indikátor dokončení (`check_circle`), v souladu s denním pohledem a nástěnkou.
+
 ## [2.1.8] - 9. 10. 2026
 ### MagicGate rekurzivní klonování balíčků, větve submodulů, rozpad sekcí pro VS Code a kompaktní stránkování
 - **MagicGate – Rekurzivní klonování balíčků (submodulů)**: Ve výchozím stavu je pro instance MagicGate aktivováno rekurzivní stahování repozitářů včetně balíčků (`packages/*`). Odstraněn problém s chybějícími moduly při stažení nové instance.

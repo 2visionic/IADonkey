@@ -1,6 +1,6 @@
 {
-  "version": "2.1.8",
-  "releaseNotes": "• MagicGate rekurzivní klonování: Ve výchozím stavu se pro instance stahují i všechny balíčky a submoduly (packages/*).\n• Větve repozitářů i balíčků: Automatický checkout aktivních větví pro sekční repozitáře i submoduly (odstraněn stav detached HEAD).\n• Rozpad repozitářů pro VS Code: V nabídce akcí (Shift+Enter) možnost otevřít přímo jednotlivé podsložky repozitářů sekcí, při jedné sekci se neotevírá prázdná nadřazená složka.\n• Spotlight info stránkování: Kompaktní mřížka 2×2 (4 položky na stránku) s navigací šipkami i tlačítky.\n• Úkoly & Vizuál: Vyčištěn border u kruhového indikátoru v kartách úkolů.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.8/IADonkey-Setup-2.1.8.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.8/IADonkey-2.1.8.zip"
+  "version": "2.1.9",
+  "releaseNotes": "• MagicPlan přesah při přetečení: Do dalšího týdne se přenáší pouze čistý zbývající plán (např. 1h z 6h), nikoli přesah z aktuálního týdne. Worklog pro další týden je inicializován na 0h (0% overburn).\n• MagicPlan výpočet v týdnu: V aktuálním týdnu se procento přesahu vztahuje k plánu alokovanému na daný týden při zachování vizuální šířky bloku.\n• Týdenní přehled: U dokončených úkolů se již nezobrazuje ikona kritické priority, ale výhradně zelený indikátor splnění.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.9/IADonkey-Setup-2.1.9.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.9/IADonkey-2.1.9.zip"
 }

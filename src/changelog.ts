@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.8';
+export const CURRENT_APP_VERSION = '2.1.9';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,15 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.9',
+    date: '10. 10. 2026',
+    title: 'MagicPlan oprava přesahu (overburn) při přetečení týdne a skrytí kritické ikony u dokončených úkolů',
+    highlights: [
+      'MagicPlan – Přesah (overburn) při přetečení do dalšího týdne: Do přehledu úkolů přesahujících do dalšího týdne se přenáší pouze čistý zbývající plán (např. 1h z 6h), nikoli přesah z aktuálního týdne. Worklog pro další týden je inicializován na 0h (0% overburn). V aktuálním týdnu se procento přesahu vztahuje k plánu alokovanému na daný týden (např. 7,9h logu z 5h plánu = 158% / +2,9h) při zachování vizuální šířky bloku v mřížce dne.',
+      'MagicPlan – Skrytí ikony kritické priority u dokončených úkolů: V týdenním pohledu časové osy i v informačním tooltipu se u dokončených a vyřešených úkolů již nezobrazuje červená varovná ikona kritické priority, ale výhradně zelený indikátor dokončení (check_circle), v souladu s denním pohledem a nástěnkou.',
+    ],
+  },
   {
     version: '2.1.8',
     date: '9. 10. 2026',
