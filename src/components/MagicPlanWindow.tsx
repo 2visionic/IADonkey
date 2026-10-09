@@ -4560,25 +4560,24 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                               >
                                 <div
                                   className={`flex items-center justify-center ${
-                                    (isCrit || isCompleted) && !isNotAvailable ? 'flex-col gap-0.5' : 'flex-row gap-1'
+                                    (isCrit || isCompletedTask) && !isNotAvailable ? 'flex-col gap-0.5' : 'flex-row gap-1'
                                   }`}
                                 >
-                                  {isCrit && !isNotAvailable && (
-                                    <span
-                                      className="material-symbols-outlined text-xs text-red-400"
-                                      title="Kritická priorita"
-                                    >
-                                      warning
-                                    </span>
-                                  )}
-                                  {isCompleted && !isNotAvailable && (
+                                  {isCompletedTask && !isNotAvailable ? (
                                     <span
                                       className="material-symbols-outlined text-xs text-emerald-300"
                                       title="Dokončený úkol"
                                     >
                                       check_circle
                                     </span>
-                                  )}
+                                  ) : isCrit && !isNotAvailable ? (
+                                    <span
+                                      className="material-symbols-outlined text-xs text-red-400"
+                                      title="Kritická priorita"
+                                    >
+                                      warning
+                                    </span>
+                                  ) : null}
                                   <span
                                     className={`material-symbols-outlined text-xs ${isSolidBlock ? 'text-white' : 'text-white/50'}`}
                                   >
@@ -4811,7 +4810,12 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
               {/* Header row: Type badge + hours */}
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {Boolean(hoveredTask.block.isCritical || hoveredTask.block.task.isCritical) && (
+                  {Boolean(
+                    !hoveredTask.block.isCompleted &&
+                    !hoveredTask.block.task.isCompleted &&
+                    !hoveredTask.block.task.isSolved &&
+                    (hoveredTask.block.isCritical || hoveredTask.block.task.isCritical)
+                  ) && (
                     <span className="material-symbols-outlined text-xs text-red-400" title="Kritická priorita">
                       warning
                     </span>
