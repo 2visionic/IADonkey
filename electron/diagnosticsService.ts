@@ -6,13 +6,26 @@ import type { ActionLogEntry, CrashLogEntry } from '../src/types';
 class DiagnosticsService {
   private crashLogDir: string;
   private actionLogs: ActionLogEntry[] = [];
-  private maxActionLogs = 50;
+  private maxActionLogs = 150;
   private idCounter = 0;
   private onCrashCallback?: (action: string, error: any, filePath: string) => void;
+  private onActionLogCallback?: (logs: ActionLogEntry[]) => void;
 
   constructor() {
     this.crashLogDir = this.resolveCrashLogDir();
     this.ensureDirectoryExists(this.crashLogDir);
+  }
+
+  public setOnActionLogCallback(cb: (logs: ActionLogEntry[]) => void): void {
+    this.onActionLogCallback = cb;
+  }
+
+  private notifyActionLogsUpdated(): void {
+    if (this.onActionLogCallback) {
+      try {
+        this.onActionLogCallback([...this.actionLogs]);
+      } catch {}
+    }
   }
 
   private resolveCrashLogDir(): string {
@@ -73,6 +86,8 @@ class DiagnosticsService {
     if (this.actionLogs.length > this.maxActionLogs) {
       this.actionLogs.pop();
     }
+
+    this.notifyActionLogsUpdated();
 
     return fullEntry;
   }

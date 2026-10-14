@@ -5,6 +5,7 @@ import { loadMagicGateXml } from './magicGateXml';
 import { fetchMagicGateDeployItems, loadMagicGateDeployCache } from './magicGateDeployApi';
 import { fetchGitHubRepos, getActiveGitHubToken } from './githubService';
 import { faviconService } from './faviconService';
+import { diagnosticsService } from './diagnosticsService';
 
 function isItemBanned(item: LauncherItem, banlist?: BannedItem[]): boolean {
   if (!banlist || banlist.length === 0) return false;
@@ -63,10 +64,19 @@ export class DataSyncManager {
             },
           });
           const cached = loadMagicGateDeployCache();
+          if (cached.length > 0) {
+            diagnosticsService.logAction({
+              type: 'sync',
+              title: 'MagicGate (Deploy API): Použita offline cache',
+              details: `Načteno ${cached.length} instancí z lokální cache (${res.error || 'server nedostupný'}).`,
+              status: 'warn',
+            });
+          }
           return cached;
         }
       } catch (err: any) {
         console.error('[DataSync] Error loading MagicGate Deploy API:', err);
+        diagnosticsService.recordCrash('Synchronizace MagicGate Deploy API', err);
         return loadMagicGateDeployCache();
       }
     }
@@ -74,9 +84,17 @@ export class DataSyncManager {
     // Default: XML mode
     if (mg.xmlPath && fs.existsSync(mg.xmlPath)) {
       try {
-        return loadMagicGateXml(mg.xmlPath);
-      } catch (err) {
+        const xmlItems = loadMagicGateXml(mg.xmlPath);
+        diagnosticsService.logAction({
+          type: 'sync',
+          title: 'Synchronizace MagicGate (Lokální XML)',
+          details: `Načteno ${xmlItems.length} instancí ze souboru ${mg.xmlPath}`,
+          status: 'success',
+        });
+        return xmlItems;
+      } catch (err: any) {
         console.error('[DataSync] Error loading MagicGate XML:', err);
+        diagnosticsService.recordCrash('Načítání MagicGate XML souboru', err, { xmlPath: mg.xmlPath });
       }
     }
     return [];
@@ -100,14 +118,28 @@ export class DataSyncManager {
       const mgItems = await this.syncMagicGateItems(config);
       allItems.push(...mgItems);
 
+      let ghCount = 0;
       const activeGhToken = getActiveGitHubToken(config.github);
       if (config.extensions?.github !== false && activeGhToken) {
         try {
           const ghItems = await fetchGitHubRepos(config.github);
+          ghCount = ghItems.length;
           allItems.push(...ghItems);
+          diagnosticsService.logAction({
+            type: 'sync',
+            title: 'Synchronizace GitHub repozitářů',
+            details: `Načteno ${ghItems.length} repozitářů.`,
+            status: 'success',
+          });
           faviconService.fetchFaviconForUrl('https://github.com').catch(() => {});
-        } catch (err) {
+        } catch (err: any) {
           console.error('[DataSync] Error loading GitHub repos:', err);
+          diagnosticsService.logAction({
+            type: 'sync',
+            title: 'Chyba synchronizace GitHub repozitářů',
+            details: err?.message || String(err),
+            status: 'error',
+          });
         }
       }
 
@@ -122,6 +154,14 @@ export class DataSyncManager {
       this.store.saveConfig({ ...latestConfig, sources: updatedSources, lastSyncTime: nowIso });
       const filteredItems = allItems.filter((it) => !isItemBanned(it, latestConfig.banlist));
       this.store.saveItems(filteredItems);
+
+      diagnosticsService.logAction({
+        type: 'sync',
+        title: 'Synchronizace dat dokončena',
+        details: `Celkem položek: ${filteredItems.length} (MagicGate: ${mgItems.length}${ghCount > 0 ? `, GitHub: ${ghCount}` : ''})`,
+        status: 'success',
+      });
+
       return filteredItems;
     }
 
@@ -160,10 +200,17 @@ export class DataSyncManager {
         };
       } catch (err: any) {
         console.error(`[DataSync] Error syncing source "${src.name}":`, err);
+        const errMsg = err?.message || 'Chyba při stahování dat';
         updatedSources[i] = {
           ...src,
-          error: err?.message || 'Chyba při stahování dat',
+          error: errMsg,
         };
+        diagnosticsService.logAction({
+          type: 'sync',
+          title: `Chyba synchronizace zdroje: ${src.name}`,
+          details: errMsg,
+          status: 'error',
+        });
       }
 
       completedCount++;
@@ -182,14 +229,28 @@ export class DataSyncManager {
     allItems.push(...mgItems);
 
     // Load GitHub repositories if configured and enabled
+    let ghCount = 0;
     const activeGhTokenEnd = getActiveGitHubToken(config.github);
     if (config.extensions?.github !== false && activeGhTokenEnd) {
       try {
         const ghItems = await fetchGitHubRepos(config.github);
+        ghCount = ghItems.length;
         allItems.push(...ghItems);
+        diagnosticsService.logAction({
+          type: 'sync',
+          title: 'Synchronizace GitHub repozitářů',
+          details: `Načteno ${ghItems.length} repozitářů.`,
+          status: 'success',
+        });
         faviconService.fetchFaviconForUrl('https://github.com').catch(() => {});
-      } catch (err) {
+      } catch (err: any) {
         console.error('[DataSync] Error loading GitHub repos:', err);
+        diagnosticsService.logAction({
+          type: 'sync',
+          title: 'Chyba synchronizace GitHub repozitářů',
+          details: err?.message || String(err),
+          status: 'error',
+        });
       }
     }
 
@@ -202,6 +263,13 @@ export class DataSyncManager {
     // Filter out banned items before saving into local cache
     const filteredItems = allItems.filter((it) => !isItemBanned(it, latestConfig.banlist));
     this.store.saveItems(filteredItems);
+
+    diagnosticsService.logAction({
+      type: 'sync',
+      title: 'Kompletní synchronizace dokončena',
+      details: `Celkem položek: ${filteredItems.length} (Vlastní zdroje: ${totalCount}, MagicGate: ${mgItems.length}${ghCount > 0 ? `, GitHub: ${ghCount}` : ''})`,
+      status: 'success',
+    });
 
     return filteredItems;
   }

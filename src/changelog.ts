@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.14';
+export const CURRENT_APP_VERSION = '2.1.15';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,17 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.15',
+    date: '15. 10. 2026',
+    title: 'Kompletní evidence v Action Logu a Crash Logu, sledování obnovy MagicGate cookie a živé propisování',
+    highlights: [
+      'Action Log – Samostatná evidence MagicGate a obnovy session cookie: Do protokolu akcí se samostatně zapisuje každá synchronizace MagicGate (Deploy API i lokální XML), detekce expirované session cookie, průběh a výsledek tiché obnovy přihlášení na pozadí přes Google SSO i případný přechod na offline cache.',
+      'Action Log – Pokrytí synchronizací na pozadí a všech modulů: Protokol eviduje startovní i periodické synchronizace (které nyní automaticky běží i při zapnutém MagicGate nebo GitHubu bez vlastních JSON zdrojů), akce v QuickCap Editoru, historii schránky EasyClip, klonování Git repozitářů, stahování CMSinFS, MagicPlan, Zpětnou vazbu a aktualizace.',
+      'Action Log – Živé propisování v reálném čase a vyšší kapacita: Kapacita protokolu byla navýšena z 50 na 150 záznamů a otevřené okno Nastavení nově zobrazuje přibývající akce na pozadí okamžitě v reálném čase bez nutnosti přepínat záložky.',
+      'Crash Log – Automatický záchyt pádů na všech oknech aplikace: Sledování neočekávaných pádů a zamrznutí je nyní zapojeno na všech sekundárních a překryvných oknech (QuickCap Editor, Pravítko, Barevné palety, Ladění barev, Git Clone, stahování CMSinFS i potvrzovací dialogy).',
+    ],
+  },
   {
     version: '2.1.14',
     date: '14. 10. 2026',

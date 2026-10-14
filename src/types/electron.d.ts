@@ -223,6 +223,7 @@ declare global {
 
       // Diagnostics & Logs API
       getActionLogs?: () => Promise<ActionLogEntry[]>;
+      onActionLogsUpdated?: (callback: (logs: ActionLogEntry[]) => void) => () => void;
       clearActionLogs?: () => Promise<void>;
       getCrashLogs?: () => Promise<CrashLogEntry[]>;
       openCrashLogFolder?: () => Promise<void>;

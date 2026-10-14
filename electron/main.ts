@@ -1152,9 +1152,16 @@ function setupIpcHandlers() {
       };
 
       windowManager.createSnipperWindow(bounds, dataUrl, scaleFactor, 'edit', filePath, size.width, size.height);
+      diagnosticsService.logAction({
+        type: 'window',
+        title: `Otevřen editor výstřižku QuickCap: ${path.basename(filePath)}`,
+        details: `Rozměry: ${size.width}×${size.height} px (${filePath})`,
+        status: 'info',
+      });
       return { success: true };
     } catch (err: any) {
       console.error('[Main] quickcap-open-editor error:', err);
+      diagnosticsService.recordCrash('Otevření editoru výstřižku QuickCap', err, { filePath });
       return { success: false, error: err?.message || String(err) };
     }
   });
@@ -1408,6 +1415,12 @@ function setupIpcHandlers() {
   ipcMain.handle('easyclip-copy-item', async (_event, id: string, paste: boolean = true) => {
     const success = await easyClipService.copyItem(id);
     if (success) {
+      diagnosticsService.logAction({
+        type: 'action',
+        title: `EasyClip: ${paste ? 'Vložena' : 'Zkopírována'} položka ze schránky`,
+        details: `ID: ${id}`,
+        status: 'success',
+      });
       windowManager.hideImmediately();
       if (paste) {
         const hwnd = windowManager.getMainWindowHandle();
@@ -1420,6 +1433,11 @@ function setupIpcHandlers() {
   ipcMain.handle('easyclip-copy-multiple', async (_event, ids: string[], paste: boolean = true) => {
     const success = await easyClipService.copyMultipleItems(ids);
     if (success) {
+      diagnosticsService.logAction({
+        type: 'action',
+        title: `EasyClip: ${paste ? 'Vloženo' : 'Zkopírováno'} více položek (${ids.length})`,
+        status: 'success',
+      });
       windowManager.hideImmediately();
       if (paste) {
         const hwnd = windowManager.getMainWindowHandle();
@@ -1430,15 +1448,37 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('easyclip-delete-item', (_event, id: string) => {
-    return easyClipService.deleteItem(id);
+    const res = easyClipService.deleteItem(id);
+    if (res) {
+      diagnosticsService.logAction({
+        type: 'action',
+        title: 'EasyClip: Smazána položka z historie',
+        details: `ID: ${id}`,
+        status: 'info',
+      });
+    }
+    return res;
   });
 
   ipcMain.handle('easyclip-delete-multiple', (_event, ids: string[]) => {
-    return easyClipService.deleteMultipleItems(ids);
+    const res = easyClipService.deleteMultipleItems(ids);
+    if (res) {
+      diagnosticsService.logAction({
+        type: 'action',
+        title: `EasyClip: Smazáno ${ids.length} položek z historie`,
+        status: 'info',
+      });
+    }
+    return res;
   });
 
   ipcMain.handle('easyclip-clear-history', () => {
     easyClipService.clearHistory();
+    diagnosticsService.logAction({
+      type: 'action',
+      title: 'EasyClip: Vyčištěna celá historie schránky',
+      status: 'info',
+    });
     return true;
   });
 
@@ -1452,6 +1492,11 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('magicplan-refresh', async () => {
+    diagnosticsService.logAction({
+      type: 'sync',
+      title: 'MagicPlan: Ruční obnovení plánu',
+      status: 'info',
+    });
     return await magicPlanService?.manualRefresh();
   });
 
@@ -1461,11 +1506,22 @@ function setupIpcHandlers() {
 
   ipcMain.handle('magicplan-clear-data', () => {
     magicPlanService?.clearData();
+    diagnosticsService.logAction({
+      type: 'action',
+      title: 'MagicPlan: Lokální data plánu vymazána',
+      status: 'info',
+    });
     return true;
   });
 
   ipcMain.handle('open-magicplan-window', async (_event, options?: { filter?: string }) => {
     const filter = typeof options?.filter === 'string' && options.filter.trim() ? options.filter.trim() : undefined;
+    diagnosticsService.logAction({
+      type: 'window',
+      title: 'Otevřeno okno MagicPlan',
+      details: filter ? `Filtr: ${filter}` : undefined,
+      status: 'info',
+    });
     await windowManager.openMagicPlanWindow(filter);
     return true;
   });
@@ -1477,6 +1533,12 @@ function setupIpcHandlers() {
   ipcMain.handle('open-feedback-window', async (_event, mode?: 'user' | 'dev') => {
     const config = store.getConfig();
     const effectiveMode = mode === 'dev' && !config.developMode ? 'user' : (mode || 'user');
+    diagnosticsService.logAction({
+      type: 'window',
+      title: 'Otevřeno okno Zpětná vazba (Feedback)',
+      details: `Režim: ${effectiveMode}`,
+      status: 'info',
+    });
     await windowManager.openFeedbackWindow(effectiveMode);
     return true;
   });
@@ -1502,9 +1564,22 @@ function setupIpcHandlers() {
     const feedbackData = { ...params.data, author };
     const res = await feedbackService.createFeedback(targetFolder, feedbackData, params.screenshotBase64);
     if (res.success && res.item) {
+      diagnosticsService.logAction({
+        type: 'action',
+        title: `Feedback: Odeslán nový podnět (${res.item.type})`,
+        details: res.item.title,
+        status: 'success',
+      });
       // Notifikace o založení se řídí pravidlem: pouze pro vývojáře, nikdy běžnému uživateli
       feedbackNotificationService.onFeedbackCreated(res.item);
       windowManager.getFeedbackWindow()?.webContents.send('feedback-refresh');
+    } else if (!res.success) {
+      diagnosticsService.logAction({
+        type: 'error',
+        title: 'Feedback: Chyba při odesílání podnětu',
+        details: res.error,
+        status: 'error',
+      });
     }
     return res;
   });
@@ -1514,6 +1589,12 @@ function setupIpcHandlers() {
     const targetFolder = params?.folderPath || config.feedback?.sharedFolder || feedbackService.getDefaultFolderPath();
     const res = await feedbackService.updateFeedback(targetFolder, params.item, params.screenshotBase64);
     if (res.success && res.item) {
+      diagnosticsService.logAction({
+        type: 'action',
+        title: `Feedback: Aktualizován podnět (${res.item.status})`,
+        details: res.item.title,
+        status: 'info',
+      });
       feedbackNotificationService.onFeedbackUpdated(res.item);
       windowManager.getFeedbackWindow()?.webContents.send('feedback-refresh');
     }
@@ -2029,7 +2110,7 @@ function setupIpcHandlers() {
     }
     const sender = event.sender;
     const githubToken = getActiveGitHubToken(config?.github);
-    return runMultiRepoClone({
+    const res = await runMultiRepoClone({
       ...params,
       githubToken,
       onProgress: (data) => {
@@ -2038,6 +2119,13 @@ function setupIpcHandlers() {
         }
       },
     });
+    diagnosticsService.logAction({
+      type: 'action',
+      title: res.success ? 'Klonování repozitářů instance (MagicGate)' : 'Chyba při klonování repozitářů instance (MagicGate)',
+      details: `Počet repozitářů: ${params.repos?.length || 0} → ${params.targetDir}${res.error ? ` | Chyba: ${res.error}` : ''}`,
+      status: res.success ? 'success' : 'error',
+    });
+    return res;
   });
 
   ipcMain.handle('open-cms-download-window', (_event, params: {
@@ -2475,6 +2563,12 @@ function setupIpcHandlers() {
             await executeGitProcess(['submodule', 'sync', '--recursive'], { cwd: targetPath, env: gitEnv, sanitize: sanitizeOutput });
             await executeGitProcess(['submodule', 'update', '--init', '--recursive'], { cwd: targetPath, env: gitEnv, sanitize: sanitizeOutput });
           }
+          diagnosticsService.logAction({
+            type: 'action',
+            title: `Git Clone: Repozitář ${repoName} již existuje`,
+            details: targetPath,
+            status: 'info',
+          });
           resolve({
             success: true,
             targetPath,
@@ -2484,6 +2578,12 @@ function setupIpcHandlers() {
           return;
         }
 
+        diagnosticsService.logAction({
+          type: 'error',
+          title: `Git Clone selhal: ${repoName}`,
+          details: sanitizeOutput(combinedErr),
+          status: 'error',
+        });
         resolve({
           success: false,
           targetPath,
@@ -2513,6 +2613,12 @@ function setupIpcHandlers() {
         });
       }
 
+      diagnosticsService.logAction({
+        type: 'action',
+        title: `Git Clone dokončen: ${repoName}`,
+        details: targetPath,
+        status: 'success',
+      });
       resolve({ success: true, targetPath, output: sanitizeOutput(stdout) });
     });
   });
@@ -2710,17 +2816,43 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('check-update', async () => {
-    return await updateChecker.checkForUpdates(true);
+    const res = await updateChecker.checkForUpdates(true);
+    diagnosticsService.logAction({
+      type: 'action',
+      title: res.hasUpdate ? `Kontrola aktualizací: Nalezena nová verze v${res.latestVersion}` : 'Kontrola aktualizací: Aplikace je aktuální',
+      details: `Aktuální: v${res.currentVersion}, nejnovější: v${res.latestVersion}`,
+      status: res.hasUpdate ? 'success' : 'info',
+    });
+    return res;
   });
 
   ipcMain.handle('download-update', async (_event, downloadUrl: string) => {
-    return await updateChecker.downloadUpdate(downloadUrl, (progress) => {
+    diagnosticsService.logAction({
+      type: 'action',
+      title: 'Stahování aktualizace zahájeno',
+      details: downloadUrl,
+      status: 'info',
+    });
+    const pathRes = await updateChecker.downloadUpdate(downloadUrl, (progress) => {
       windowManager.getMainWindow()?.webContents.send('update-download-progress', progress);
       windowManager.getSettingsWindow()?.webContents.send('update-download-progress', progress);
     });
+    diagnosticsService.logAction({
+      type: 'action',
+      title: 'Aktualizace stažena a připravena k instalaci',
+      details: pathRes,
+      status: 'success',
+    });
+    return pathRes;
   });
 
   ipcMain.handle('install-update', (_event, filePath: string) => {
+    diagnosticsService.logAction({
+      type: 'action',
+      title: 'Spuštěna instalace aktualizace a restart aplikace',
+      details: filePath,
+      status: 'info',
+    });
     updateChecker.installAndRestart(filePath, () => {
       windowManager.prepareForQuitOrRestart();
       globalShortcut.unregisterAll();
@@ -3164,6 +3296,13 @@ function isAndroidProjectFolder(folderPath: string): boolean {
   }
 }
 
+function hasAnySyncableSource(cfg: AppConfig): boolean {
+  if (cfg.sources && cfg.sources.length > 0) return true;
+  if (cfg.extensions?.magicgate !== false && (cfg.magicgate?.sourceMode === 'api' || cfg.magicgate?.xmlPath)) return true;
+  if (cfg.extensions?.github !== false) return true;
+  return false;
+}
+
 function startBackgroundTasks() {
   // 0. Initial scan of installed Windows applications
   appScanner.scanApps().then(() => {
@@ -3173,19 +3312,37 @@ function startBackgroundTasks() {
       windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
       windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
     }
+    diagnosticsService.logAction({
+      type: 'action',
+      title: 'Indexace nainstalovaných aplikací dokončena',
+      details: 'Skener Windows aplikací dokončil úvodní načtení zástupců',
+      status: 'success',
+    });
   }).catch((err) => {
     console.warn('[Main] AppScanner error on startup:', err);
+    diagnosticsService.logAction({
+      type: 'action',
+      title: 'Chyba indexace nainstalovaných aplikací',
+      details: err instanceof Error ? err.message : String(err),
+      status: 'error',
+    });
   });
 
   // 1. Silent sync interval
   const config = store.getConfig();
   const intervalMs = Math.max(5, config.autoSyncIntervalMinutes || 30) * 60 * 1000;
   
-  // Initial sync after 600ms if sources exist
+  // Initial sync after 600ms if any source or extension is active
   setTimeout(async () => {
-    if (store.getConfig().sources.length > 0) {
+    if (hasAnySyncableSource(store.getConfig())) {
       try {
         console.log('[Main] Running startup silent sync...');
+        diagnosticsService.logAction({
+          type: 'sync',
+          title: 'Spuštěna startovní synchronizace na pozadí',
+          details: 'Automatická synchronizace zdrojů, MagicGate a GitHubu po startu aplikace',
+          status: 'info',
+        });
         await syncManager.syncAll((progress) => {
           windowManager.getMainWindow()?.webContents.send('sync-progress', progress);
           windowManager.getSettingsWindow()?.webContents.send('sync-progress', progress);
@@ -3198,14 +3355,22 @@ function startBackgroundTasks() {
         windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
       } catch (err) {
         console.error('[Main] Startup sync error:', err);
+        diagnosticsService.recordCrash('Startovní synchronizace na pozadí (startup sync)', err);
       }
     }
   }, 600);
 
   syncIntervalTimer = setInterval(async () => {
-    if (store.getConfig().sources.length > 0) {
+    const currentCfg = store.getConfig();
+    if (hasAnySyncableSource(currentCfg)) {
       try {
         console.log('[Main] Running scheduled background sync...');
+        diagnosticsService.logAction({
+          type: 'sync',
+          title: 'Spuštěna periodická synchronizace na pozadí',
+          details: `Interval: ${Math.max(5, currentCfg.autoSyncIntervalMinutes || 30)} min.`,
+          status: 'info',
+        });
         await syncManager.syncAll((progress) => {
           windowManager.getMainWindow()?.webContents.send('sync-progress', progress);
           windowManager.getSettingsWindow()?.webContents.send('sync-progress', progress);
@@ -3218,6 +3383,7 @@ function startBackgroundTasks() {
         windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
       } catch (err) {
         console.error('[Main] Scheduled sync error:', err);
+        diagnosticsService.recordCrash('Periodická synchronizace na pozadí (scheduled sync)', err);
       }
     }
   }, intervalMs);
@@ -3227,6 +3393,12 @@ function startBackgroundTasks() {
     try {
       const updateInfo = await updateChecker.checkForUpdates(false);
       if (updateInfo.hasUpdate) {
+        diagnosticsService.logAction({
+          type: 'action',
+          title: `Nalezena nová aktualizace na pozadí (v${updateInfo.latestVersion})`,
+          details: `Aktuální verze: v${updateInfo.currentVersion} → Nová verze: v${updateInfo.latestVersion}`,
+          status: 'info',
+        });
         notificationService.show({
           type: 'update',
           title: `Nová verze v${updateInfo.latestVersion}`,
@@ -3275,11 +3447,28 @@ app.whenReady().then(async () => {
       },
     });
   });
+  diagnosticsService.setOnActionLogCallback((logs) => {
+    const settingsWin = windowManager?.getSettingsWindow();
+    if (settingsWin && !settingsWin.isDestroyed() && !settingsWin.webContents.isDestroyed()) {
+      settingsWin.webContents.send('action-logs-updated', logs);
+    }
+  });
+  diagnosticsService.logAction({
+    type: 'action',
+    title: 'Aplikace IADonkey spuštěna',
+    details: `Verze v${app.getVersion()} (${process.platform} ${process.arch})`,
+    status: 'info',
+  });
   currentHotkey = initialConfig.hotkey || 'Ctrl+Alt+Space';
 
   windowManager = new WindowManager(
     // onSyncRequest from Tray
     async () => {
+      diagnosticsService.logAction({
+        type: 'sync',
+        title: 'Manuální synchronizace ze systémové lišty (Tray)',
+        status: 'info',
+      });
       await syncManager.syncAll((progress) => {
         windowManager.getMainWindow()?.webContents.send('sync-progress', progress);
         windowManager.getSettingsWindow()?.webContents.send('sync-progress', progress);

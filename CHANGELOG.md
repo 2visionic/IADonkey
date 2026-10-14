@@ -4,6 +4,33 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.15] - 15. 10. 2026
+### Kompletní evidence v Action Logu a Crash Logu, sledování obnovy MagicGate cookie a živé propisování
+- **Action Log – Samostatná evidence MagicGate a obnovy session cookie**: Do protokolu akcí se samostatně zapisuje každá synchronizace MagicGate (Deploy API i lokální XML), detekce expirované session cookie, průběh a výsledek tiché obnovy přihlášení na pozadí přes Google SSO i případný přechod na offline cache.
+- **Action Log – Pokrytí synchronizací na pozadí a všech modulů**: Protokol eviduje startovní i periodické synchronizace (které nyní automaticky běží i při zapnutém MagicGate nebo GitHubu bez vlastních JSON zdrojů), akce v QuickCap Editoru, historii schránky EasyClip, klonování Git repozitářů, stahování CMSinFS, MagicPlan, Zpětnou vazbu a aktualizace.
+- **Action Log – Živé propisování v reálném čase a vyšší kapacita**: Kapacita protokolu byla navýšena z 50 na 150 záznamů a otevřené okno Nastavení nově zobrazuje přibývající akce na pozadí okamžitě v reálném čase bez nutnosti přepínat záložky.
+- **Crash Log – Automatický záchyt pádů na všech oknech aplikace**: Sledování neočekávaných pádů a zamrznutí je nyní zapojeno na všech sekundárních a překryvných oknech (QuickCap Editor, Pravítko, Barevné palety, Ladění barev, Git Clone, stahování CMSinFS i potvrzovací dialogy).
+
+## [2.1.14] - 14. 10. 2026
+### Zachování připnutého zástupce na hlavní liště Windows a pozice ikony na Ploše při aktualizaci
+- **Aktualizace – Čistý in-place přepis bez odepnutí z lišty (Taskbar)**: Proces aktualizace čeká na úplné ukončení předchozí instance a přepisuje soubory přímo na místě bez přesouvání z dočasné složky (`/MOVE`) a bez násilného resetu shell cache (`ie4uinit`), takže připnutá ikona na hlavním panelu Windows zůstává zachována.
+- **Zástupci – Zachování pozice na Ploše (grid) a v nabídce Start**: Existující zástupci se při startu aplikace ani při přeinstalaci zbytečně nemažou a nepřepisují, pokud již míří na platný spustitelný soubor `IADonkey.exe`.
+
+## [2.1.13] - 14. 10. 2026
+### Vestavěný editor výstřižků v QuickCapu a akce pro úpravu obrázků v historii schránky EasyClip
+- **QuickCap – Vestavěný editor výstřižků (Upravit ze Spotlightu)**: Po vyfocení výstřižku lze přímo ze Spotlightu spustit rychlý editor s plovoucí horní lištou ve sjednoceném designu aplikace.
+- **Editor – Tvary, zvýrazňovač textu, šipky a volná tužka**: Kreslení obdélníků a koleček/elips s přepínáním stylu (Obrys, Výplň, Zvýraznit), samostatný zvýrazňovač textu, šipky s dynamickou velikostí dle délky tažení myší a volná tužka (2px).
+- **Editor – Psaní textu, paleta barev a kroky Zpět / Vpřed**: Vkládání víceřádkového textu s volbou 4 velikostí písma (S / M / L / XL, výchozí S), výběr z 8 základních barev pro všechny nástroje, historie kroků Zpět / Vpřed (`Ctrl+Z` / `Ctrl+Y`) a okamžité zrušení rozpracovaného tahu či textu klávesou `Escape`.
+- **Editor – Přímé uložení klávesou Enter bez vzniku duplikátu**: Stiskem klávesy `Enter` (mimo psaní textu) nebo tlačítkem Uložit se upravený snímek zapíše přímo do původního souboru ve složce a nahradí záznam v systémové schránce i v EasyClipu bez vytváření duplikátů.
+- **EasyClip – Akce nad obrázky přes Shift+Enter**: V historii schránky EasyClip lze u obrázků podržením klávesy `Shift` a stiskem `Shift+Enter` vyvolat nabídku akcí (Upravit, Otevřít, Otevřít v malování, Otevřít ve složce).
+
+## [2.1.12] - 14. 10. 2026
+### MagicGate vzdálené Deploy API s Google SSO, tichou obnovou relace, offline cache a lokální ikonou
+- **MagicGate – Přepínač zdroje instancí (Lokální XML vs. Vzdálené Deploy API)**: V Nastavení -> MagicGate lze nově zvolit načítání serverů a aktivních instancí přímo ze vzdáleného Deploy API (`/api/ui/agents`) včetně URL adres Administrace a Webu z IIS bindingů, verze Magicu a názvu databáze.
+- **MagicGate – Přihlášení přes Google SSO a šifrované úložiště**: Přihlašování k Deploy serveru probíhá přes vestavěné Google SSO okno. Session cookie je bezpečně uložena v šifrovaném úložišti Windows (`safeStorage`).
+- **MagicGate – Tichá obnova relace na pozadí a automatická synchronizace**: Při startu aplikace nebo pravidelném autosyncu na pozadí si aplikace v případě expirované session cookie automaticky a tiše obnoví přihlášení přes uloženou Google relaci.
+- **MagicGate – Plná podpora klonování repozitářů, CMSinFS a offline cache**: Položky načtené z Deploy API podporují stahování Git repozitářů, stahování CMSinFS zdrojových kódů i lokální offline cache.
+
 ## [2.1.11] - 14. 10. 2026
 ### MagicPlan číslování přetečených úkolů dle pohledu, vylepšení palet, pravítka, kalkulačky a celkové stability
 - **MagicPlan – Číslování přetečené části úkolu dle aktivního pohledu (Den vs. Týden)**: Karta úkolu přesahujícího do dalšího týdne nyní automaticky přizpůsobuje číslování dílů aktivnímu pohledu – v denním pohledu počítá jednotlivé dny (např. `4/4`), zatímco v týdenním pohledu respektuje sloučené souvislé bloky (např. `3/3`).

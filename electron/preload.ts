@@ -260,6 +260,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Diagnostics & Logs API
   getActionLogs: (): Promise<ActionLogEntry[]> => ipcRenderer.invoke('get-action-logs'),
+  onActionLogsUpdated: (callback: (logs: ActionLogEntry[]) => void) => {
+    const handler = (_event: any, logs: ActionLogEntry[]) => callback(logs);
+    ipcRenderer.on('action-logs-updated', handler);
+    return () => ipcRenderer.removeListener('action-logs-updated', handler);
+  },
   clearActionLogs: (): Promise<void> => ipcRenderer.invoke('clear-action-logs'),
   getCrashLogs: (): Promise<CrashLogEntry[]> => ipcRenderer.invoke('get-crash-logs'),
   openCrashLogFolder: (): Promise<void> => ipcRenderer.invoke('open-crash-log-folder'),

@@ -1,8 +1,9 @@
 {
-  "version": "2.1.14",
-  "releaseNotes": "• Aktualizace – Zachování připnuté ikony na hlavní liště Windows (Taskbar): Čistý in-place přepis souborů při aktualizaci bez ztráty identity zástupce.\n• Zástupci na Ploše a ve Start menu: Zachování pozice ikony v mřížce (gridu) na Ploše bez zbytečného přepisování existujících zástupců.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.14/IADonkey-Setup-2.1.14.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.14/IADonkey-2.1.14.zip"
+  "version": "2.1.15",
+  "releaseNotes": "• Action Log – MagicGate a obnova cookie: Samostatná evidence synchronizací MagicGate (Deploy API i XML), detekce expirované session cookie a záznam tiché obnovy přihlášení na pozadí přes Google SSO.\n• Action Log – Živé propisování a všechny moduly: Navýšení kapacity na 150 záznamů, okamžitá aktualizace v otevřeném okně Nastavení a kompletní pokrytí synchronizací na pozadí, QuickCap Editoru, EasyClipu, Git Clone, CMSinFS, MagicPlanu i aktualizací.\n• Crash Log – Ochrana všech oken: Automatický záchyt pádů zapojen na všech sekundárních a překryvných oknech aplikace.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.15/IADonkey-Setup-2.1.15.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.15/IADonkey-2.1.15.zip"
 }
+
 
 

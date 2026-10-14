@@ -490,6 +490,7 @@ export class WindowManager {
     } catch {
       // Ignore
     }
+    this.registerCrashHandlers(this.powerWindow, 'Správa aplikace');
 
     if (process.env.VITE_DEV_SERVER_URL) {
       this.powerWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#power`);
@@ -597,6 +598,7 @@ export class WindowManager {
     } catch {
       // Ignore
     }
+    this.registerCrashHandlers(this.gitCloneWindow, 'GitClone');
 
     this.gitCloneWindow.on('maximize', () => {
       this.gitCloneWindow?.webContents.send('window-maximize-changed', true);
@@ -719,6 +721,7 @@ export class WindowManager {
     } catch {
       // Ignore
     }
+    this.registerCrashHandlers(this.cmsDownloadWindow, 'CMSDownload');
 
     this.cmsDownloadWindow.on('maximize', () => {
       this.cmsDownloadWindow?.webContents.send('window-maximize-changed', true);
@@ -828,6 +831,7 @@ export class WindowManager {
     } catch {
       // Ignore
     }
+    this.registerCrashHandlers(this.tuneColorWindow, 'TuneColor');
 
     this.tuneColorWindow.on('maximize', () => {
       this.tuneColorWindow?.webContents.send('window-maximize-changed', true);
@@ -923,6 +927,7 @@ export class WindowManager {
     });
 
     this.paletteBarWindow.setAlwaysOnTop(true, 'screen-saver');
+    this.registerCrashHandlers(this.paletteBarWindow, 'PaletteBar');
 
     if (process.env.VITE_DEV_SERVER_URL) {
       this.paletteBarWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}?${query}#palette-bar`);
@@ -1003,6 +1008,7 @@ export class WindowManager {
     } catch {
       // Ignore
     }
+    this.registerCrashHandlers(this.paletteDetailWindow, 'PaletteMaster');
 
     if (process.env.VITE_DEV_SERVER_URL) {
       this.paletteDetailWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}?${query}#palette-detail`);
@@ -1314,6 +1320,7 @@ export class WindowManager {
     });
 
     this.snipperWindow.setAlwaysOnTop(true, 'screen-saver');
+    this.registerCrashHandlers(this.snipperWindow, 'QuickCap / Editor');
 
     if (process.env.VITE_DEV_SERVER_URL) {
       this.snipperWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#quickcap`);
@@ -1412,6 +1419,7 @@ export class WindowManager {
     });
 
     this.rulerWindow.setAlwaysOnTop(true);
+    this.registerCrashHandlers(this.rulerWindow, 'ScreenRuler');
 
     if (process.env.VITE_DEV_SERVER_URL) {
       this.rulerWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#ruler`);

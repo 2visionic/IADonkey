@@ -1227,6 +1227,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   useEffect(() => {
     loadDiagnostics();
+    const unsubscribe = window.electronAPI?.onActionLogsUpdated?.((logs) => {
+      setActionLogs(logs || []);
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -12495,7 +12501,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       Protokol prováděných akcí (Action Log)
                     </h4>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Průběžný auditní záznam posledních 50 spuštěných položek, nabídek, klávesových zkratek a systémových operací zaznamenávaný na pozadí pro crashlogy.
+                      Průběžný auditní záznam posledních 150 spuštěných položek, synchronizací (vč. obnovy MagicGate cookie), nabídek, klávesových zkratek a systémových operací zaznamenávaný v reálném čase.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

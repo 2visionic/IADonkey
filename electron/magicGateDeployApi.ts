@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { app, BrowserWindow, session } from 'electron';
 import type { LauncherItem, MagicGateSettings } from '../src/types';
+import { diagnosticsService } from './diagnosticsService';
 
 const USER_DATA_PATH = app?.getPath
   ? app.getPath('userData')
@@ -610,11 +611,26 @@ export async function fetchMagicGateDeployItems(
       (res.status === 401 || res.status === 403 || (res.status >= 300 && res.status < 400)) &&
       allowSilent
     ) {
+      diagnosticsService.logAction({
+        type: 'sync',
+        title: 'MagicGate Deploy API: Platnost session cookie vypršela',
+        details: `Server ${baseUrl} vrátil HTTP ${res.status}. Spouštím tichou obnovu cookie přes Google SSO na pozadí...`,
+        status: 'warn',
+      });
+
       const silentRes = await trySilentDeployReauth(baseUrl, settings?.apiUserEmail);
       if (silentRes.ok && silentRes.cookie) {
         cookieOrToken = silentRes.cookie;
         refreshedEmail = silentRes.email;
         refreshedRole = silentRes.role;
+
+        diagnosticsService.logAction({
+          type: 'sync',
+          title: 'MagicGate Deploy API: Session cookie tiše obnovena',
+          details: `Úspěšně získána nová session cookie na pozadí${silentRes.email ? ` (${silentRes.email})` : ''} pro ${baseUrl}.`,
+          status: 'success',
+        });
+
         const rebuilt = await buildDeployRequestHeaders(baseUrl, cookieOrToken);
         headers = rebuilt.headers;
         resolvedCookie = rebuilt.resolvedCookie;
@@ -624,22 +640,43 @@ export async function fetchMagicGateDeployItems(
           headers,
           redirect: 'manual',
         });
+      } else {
+        diagnosticsService.logAction({
+          type: 'sync',
+          title: 'MagicGate Deploy API: Tichá obnova session cookie selhala',
+          details: `Automatická obnova Google SSO relace pro ${baseUrl} neproběhla (vyžadováno ruční přihlášení v Nastavení).`,
+          status: 'warn',
+        });
       }
     }
 
     if (res.status === 401 || res.status === 403 || (res.status >= 300 && res.status < 400)) {
+      const errMsg = 'Nejste přihlášeni k Deploy serveru (platnost přihlášení vypršela). Přihlaste se prosím v Nastavení -> MagicGate.';
+      diagnosticsService.logAction({
+        type: 'sync',
+        title: 'Synchronizace MagicGate (Deploy API) – nepřihlášen',
+        details: `${baseUrl} (HTTP ${res.status})`,
+        status: 'error',
+      });
       return {
         ok: false,
         items: [],
-        error: 'Nejste přihlášeni k Deploy serveru (platnost přihlášení vypršela). Přihlaste se prosím v Nastavení -> MagicGate.',
+        error: errMsg,
       };
     }
 
     if (!res.ok) {
+      const errMsg = `Deploy server vrátil chybu HTTP ${res.status}.`;
+      diagnosticsService.logAction({
+        type: 'sync',
+        title: 'Synchronizace MagicGate (Deploy API) selhala',
+        details: `${baseUrl}: ${errMsg}`,
+        status: 'error',
+      });
       return {
         ok: false,
         items: [],
-        error: `Deploy server vrátil chybu HTTP ${res.status}.`,
+        error: errMsg,
       };
     }
 
@@ -662,6 +699,13 @@ export async function fetchMagicGateDeployItems(
       } catch {}
     }
 
+    diagnosticsService.logAction({
+      type: 'sync',
+      title: 'Synchronizace MagicGate (Deploy API)',
+      details: `Načteno ${items.length} aktivních instancí ze serveru ${baseUrl}${email ? ` (${email})` : ''}.`,
+      status: 'success',
+    });
+
     return {
       ok: true,
       items,
@@ -670,10 +714,17 @@ export async function fetchMagicGateDeployItems(
       cookie: resolvedCookie || cookieOrToken,
     };
   } catch (err: any) {
+    const errMsg = err?.message || 'Chyba při stahování instancí z Deploy API.';
+    diagnosticsService.logAction({
+      type: 'sync',
+      title: 'Chyba spojení s MagicGate Deploy API',
+      details: `${baseUrl}: ${errMsg}`,
+      status: 'error',
+    });
     return {
       ok: false,
       items: [],
-      error: err?.message || 'Chyba při stahování instancí z Deploy API.',
+      error: errMsg,
     };
   }
 }
@@ -734,6 +785,13 @@ export async function loginToMagicGateDeployInteractive(
   const targetHost = getHostnameLabel(baseUrl).toLowerCase();
   const loginUrl = `${baseUrl}/auth/login?returnUrl=${encodeURIComponent('/')}`;
 
+  diagnosticsService.logAction({
+    type: 'window',
+    title: 'MagicGate Deploy API: Otevřeno okno přihlášení (Google SSO)',
+    details: loginUrl,
+    status: 'info',
+  });
+
   return new Promise((resolve) => {
     let resolved = false;
     let verifying = false;
@@ -748,6 +806,21 @@ export async function loginToMagicGateDeployInteractive(
     }) => {
       if (resolved) return;
       resolved = true;
+      if (result.ok) {
+        diagnosticsService.logAction({
+          type: 'sync',
+          title: 'MagicGate Deploy API: Přihlášení přes Google SSO úspěšné',
+          details: `Uživatel: ${result.email || 'neznámý'}${result.role ? ` (${result.role})` : ''}, načteno instancí: ${result.instanceCount ?? 0}`,
+          status: 'success',
+        });
+      } else {
+        diagnosticsService.logAction({
+          type: 'sync',
+          title: 'MagicGate Deploy API: Přihlášení nebylo dokončeno',
+          details: result.error || 'Okno zavřeno',
+          status: 'warn',
+        });
+      }
       try {
         session.defaultSession.cookies.removeListener('changed', onCookieChanged);
       } catch {}
@@ -872,6 +945,12 @@ export async function logoutFromMagicGateDeploy(rawBaseUrl?: string): Promise<vo
       await session.defaultSession.cookies.remove(baseUrl, c.name);
     }
     await session.defaultSession.cookies.flushStore();
+    diagnosticsService.logAction({
+      type: 'action',
+      title: 'MagicGate Deploy API: Odhlášení ze serveru',
+      details: `Vymazána session cookie pro ${baseUrl}`,
+      status: 'info',
+    });
   } catch (err) {
     console.error('[MagicGateDeployApi] Error clearing cookies:', err);
   }

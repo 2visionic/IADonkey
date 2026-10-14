@@ -38,8 +38,12 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-- [x] **5. Zachování připnutého zástupce na hlavní liště Windows (Taskbar) a pozice ikony na Ploše při aktualizaci**
-  - **In-place přepis souborů při aktualizaci (`updater.ts`)**: Swap skript čeká na skutečné ukončení PID běžícího procesu `IADonkey.exe` a kopíruje soubory přes `robocopy` bez přepínače `/MOVE` a bez `ie4uinit.exe -show`, čímž zachovává NTFS identitu (`File ID` a `CreationTime`) spustitelného souboru `IADonkey.exe`.
-  - **Šetrná správa zástupců (`notificationService.ts`, `installerService.ts`, `main.ts`)**: Existující zástupci v nabídce Start a na Ploše se nepřepisují, pokud již míří na správný `IADonkey.exe` se správným `AppUserModelId` (`com.iadonkey.launcher`), a v dev/installer režimu se na systémové zástupce vůbec nesahá.
+- [x] **Kompletní revize a rozšíření Action Logu a Crash Logu (vč. MagicGate cookie a živého propisování)**
+  - **MagicGate Deploy API & XML v Action Logu**: Samostatné logování každé synchronizace MagicGate, detekce expirace session cookie (`401/302`), průběhu a výsledku tiché obnovy cookie přes Google SSO na pozadí (`trySilentDeployReauth`), přechodu na offline cache i interaktivního přihlášení/odhlášení.
+  - **Synchronizace a akce na pozadí**: Zápis startu aplikace, úvodní indexace Windows aplikací, startovní i periodické synchronizace na pozadí (nyní se spouští i tehdy, když nejsou ruční zdroje, ale je zapnutý MagicGate nebo GitHub), synchronizace GitHub repozitářů a kontroly aktualizací.
+  - **Pokrytí nových modulů**: Doplněno logování akcí a odchytávání pádů (`recordCrash`) pro QuickCap Editor, EasyClip operace, Git Clone / Multi-repo clone, CMSinFS stahování, MagicPlan, Feedback a Auto-Updater.
+  - **Crash handlery na všech oknech**: Aktivováno `registerCrashHandlers` pro všechna sekundární a overlay okna (`powerWindow`, `gitCloneWindow`, `cmsDownloadWindow`, `tuneColorWindow`, `paletteBarWindow`, `paletteDetailWindow`, `snipperWindow`, `rulerWindow`).
+  - **Živý přenos do Nastavení & navýšení kapacity**: Kapacita Action Logu v paměti navýšena z 50 na 150 záznamů (stále s nulovou zátěží RAM/CPU) a napojena na živou IPC událost `action-logs-updated`, takže se záznamy v otevřeném okně Nastavení aktualizují okamžitě v reálném čase.
+
 
 
