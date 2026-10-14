@@ -1,10 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { app } from 'electron';
 import { AppStore } from './store';
 import { UpdateInfo, DownloadProgress } from '../src/types';
+
+const execFileAsync = promisify(execFile);
 
 export class UpdateChecker {
   private store: AppStore;
@@ -53,6 +56,7 @@ export class UpdateChecker {
           'Accept': 'application/json',
           'User-Agent': `IADonkey-Launcher/${currentVersion}`,
         },
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!res.ok) {
@@ -181,24 +185,29 @@ export class UpdateChecker {
 
       console.log(`[UpdateChecker] Extracting update zip to ${extractDir}...`);
       try {
-        const result = spawnSync('tar', ['-xf', targetPath, '-C', extractDir], {
+        await execFileAsync('tar', ['-xf', targetPath, '-C', extractDir], {
           windowsHide: true,
         });
-        if (result.error) {
-          throw result.error;
-        }
       } catch (tarErr) {
         console.warn('[UpdateChecker] tar failed, trying PowerShell Expand-Archive:', tarErr);
-        spawnSync(
-          'powershell',
+        await execFileAsync(
+          'powershell.exe',
           [
             '-NoProfile',
+            '-NonInteractive',
             '-ExecutionPolicy',
             'Bypass',
             '-Command',
-            `Expand-Archive -Path '${targetPath}' -DestinationPath '${extractDir}' -Force`,
+            'Expand-Archive -LiteralPath $env:IADONKEY_ZIP_PATH -DestinationPath $env:IADONKEY_EXTRACT_DIR -Force',
           ],
-          { windowsHide: true }
+          {
+            windowsHide: true,
+            env: {
+              ...process.env,
+              IADONKEY_ZIP_PATH: targetPath,
+              IADONKEY_EXTRACT_DIR: extractDir,
+            },
+          }
         );
       }
 

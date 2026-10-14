@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import type { AppConfig } from '../src/types';
 
 // Cryptographic keys extracted from MagicWare.MagicGate
@@ -63,17 +63,29 @@ export function tryImportWoxCredentials(): { username: string; password: string 
       return username ? { username, password: '' } : null;
     }
 
-    const psScript = `
-      Add-Type -AssemblyName System.Security;
-      $b = [Convert]::FromBase64String('${encPass}');
-      $d = [System.Security.Cryptography.ProtectedData]::Unprotect($b, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser);
-      [Console]::Write([System.Text.Encoding]::UTF8.GetString($d));
-    `;
+    if (!/^[A-Za-z0-9+/=\r\n]+$/.test(encPass)) {
+      console.warn('[MagicGate] Invalid Base64 in Wox EncryptedPassword, skipping DPAPI decrypt.');
+      return username ? { username, password: '' } : null;
+    }
 
-    const password = execSync(`powershell -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, {
+    const psScript = [
+      'Add-Type -AssemblyName System.Security;',
+      '$b = [Convert]::FromBase64String($env:WOX_ENC_PASS);',
+      '$d = [System.Security.Cryptography.ProtectedData]::Unprotect($b, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser);',
+      '[Console]::Write([System.Text.Encoding]::UTF8.GetString($d));',
+    ].join(' ');
+
+    const res = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], {
+      env: { ...process.env, WOX_ENC_PASS: encPass },
       encoding: 'utf-8',
       windowsHide: true,
-    }).trim();
+    });
+
+    if (res.error || res.status !== 0) {
+      throw res.error || new Error(res.stderr || 'DPAPI decrypt failed');
+    }
+
+    const password = (res.stdout || '').trim();
 
     return { username, password };
   } catch (err) {
@@ -107,7 +119,7 @@ export async function getMagicGateAutoLoginUrl(targetUrl: string, config: AppCon
 
   console.log(`[MagicGate] Requesting handshake from ${baseUrl}/AutoLogin.ashx for user ${username}...`);
   const tokenUrl = `${baseUrl}/AutoLogin.ashx?UN=${encodeURIComponent(username)}`;
-  const tokenRes = await fetch(tokenUrl);
+  const tokenRes = await fetch(tokenUrl, { signal: AbortSignal.timeout(15000) });
 
   if (!tokenRes.ok) {
     throw new Error(`AutoLogin handshake selhal (HTTP ${tokenRes.status})`);
@@ -134,6 +146,6 @@ export async function getMagicGateAutoLoginUrl(targetUrl: string, config: AppCon
     authKey
   )}&AuthenticationName=${encodeURIComponent(username)}&RequestKey=${encodeURIComponent(requestKey)}`;
 
-  console.log(`[MagicGate] Handshake successful, opening: ${autoLoginUrl}`);
+  console.log(`[MagicGate] Handshake successful for ${baseUrl}/AutoLogin.ashx (user: ${username})`);
   return autoLoginUrl;
 }

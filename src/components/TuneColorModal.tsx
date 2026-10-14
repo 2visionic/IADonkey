@@ -14,8 +14,10 @@ interface TuneColorModalProps {
 }
 
 export const TuneColorModal: React.FC<TuneColorModalProps> = ({ initialColor = '#6366f1' }) => {
+  const [baseInitialColor, setBaseInitialColor] = useState(initialColor);
+
   // Parse initial color
-  const initialParsed = parseColorQuery(initialColor) || {
+  const initialParsed = parseColorQuery(baseInitialColor) || {
     hex: '#6366F1',
     hex8: '#6366F1FF',
     hexNoHash: '6366F1',
@@ -42,6 +44,17 @@ export const TuneColorModal: React.FC<TuneColorModalProps> = ({ initialColor = '
     token: DerivedColorToken;
   } | null>(null);
 
+  useEffect(() => {
+    setBaseInitialColor(initialColor);
+    const parsed = parseColorQuery(initialColor);
+    if (parsed) {
+      setR(parsed.r);
+      setG(parsed.g);
+      setB(parsed.b);
+      setA(parsed.a);
+    }
+  }, [initialColor]);
+
   // Read params from URL search if available
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -51,6 +64,7 @@ export const TuneColorModal: React.FC<TuneColorModalProps> = ({ initialColor = '
       setSource(sourceParam);
     }
     if (colorParam) {
+      setBaseInitialColor(colorParam);
       const parsed = parseColorQuery(colorParam);
       if (parsed) {
         setR(parsed.r);
@@ -61,10 +75,12 @@ export const TuneColorModal: React.FC<TuneColorModalProps> = ({ initialColor = '
     }
 
     if (window.electronAPI?.onTuneColorInit) {
-      return (window.electronAPI as any).onTuneColorInit?.((data: any) => {
+      return window.electronAPI.onTuneColorInit((data) => {
         if (data.source) setSource(data.source);
-        if (data.color) {
-          const parsed = parseColorQuery(data.color);
+        const incomingColor = data.color || (data as any).initialColor;
+        if (incomingColor) {
+          setBaseInitialColor(incomingColor);
+          const parsed = parseColorQuery(incomingColor);
           if (parsed) {
             setR(parsed.r);
             setG(parsed.g);

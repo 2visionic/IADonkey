@@ -1114,10 +1114,12 @@ export class WindowManager {
       const onReady = () => {
         if (!resolved) {
           resolved = true;
-          this.magicPlanWindow?.show();
-          this.magicPlanWindow?.focus();
-          if (filter) {
-            this.magicPlanWindow?.webContents.send('magicplan-set-filter', filter);
+          if (this.magicPlanWindow && !this.magicPlanWindow.isDestroyed()) {
+            this.magicPlanWindow.show();
+            this.magicPlanWindow.focus();
+            if (filter) {
+              this.magicPlanWindow.webContents.send('magicplan-set-filter', filter);
+            }
           }
           resolve(this.magicPlanWindow!);
         }
@@ -1220,8 +1222,10 @@ export class WindowManager {
       const onReady = () => {
         if (!resolved) {
           resolved = true;
-          this.feedbackWindow?.show();
-          this.feedbackWindow?.focus();
+          if (this.feedbackWindow && !this.feedbackWindow.isDestroyed()) {
+            this.feedbackWindow.show();
+            this.feedbackWindow.focus();
+          }
           resolve(this.feedbackWindow!);
         }
       };
@@ -1971,6 +1975,30 @@ export class WindowManager {
       if (this.gitCloneWindow && !this.gitCloneWindow.isDestroyed()) {
         this.gitCloneWindow.destroy();
         this.gitCloneWindow = null;
+      }
+    } catch {}
+    try {
+      if (this.cmsDownloadWindow && !this.cmsDownloadWindow.isDestroyed()) {
+        this.cmsDownloadWindow.destroy();
+        this.cmsDownloadWindow = null;
+      }
+    } catch {}
+    try {
+      if (this.powerWindow && !this.powerWindow.isDestroyed()) {
+        this.powerWindow.destroy();
+        this.powerWindow = null;
+      }
+    } catch {}
+    try {
+      if (this.paletteBarWindow && !this.paletteBarWindow.isDestroyed()) {
+        this.paletteBarWindow.destroy();
+        this.paletteBarWindow = null;
+      }
+    } catch {}
+    try {
+      if (this.paletteDetailWindow && !this.paletteDetailWindow.isDestroyed()) {
+        this.paletteDetailWindow.destroy();
+        this.paletteDetailWindow = null;
       }
     } catch {}
     try {

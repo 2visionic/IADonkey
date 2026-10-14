@@ -224,7 +224,9 @@ export class AppStore {
   public saveConfig(newConfig: AppConfig): void {
     try {
       this.config = { ...this.config, ...newConfig };
-      fs.writeFileSync(CONFIG_FILE, JSON.stringify(this.config, null, 2), 'utf-8');
+      const tmpFile = `${CONFIG_FILE}.${process.pid}.tmp`;
+      fs.writeFileSync(tmpFile, JSON.stringify(this.config, null, 2), 'utf-8');
+      fs.renameSync(tmpFile, CONFIG_FILE);
     } catch (err) {
       console.error('[Store] Failed to save config:', err);
     }
@@ -249,7 +251,9 @@ export class AppStore {
   public saveItems(items: LauncherItem[]): void {
     try {
       this.items = items;
-      fs.writeFileSync(ITEMS_FILE, JSON.stringify(items, null, 2), 'utf-8');
+      const tmpFile = `${ITEMS_FILE}.${process.pid}.tmp`;
+      fs.writeFileSync(tmpFile, JSON.stringify(items, null, 2), 'utf-8');
+      fs.renameSync(tmpFile, ITEMS_FILE);
     } catch (err) {
       console.error('[Store] Failed to save items to cache:', err);
     }
@@ -269,7 +273,9 @@ export class AppStore {
 
   public saveMaterialIcons(icons: any[]): void {
     try {
-      fs.writeFileSync(ICONS_FILE, JSON.stringify(icons), 'utf-8');
+      const tmpFile = `${ICONS_FILE}.${process.pid}.tmp`;
+      fs.writeFileSync(tmpFile, JSON.stringify(icons), 'utf-8');
+      fs.renameSync(tmpFile, ICONS_FILE);
     } catch (err) {
       console.error('[Store] Failed to save icons to cache:', err);
     }

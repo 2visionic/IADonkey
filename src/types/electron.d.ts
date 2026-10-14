@@ -15,7 +15,7 @@ declare global {
       executeAction: (data: { action: string; location: string; settings?: string | null; autoPaste?: boolean; sourceId?: string }) => Promise<void>;
       openExternal: (url: string) => Promise<void>;
       openPath: (path: string) => Promise<void>;
-      hideWindow: () => void;
+      hideWindow: () => Promise<void>;
       resetAndHideSpotlight: () => Promise<void>;
       openSettingsWindow: (tab?: string) => Promise<void>;
       openPowerWindow: () => Promise<void>;
@@ -28,6 +28,7 @@ declare global {
         initialRecursive?: boolean;
         isInstanceMode?: boolean;
         adminUrl?: string;
+        targetDir?: string;
         repoLanguage?: string;
       }) => Promise<void>;
       checkUpdate: () => Promise<UpdateInfo>;
@@ -72,6 +73,7 @@ declare global {
       openInAndroidStudio: (folderPath: string) => Promise<{ success: boolean; error?: string }>;
       selectAndroidStudioPath: (defaultPath?: string) => Promise<string | null>;
       detectAndroidStudioPath: () => Promise<string | null>;
+      isAndroidProject: (folderPath: string) => Promise<boolean>;
       getExistingClonedRepos: (baseDir?: string) => Promise<
         | string[]
         | {

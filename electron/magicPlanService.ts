@@ -1,14 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { net, BrowserWindow, app } from 'electron';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { AppStore } from './store';
 import type { MagicPlanData, PlanTaskItem, MagicPlanSettings, PlanDayInfo, PlanPersonInfo, WorklogTimelineEntry } from '../src/types';
 import { notificationService } from './notificationService';
 import { diagnosticsService } from './diagnosticsService';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const USER_DATA_PATH = app?.getPath
   ? app.getPath('userData')
@@ -391,8 +391,9 @@ export class MagicPlanService {
             ? this.cachedData.availablePersons
             : Array.from(this.knownPersonsMap.values()));
 
+      const tmpFile = `${CACHE_FILE}.${process.pid}.tmp`;
       fs.writeFileSync(
-        CACHE_FILE,
+        tmpFile,
         JSON.stringify(
           {
             lastUpdated: new Date().toISOString(),
@@ -405,6 +406,7 @@ export class MagicPlanService {
         ),
         'utf-8'
       );
+      fs.renameSync(tmpFile, CACHE_FILE);
     } catch (err) {
       console.warn('[MagicPlan] Chyba ukládání diskové mezipaměti:', err);
     }
@@ -434,10 +436,17 @@ export class MagicPlanService {
   }
 
   public onUserColumnChanged(newUserColumn?: string, newUserColumns?: string[], newUrls?: string[]): void {
-    const key = JSON.stringify({
-      urls: (newUrls && newUrls.length > 0) ? newUrls : (newUserColumn ? [newUserColumn] : []),
-      users: (newUserColumns && newUserColumns.length > 0) ? newUserColumns : (newUserColumn ? [newUserColumn] : []),
-    });
+    const config = this.store.getConfig();
+    const worklogUrl = config.magicplan?.worklogUrl ?? 'http://mlog/Logs.aspx';
+    const urls = (newUrls && newUrls.length > 0)
+      ? newUrls.map((u) => u.trim()).filter(Boolean)
+      : (config.magicplan?.urls && config.magicplan.urls.length > 0
+          ? config.magicplan.urls.map((u) => u.trim()).filter(Boolean)
+          : (config.magicplan?.url?.trim() ? [config.magicplan.url.trim()] : []));
+    const users = (newUserColumns && newUserColumns.length > 0)
+      ? newUserColumns.map((u) => u.trim()).filter(Boolean)
+      : (newUserColumn?.trim() ? [newUserColumn.trim()] : []);
+    const key = JSON.stringify({ urls, users, worklogUrl });
     if (this.currentUserConfigKey !== key) {
       this.clearData();
       this.currentUserConfigKey = key;
@@ -791,13 +800,13 @@ export class MagicPlanService {
       // Net.fetch failed or intranet zone requires explicit default credentials, proceed to fallback
     }
 
-    // 2. Windows native curl with Negotiate/NTLM authentication (fast and robust)
+    // 2. Windows native curl with Negotiate/NTLM authentication (fast and robust, no shell injection)
     try {
-      const curlCommand = `curl.exe -s --negotiate -u : "${url}"`;
-      const { stdout: curlOut } = await execAsync(curlCommand, {
+      const { stdout: curlOut } = await execFileAsync('curl.exe', ['-s', '--negotiate', '-u', ':', url], {
         maxBuffer: 15 * 1024 * 1024,
         timeout: 10000,
         encoding: 'utf-8',
+        windowsHide: true,
       });
       if (curlOut && isValid(curlOut)) {
         return curlOut;
@@ -806,12 +815,19 @@ export class MagicPlanService {
       // Fallback to PowerShell
     }
 
-    // 3. Fallback: PowerShell Invoke-WebRequest with current Windows user credentials
-    const psCommand = `powershell -NoProfile -NonInteractive -Command "$res = Invoke-WebRequest -Uri '${url}' -UseDefaultCredentials -UseBasicParsing -TimeoutSec 15; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $res.Content"`;
-    const { stdout, stderr } = await execAsync(psCommand, {
-      maxBuffer: 10 * 1024 * 1024,
-      timeout: 20000,
-    });
+    // 3. Fallback: PowerShell Invoke-WebRequest with current Windows user credentials (URL passed safely via env var)
+    const psScript = '$res = Invoke-WebRequest -Uri $env:IADONKEY_FETCH_URL -UseDefaultCredentials -UseBasicParsing -TimeoutSec 15; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $res.Content';
+    const { stdout, stderr } = await execFileAsync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', psScript],
+      {
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: 20000,
+        encoding: 'utf-8',
+        windowsHide: true,
+        env: { ...process.env, IADONKEY_FETCH_URL: url },
+      }
+    );
 
     if (stderr && !stdout) {
       throw new Error(`PowerShell fetch failed: ${stderr}`);

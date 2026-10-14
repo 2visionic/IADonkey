@@ -1192,12 +1192,21 @@ function setupIpcHandlers() {
 
   const handleQuickCapDelete = async (_event: any, filePath: string) => {
     try {
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      if (!filePath) return { success: false, error: 'Chybí cesta k souboru.' };
+      const saveDir = path.resolve(getQuickCapSaveDirectory());
+      const resolvedPath = path.resolve(filePath);
+      if (
+        !resolvedPath.startsWith(saveDir + path.sep) ||
+        !/\.(png|jpg|jpeg|webp)$/i.test(resolvedPath)
+      ) {
+        return { success: false, error: 'Nepovolená cesta k souboru.' };
+      }
+      if (fs.existsSync(resolvedPath)) {
+        fs.unlinkSync(resolvedPath);
         diagnosticsService.logAction({
           type: 'action',
           title: 'Výstřižek smazán',
-          details: path.basename(filePath),
+          details: path.basename(resolvedPath),
           status: 'info',
         });
       }
@@ -1725,13 +1734,17 @@ function setupIpcHandlers() {
   );
 
   ipcMain.handle('open-settings-window', (_event, tab?: string) => {
+    const existing = windowManager.getSettingsWindow();
+    const wasOpen = Boolean(existing && !existing.isDestroyed());
     const win = windowManager.openSettingsWindow(tab);
-    win.on('closed', () => {
-      const cfg = store.getConfig();
-      if (cfg.hotkey) {
-        registerGlobalHotkey(cfg.hotkey);
-      }
-    });
+    if (!wasOpen) {
+      win.once('closed', () => {
+        const cfg = store.getConfig();
+        if (cfg.hotkey) {
+          registerGlobalHotkey(cfg.hotkey);
+        }
+      });
+    }
   });
 
   ipcMain.handle('open-git-clone-window', (_event, params: {
@@ -2170,6 +2183,10 @@ function setupIpcHandlers() {
       return { success: false, targetPath: '', error: 'Chybí URL repozitáře nebo cílová složka.' };
     }
 
+    if (!/^(https?:\/\/|ssh:\/\/|git@)/i.test(repoUrl.trim())) {
+      return { success: false, targetPath: '', error: 'Nepodporovaný protokol Git repozitáře.' };
+    }
+
     const githubToken = getActiveGitHubToken(config?.github);
 
     const sanitizeOutput = createGitOutputSanitizer(githubToken);
@@ -2178,11 +2195,12 @@ function setupIpcHandlers() {
       // Determine folder name from repository url
       const cleanUrl = repoUrl.trim().replace(/\.git$/i, '');
       const parts = cleanUrl.split(/[/\\\\]/);
-      const repoName = parts[parts.length - 1] || 'repository';
+      const rawRepoName = parts[parts.length - 1] || 'repository';
+      const repoName = path.basename(rawRepoName) || 'repository';
       const targetPath = path.join(targetDir, repoName);
 
       const { env: gitEnv, authArgs } = createGitAuthEnv(repoUrl, githubToken);
-      const args = [...authArgs, 'clone', repoUrl, targetPath];
+      const args = [...authArgs, 'clone', '--', repoUrl.trim(), targetPath];
 
       let stdout = '';
 
@@ -2263,7 +2281,10 @@ function setupIpcHandlers() {
 
     try {
       const trimmed = location.trim();
-      const isUrl = /^https?:\/\//i.test(trimmed) || /^(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/i.test(trimmed);
+      const isLocalFileExt = /\.(exe|bat|cmd|ps1|msi|lnk|txt|pdf|doc|docx|xls|xlsx|png|jpg|jpeg|webp|gif|zip|json|xml|log)$/i.test(trimmed);
+      const isUrl =
+        /^https?:\/\//i.test(trimmed) ||
+        (!isLocalFileExt && !fs.existsSync(trimmed) && /^(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/.*)?$/i.test(trimmed));
 
       if (action === 'paste' || action === 'copy') {
         clipboard.writeText(location);
@@ -2338,10 +2359,11 @@ function setupIpcHandlers() {
           }
 
           await shell.openExternal(fullUrl);
+          const redactedUrl = fullUrl.replace(/AuthenticationKey=[^&]+/gi, 'AuthenticationKey=[REDACTED]');
           diagnosticsService.logAction({
             type: 'action',
             title: 'Otevření webové adresy v prohlížeči',
-            details: fullUrl,
+            details: redactedUrl,
             status: 'success',
           });
         } else {
@@ -2349,17 +2371,21 @@ function setupIpcHandlers() {
           const openErr = await shell.openPath(trimmed);
           if (openErr) {
             console.error(`[Main] openPath error: ${openErr}`);
-            // Fallback try as external url
-            try {
-              await shell.openExternal(trimmed);
-              diagnosticsService.logAction({
-                type: 'action',
-                title: 'Otevření cíle přes výchozí protokol',
-                details: trimmed,
-                status: 'success',
-              });
-            } catch (extErr) {
-              diagnosticsService.recordCrash('Chyba při otevírání cesty/URL', extErr, { location: trimmed, openErr });
+            // Fallback try as external url only for safe URI protocols
+            if (/^(https?:|mailto:|shell:)/i.test(trimmed)) {
+              try {
+                await shell.openExternal(trimmed);
+                diagnosticsService.logAction({
+                  type: 'action',
+                  title: 'Otevření cíle přes výchozí protokol',
+                  details: trimmed,
+                  status: 'success',
+                });
+              } catch (extErr) {
+                diagnosticsService.recordCrash('Chyba při otevírání cesty/URL', extErr, { location: trimmed, openErr });
+              }
+            } else {
+              diagnosticsService.recordCrash('Chyba při otevírání cesty na disku', new Error(openErr), { location: trimmed });
             }
           } else {
             diagnosticsService.logAction({
@@ -2451,6 +2477,9 @@ function setupIpcHandlers() {
       globalShortcut.unregisterAll();
       if (syncIntervalTimer) clearInterval(syncIntervalTimer);
       if (updateIntervalTimer) clearInterval(updateIntervalTimer);
+      magicPlanService?.stop();
+      feedbackNotificationService.stop();
+      windowDragService.destroy();
     });
   });
 
@@ -2474,7 +2503,9 @@ function setupIpcHandlers() {
 
   ipcMain.handle('installer-perform-install', async (event, options) => {
     return await InstallerService.performInstall(options, (progress) => {
-      event.sender.send('installer-progress', progress);
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('installer-progress', progress);
+      }
     });
   });
 
@@ -2740,17 +2771,24 @@ async function openPathInVscode(folderPath: string): Promise<{ success: boolean;
     }
 
     if (vscodeExe && fs.existsSync(vscodeExe)) {
-      const child = spawn(`"${vscodeExe}"`, [`"${folderPath}"`], {
-        shell: true,
-        detached: true,
-        windowsHide: true,
-      });
+      const isCmd = /\.(cmd|bat)$/i.test(vscodeExe);
+      const child = isCmd
+        ? spawn(`"${vscodeExe}"`, [`"${folderPath}"`], {
+            shell: true,
+            detached: true,
+            windowsHide: true,
+          })
+        : spawn(vscodeExe, [folderPath], {
+            shell: false,
+            detached: true,
+            windowsHide: true,
+          });
       child.unref();
       return { success: true };
     }
 
     // Fallback: spawn code directly via shell
-    const child = spawn('code', [`"${folderPath}"`], {
+    const child = spawn('code', [`"${folderPath.replace(/"/g, '')}"`], {
       shell: true,
       detached: true,
       windowsHide: true,
@@ -2828,17 +2866,24 @@ async function openPathInAndroidStudio(folderPath: string): Promise<{ success: b
     }
 
     if (studioExe && fs.existsSync(studioExe)) {
-      const child = spawn(`"${studioExe}"`, [`"${folderPath}"`], {
-        shell: true,
-        detached: true,
-        windowsHide: true,
-      });
+      const isCmd = /\.(cmd|bat)$/i.test(studioExe);
+      const child = isCmd
+        ? spawn(`"${studioExe}"`, [`"${folderPath}"`], {
+            shell: true,
+            detached: true,
+            windowsHide: true,
+          })
+        : spawn(studioExe, [folderPath], {
+            shell: false,
+            detached: true,
+            windowsHide: true,
+          });
       child.unref();
       return { success: true };
     }
 
     // Fallback: spawn studio64 directly via shell
-    const child = spawn('studio64', [`"${folderPath}"`], {
+    const child = spawn('studio64', [`"${folderPath.replace(/"/g, '')}"`], {
       shell: true,
       detached: true,
       windowsHide: true,
@@ -3131,6 +3176,9 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   if (syncIntervalTimer) clearInterval(syncIntervalTimer);
   if (updateIntervalTimer) clearInterval(updateIntervalTimer);
+  magicPlanService?.stop();
+  feedbackNotificationService.stop();
+  windowDragService.destroy();
 });
 
 app.on('window-all-closed', () => {

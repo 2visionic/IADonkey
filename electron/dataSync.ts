@@ -66,8 +66,9 @@ export class DataSyncManager {
         isComplete: true,
       });
       const nowIso = new Date().toISOString();
-      this.store.saveConfig({ ...config, sources: updatedSources, lastSyncTime: nowIso });
-      const filteredItems = allItems.filter((it) => !isItemBanned(it, config.banlist));
+      const latestConfig = this.store.getConfig();
+      this.store.saveConfig({ ...latestConfig, sources: updatedSources, lastSyncTime: nowIso });
+      const filteredItems = allItems.filter((it) => !isItemBanned(it, latestConfig.banlist));
       this.store.saveItems(filteredItems);
       return filteredItems;
     }
@@ -147,12 +148,13 @@ export class DataSyncManager {
     }
 
     const nowIso = new Date().toISOString();
+    const latestConfig = this.store.getConfig();
 
     // Save updated source statistics and global sync timestamp into config
-    this.store.saveConfig({ ...config, sources: updatedSources, lastSyncTime: nowIso });
+    this.store.saveConfig({ ...latestConfig, sources: updatedSources, lastSyncTime: nowIso });
 
     // Filter out banned items before saving into local cache
-    const filteredItems = allItems.filter((it) => !isItemBanned(it, config.banlist));
+    const filteredItems = allItems.filter((it) => !isItemBanned(it, latestConfig.banlist));
     this.store.saveItems(filteredItems);
 
     return filteredItems;
@@ -255,6 +257,7 @@ export class DataSyncManager {
     const response = await fetch(src.url, {
       method: 'GET',
       headers,
+      signal: AbortSignal.timeout(30000),
     });
 
     if (!response.ok) {
@@ -320,6 +323,7 @@ export class DataSyncManager {
         'Accept': 'application/json',
       },
       body: JSON.stringify(bodyPayload),
+      signal: AbortSignal.timeout(30000),
     });
 
     if (!tokenRes.ok) {

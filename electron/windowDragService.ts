@@ -438,6 +438,16 @@ class WindowDragService {
     this.normalBounds.set(win.id, win.getBounds());
     win.webContents.send('window-snap-changed', null);
   }
+
+  public destroy(): void {
+    try {
+      if (this.snapPreviewWindow && !this.snapPreviewWindow.isDestroyed()) {
+        this.snapPreviewWindow.destroy();
+        this.snapPreviewWindow = null;
+      }
+    } catch {}
+    this.dragSessions.clear();
+  }
 }
 
 export const windowDragService = new WindowDragService();

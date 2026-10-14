@@ -4,6 +4,15 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.11] - 14. 10. 2026
+### MagicPlan číslování přetečených úkolů dle pohledu, vylepšení palet, pravítka, kalkulačky a celkové stability
+- **MagicPlan – Číslování přetečené části úkolu dle aktivního pohledu (Den vs. Týden)**: Karta úkolu přesahujícího do dalšího týdne nyní automaticky přizpůsobuje číslování dílů aktivnímu pohledu – v denním pohledu počítá jednotlivé dny (např. `4/4`), zatímco v týdenním pohledu respektuje sloučené souvislé bloky (např. `3/3`).
+- **Barevné palety (PaletteBar) – Bezpečné přepínání mezi paletami za běhu**: Při otevření jiné palety ze Spotlightu v době, kdy je horní lišta palety již zobrazena, se spolehlivě načtou barvy nově vybrané palety bez rizika jejich přepsání barvami předchozí palety.
+- **ScreenRuler (Pravítko) – Přepočet jednotek `%` a `dp`**: Při přepnutí jednotek v horní liště pravítka na procenta (`%`) nebo hustotně nezávislé pixely (`dp`) se přepočtené hodnoty zobrazují v liště, u měřeného výřezu i při zkopírování rozměru klávesou `C`.
+- **Spotlight & Kalkulačka – Funkce `pow(x, y)` a rychlé akce Zpětné vazby**: Vestavěná kalkulačka nově podporuje výpočet mocnin pomocí funkce `pow(základ, exponent)` a položku Zpětná vazba lze plnohodnotně spustit i z rozšířené nabídky akcí (`Shift+Enter`).
+- **EasyClip & Nastavení – Rozlišení stejně velkých obrázků a hlídání kolizí zkratek**: Historie schránky EasyClip nyní porovnává plný otisk obrázku, takže spolehlivě uloží i dva různé výstřižky se shodnými rozměry. V Nastavení je navíc sjednocena kontrola duplicit napříč všemi 6 globálními zkratkami.
+- **Stabilita, bezpečnost a správa paměti**: Atomické ukládání konfiguračních a datových souborů, ochrana proti přepsání neuložených změn v Nastavení během synchronizace na pozadí a vyčištění paměťových úniků posluchačů událostí.
+
 ## [2.1.10] - 14. 10. 2026
 ### Oprava zobrazení ikony aplikace v hlavním panelu Windows (Taskbar) a v nabídce Start po aktualizaci
 - **Windows Taskbar & Nabídka Start – Spolehlivé zobrazení ikony aplikace**: Opravena chyba, kdy se po aktualizaci aplikace v hlavním panelu Windows (Taskbar) a v nabídce Start zobrazovala výchozí bílá ikona souboru namísto ikony IADonkey. Všechna okna aplikace, systémová lišta (Tray) i zástupce v nabídce Start nově načítají ikonu přímo z rozbaleného úložiště (`app.asar.unpacked`).

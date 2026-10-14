@@ -83,6 +83,9 @@ export const ScreenRulerOverlay: React.FC = () => {
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
       osc.connect(gain);
       gain.connect(audioCtx.destination);
+      osc.onended = () => {
+        audioCtx.close().catch(() => {});
+      };
       osc.start();
       osc.stop(audioCtx.currentTime + 0.25);
     } catch {}
@@ -129,6 +132,22 @@ export const ScreenRulerOverlay: React.FC = () => {
     [unit, initData.width, initData.height]
   );
 
+  // Format numeric part only (without unit suffix) for toolbar/badge display
+  const formatNumVal = useCallback(
+    (pxValue: number, isHeight = false): string => {
+      if (unit === '%') {
+        const total = isHeight ? (initData.height || 1080) : (initData.width || 1920);
+        return ((pxValue / total) * 100).toFixed(1);
+      }
+      if (unit === 'dp') {
+        const factor = window.devicePixelRatio || 1;
+        return String(Math.round(pxValue / factor));
+      }
+      return String(Math.round(pxValue));
+    },
+    [unit, initData.width, initData.height]
+  );
+
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -165,12 +184,14 @@ export const ScreenRulerOverlay: React.FC = () => {
 
       if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
-        if (mode === 'box' && boxRef.current && boxRef.current.width > 0 && boxRef.current.height > 0) {
-          const w = Math.round(boxRef.current.width);
-          const h = Math.round(boxRef.current.height);
+        if (modeRef.current === 'box' && boxRef.current && boxRef.current.width > 0 && boxRef.current.height > 0) {
+          const w = formatNumVal(boxRef.current.width, false);
+          const h = formatNumVal(boxRef.current.height, true);
           copyToClipboard(`${w}×${h} ${unit}`);
         } else {
-          copyToClipboard(`${Math.round(mousePos.x)} / ${Math.round(mousePos.y)} ${unit}`);
+          const x = formatNumVal(mousePosRef.current.x, false);
+          const y = formatNumVal(mousePosRef.current.y, true);
+          copyToClipboard(`${x} / ${y} ${unit}`);
         }
         return;
       }
@@ -235,7 +256,7 @@ export const ScreenRulerOverlay: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [handleClose, copyToClipboard, initData.width, initData.height, mousePos.x, mousePos.y, mode]);
+  }, [handleClose, copyToClipboard, initData.width, initData.height, unit, formatNumVal]);
 
   // IPC Initial Data & Cleanup
   useEffect(() => {
@@ -328,8 +349,8 @@ export const ScreenRulerOverlay: React.FC = () => {
   const boxH = box ? Math.round(box.height) : 0;
   const hasBox = box !== null && (boxW > 3 || boxH > 3);
   const isSelection = mode === 'box' && box !== null && hasBox;
-  const val1 = isSelection ? Math.round(box!.width) : Math.round(mousePos.x);
-  const val2 = isSelection ? Math.round(box!.height) : Math.round(mousePos.y);
+  const val1 = isSelection ? formatNumVal(box!.width, false) : formatNumVal(mousePos.x, false);
+  const val2 = isSelection ? formatNumVal(box!.height, true) : formatNumVal(mousePos.y, true);
   const separator = isSelection ? '×' : '/';
 
   return (
@@ -627,9 +648,9 @@ export const ScreenRulerOverlay: React.FC = () => {
             }}
           >
             <div className="flex items-center gap-1.5 font-bold tabular-nums" style={{ color: accentColor }}>
-              <span>{Math.round(box.width)}</span>
+              <span>{formatNumVal(box.width, false)}</span>
               <span className="opacity-60">×</span>
-              <span>{Math.round(box.height)}</span>
+              <span>{formatNumVal(box.height, true)}</span>
               <span className="text-[10px] uppercase font-normal opacity-80">{unit}</span>
             </div>
             <div className="h-3.5 w-px bg-white/15" />

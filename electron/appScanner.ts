@@ -17,14 +17,22 @@ interface AppCandidate {
 
 export class AppScanner {
   private cachedApps: LauncherItem[] = [];
-  private isScanning = false;
+  private scanPromise: Promise<LauncherItem[]> | null = null;
 
   public async scanApps(): Promise<LauncherItem[]> {
-    if (this.isScanning && this.cachedApps.length > 0) {
-      return this.cachedApps;
+    if (this.scanPromise) {
+      return this.scanPromise;
     }
-    this.isScanning = true;
 
+    this.scanPromise = this.performScan();
+    try {
+      return await this.scanPromise;
+    } finally {
+      this.scanPromise = null;
+    }
+  }
+
+  private async performScan(): Promise<LauncherItem[]> {
     try {
       const foldersToScan: string[] = [];
 
@@ -182,7 +190,7 @@ export class AppScanner {
 
       // 3. Extract icons using direct file read or Electron native getFileIcon
       const appsWithIcons: LauncherItem[] = await Promise.all(
-        candidates.map(async (item) => {
+        candidates.map(async (item, idx) => {
           let iconDataUrl: string | null = null;
 
           // If a direct icon file was resolved (e.g. from UWP manifest)
@@ -233,8 +241,15 @@ export class AppScanner {
             }
           }
 
+          const normalizedSlug = item.name
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+
           return {
-            id: `win-app-${item.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+            id: `win-app-${normalizedSlug || idx}`,
             name: item.name,
             location: item.location,
             action: 'open',
@@ -252,8 +267,6 @@ export class AppScanner {
     } catch (err) {
       console.error('[AppScanner] Failed to scan installed applications:', err);
       return this.cachedApps;
-    } finally {
-      this.isScanning = false;
     }
   }
 

@@ -1137,7 +1137,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       inputRef.current?.select();
     };
 
-    const unsubFocus = window.electronAPI?.onFocusInput?.(handleFocus);
     window.addEventListener('focus-search-input', handleFocus);
 
     const handleBlur = () => {
@@ -1151,7 +1150,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
     return () => {
       unsubFavicons?.();
-      unsubFocus?.();
       window.removeEventListener('focus-search-input', handleFocus);
       window.removeEventListener('blur', handleBlur);
       if (settingsHoldRafRef.current) {
@@ -1281,13 +1279,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     });
 
     const cleanupResetAndFocus = window.electronAPI?.onResetAndFocusSpotlight?.(() => {
-      setQuery('');
-      setSelectedIndex(0);
-      setParentItem(null);
-      setActionsParentItem(null);
-      setIsEasyClipMode(false);
-      savedParentItemRef.current = null;
-      restoringIndexRef.current = null;
+      resetSpotlightState();
       setIsRevealed(true);
       inputRef.current?.focus();
       inputRef.current?.select();
@@ -2337,7 +2329,29 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
 
     return list;
-  }, [query, items, parentItem, searchGoogle, defaultSearchEngine, mlogBaseUrl, mlogTaskPrefix, mlogRequestPrefix, engineFavicons, magicPlanEnabled, magicPlanData, magicPlanConfig, currentMagicPlanConfig]);
+  }, [
+    query,
+    items,
+    parentItem,
+    searchGoogle,
+    defaultSearchEngine,
+    mlogBaseUrl,
+    mlogTaskPrefix,
+    mlogRequestPrefix,
+    engineFavicons,
+    magicPlanEnabled,
+    magicPlanData,
+    magicPlanConfig,
+    currentMagicPlanConfig,
+    snippets,
+    donkeyToolsEnabled,
+    isColorMasterActive,
+    isQuickCapActive,
+    isScreenRulerActive,
+    isEasyClipActive,
+    isMagicPlanActive,
+    colorMasterConfig?.defaultFormat,
+  ]);
 
   // Keep selected index within bounds or restore saved index when returning from subitems
   useEffect(() => {
@@ -2812,6 +2826,20 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       exitActions();
       handleClose();
       await openMagicPlan(effectiveLocation || undefined);
+      return;
+    }
+
+    if (actionType === 'feedback-user') {
+      exitActions();
+      handleClose();
+      await openFeedback('user');
+      return;
+    }
+
+    if (actionType === 'feedback-dev') {
+      exitActions();
+      handleClose();
+      await openFeedback('dev');
       return;
     }
 

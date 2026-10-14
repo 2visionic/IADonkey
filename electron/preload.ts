@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closePowerWindow: (): Promise<void> => ipcRenderer.invoke('close-power-window'),
   restartApp: (): Promise<void> => ipcRenderer.invoke('restart-app'),
   quitApp: (): Promise<void> => ipcRenderer.invoke('quit-app'),
-  openGitCloneWindow: (params: { repoName: string; repoUrl?: string; initialRecursive?: boolean; isInstanceMode?: boolean; adminUrl?: string; targetDir?: string }): Promise<void> =>
+  openGitCloneWindow: (params: { repoName: string; repoUrl?: string; initialRecursive?: boolean; isInstanceMode?: boolean; adminUrl?: string; targetDir?: string; repoLanguage?: string }): Promise<void> =>
     ipcRenderer.invoke('open-git-clone-window', params),
   checkUpdate: (): Promise<UpdateInfo> => ipcRenderer.invoke('check-update'),
   downloadUpdate: (downloadUrl: string): Promise<string> => ipcRenderer.invoke('download-update', downloadUrl),
@@ -46,7 +46,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectAndroidStudioPath: (defaultPath?: string): Promise<string | null> => ipcRenderer.invoke('select-android-studio-path', defaultPath),
   detectAndroidStudioPath: (): Promise<string | null> => ipcRenderer.invoke('detect-android-studio-path'),
   isAndroidProject: (folderPath: string): Promise<boolean> => ipcRenderer.invoke('is-android-project', folderPath),
-  getExistingClonedRepos: (baseDir?: string): Promise<string[]> => ipcRenderer.invoke('get-existing-cloned-repos', baseDir),
+  getExistingClonedRepos: (baseDir?: string): Promise<string[] | { repos: string[]; instanceSubRepos?: Record<string, Array<{ name: string; path: string }>> }> => ipcRenderer.invoke('get-existing-cloned-repos', baseDir),
   fetchInstanceRepos: (adminUrl: string): Promise<{ ok: boolean; repos: any[]; rawJson?: string; error?: string }> =>
     ipcRenderer.invoke('magicgate-get-repos', { adminUrl }),
   runMultiRepoClone: (params: { repos: any[]; targetDir: string; recursive?: boolean; rawJson?: string }): Promise<{ success: boolean; targetPath: string; error?: string; alreadyExists?: boolean }> =>

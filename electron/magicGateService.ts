@@ -22,8 +22,10 @@ export interface MagicGateSectionRepo {
 export function getTopDirectoryName(manifestPath: string): string {
   if (!manifestPath) return 'repo';
   const normalized = manifestPath.replace(/\\/g, '/').replace(/^\/+/, '');
-  const parts = normalized.split('/').filter(Boolean);
-  return parts.length > 1 ? parts[0] : (parts[0] || 'repo');
+  const parts = normalized.split('/').filter((p) => p && p !== '.' && p !== '..');
+  const candidate = parts.length > 1 ? parts[0] : (parts[0] || 'repo');
+  const safe = path.basename(candidate);
+  return safe && safe !== '.' && safe !== '..' ? safe : 'repo';
 }
 
 /**
@@ -61,6 +63,7 @@ export async function fetchInstanceSectionRepos(
     const res = await fetch(endpoint, {
       method: 'POST',
       headers,
+      signal: AbortSignal.timeout(30000),
     });
 
     if (!res.ok) {
@@ -448,8 +451,9 @@ export async function syncAndSetupSubmodules(
     const submodules = parseGitmodulesContent(gitmodulesContent);
 
     for (const sub of submodules) {
-      const subDir = path.join(repoPath, sub.path);
-      if (!fs.existsSync(subDir)) continue;
+      const subDir = path.resolve(repoPath, sub.path);
+      const resolvedRepoRoot = path.resolve(repoPath);
+      if (!subDir.startsWith(resolvedRepoRoot + path.sep) || !fs.existsSync(subDir)) continue;
 
       const subRemoteRes = await executeGitProcess(['branch', '-r'], {
         cwd: subDir,
@@ -528,8 +532,8 @@ export async function runMultiRepoClone(params: {
     console.error('[MagicGateService] Failed to write repos.json:', err);
   }
 
-  // 3. Filter valid repos with a URL
-  const validRepos = repos.filter((r) => r.repoUrl && r.repoUrl.trim());
+  // 3. Filter valid repos with a safe URL protocol
+  const validRepos = repos.filter((r) => r.repoUrl && /^(https?:\/\/|ssh:\/\/|git@)/i.test(r.repoUrl.trim()));
   if (validRepos.length === 0) {
     return {
       success: true,
@@ -547,17 +551,19 @@ export async function runMultiRepoClone(params: {
   // 4. Clone each repo sequentially
   for (let i = 0; i < validRepos.length; i++) {
     const repo = validRepos[i];
-    const subPath = path.join(cleanTarget, repo.targetSubdir);
+    const safeSubdir = path.basename(repo.targetSubdir || 'repo');
+    const subPath = path.join(cleanTarget, safeSubdir);
 
     onProgress?.({
       current: i + 1,
       total: validRepos.length,
-      repoName: repo.targetSubdir,
-      log: `\n[${i + 1}/${validRepos.length}] Příprava sekce ${repo.targetSubdir} (${repo.repoUrl})...\n`,
+      repoName: safeSubdir,
+      log: `\n[${i + 1}/${validRepos.length}] Příprava sekce ${safeSubdir} (${repo.repoUrl})...\n`,
     });
 
     const { env: gitEnv, authArgs } = createGitAuthEnv(repo.repoUrl, githubToken);
-    const { branch: targetBranch } = parseRepoVersion(repo.version);
+    const { branch: rawTargetBranch } = parseRepoVersion(repo.version);
+    const targetBranch = rawTargetBranch && !rawTargetBranch.startsWith('-') ? rawTargetBranch : undefined;
 
     // Check if subPath already exists and contains a .git repository
     const gitDirPath = path.join(subPath, '.git');
@@ -565,8 +571,8 @@ export async function runMultiRepoClone(params: {
       onProgress?.({
         current: i + 1,
         total: validRepos.length,
-        repoName: repo.targetSubdir,
-        log: `[${i + 1}/${validRepos.length}] Složka ${repo.targetSubdir} již existuje. Ověřuji větve a balíčky...\n`,
+        repoName: safeSubdir,
+        log: `[${i + 1}/${validRepos.length}] Složka ${safeSubdir} již existuje. Ověřuji větve a balíčky...\n`,
       });
 
       // Ensure branch on existing main repo
@@ -577,7 +583,7 @@ export async function runMultiRepoClone(params: {
           onLog: (text) => onProgress?.({
             current: i + 1,
             total: validRepos.length,
-            repoName: repo.targetSubdir,
+            repoName: safeSubdir,
             log: text,
           }),
         });
@@ -591,7 +597,7 @@ export async function runMultiRepoClone(params: {
           onLog: (text) => onProgress?.({
             current: i + 1,
             total: validRepos.length,
-            repoName: repo.targetSubdir,
+            repoName: safeSubdir,
             log: text,
           }),
         });
@@ -605,7 +611,7 @@ export async function runMultiRepoClone(params: {
     if (targetBranch) {
       cloneArgs.push('--branch', targetBranch);
     }
-    cloneArgs.push(repo.repoUrl, subPath);
+    cloneArgs.push('--', repo.repoUrl.trim(), subPath);
 
     // Clean display command without sensitive token headers
     const displayArgs = cloneArgs.filter((_, idx) => {
@@ -782,6 +788,7 @@ export async function downloadInstanceCmsContent(params: {
     const res = await fetch(endpoint, {
       method: 'POST',
       headers,
+      signal: AbortSignal.timeout(120000),
     });
 
     if (!res.ok) {
@@ -841,6 +848,21 @@ export async function downloadInstanceCmsContent(params: {
     }
 
     onProgress?.({ step: 'purging', log: `Čištění cílové složky ${path.basename(cleanTarget)}...` });
+
+    // Safety check: refuse to purge drive roots, user home root, or active git/app directories
+    const parsedTarget = path.parse(cleanTarget);
+    const targetDepth = cleanTarget.slice(parsedTarget.root.length).split(path.sep).filter(Boolean).length;
+    if (
+      cleanTarget === parsedTarget.root ||
+      targetDepth < 2 ||
+      fs.existsSync(path.join(cleanTarget, '.git')) ||
+      fs.existsSync(path.join(cleanTarget, 'IADonkey.exe'))
+    ) {
+      return {
+        success: false,
+        error: `Z bezpečnostních důvodů nelze vymazat kořenovou nebo systémovou složku (${cleanTarget}). Zvolte dedikovanou podsložku pro CMS obsah.`,
+      };
+    }
 
     // Prepare target directory: if exists, purge contents; if not, create
     try {

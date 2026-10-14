@@ -10,7 +10,7 @@ export function evaluateExpression(query: string): LauncherItem | null {
 
   // Must contain at least one digit and either an operator or a math function
   const hasDigit = /\d/.test(trimmed);
-  const hasMathOp = /[+\-*/%^=<>!]|sqrt|sin|cos|tan|log|abs|round|floor|ceil|pi|e\b/i.test(trimmed);
+  const hasMathOp = /[+\-*/%^=<>!]|sqrt|sin|cos|tan|log|abs|round|floor|ceil|pow|pi|e\b/i.test(trimmed);
   
   if (!hasDigit || !hasMathOp) {
     return null;
@@ -67,8 +67,9 @@ export function evaluateExpression(query: string): LauncherItem | null {
  * Tokenizer and parser for safe arithmetic and comparison expressions
  */
 function safeMathEval(expr: string): number | boolean | null {
-  // Replace tokens
+  // Preserve argument separator in pow(a, b) using semicolon before converting decimal commas to dots
   let s = expr.trim()
+    .replace(/\bpow\s*\(([^,()]+),([^()]+)\)/gi, 'pow($1;$2)')
     .replace(/,/g, '.')
     .replace(/×/g, '*')
     .replace(/÷/g, '/');
@@ -99,7 +100,7 @@ function safeMathEval(expr: string): number | boolean | null {
 function evalMathOnly(expr: string): number | null {
   // Tokens regex
   const tokens: string[] = [];
-  const tokenRegex = /\s*(\d+(?:\.\d+)?|[+\-*/^%()]|[a-zA-Z]+)\s*/g;
+  const tokenRegex = /\s*(\d+(?:\.\d+)?|[+\-*/^%();]|[a-zA-Z]+)\s*/g;
   let match;
   let lastIndex = 0;
 
@@ -197,10 +198,16 @@ function evalMathOnly(expr: string): number | null {
     }
 
     // Function calls
-    if (/^(sqrt|sin|cos|tan|abs|round|floor|ceil|log)$/i.test(t)) {
+    if (/^(sqrt|sin|cos|tan|abs|round|floor|ceil|log|pow)$/i.test(t)) {
       const fn = consume().toLowerCase();
       consume('(');
       const arg = parseExpression();
+      if (fn === 'pow') {
+        consume(';');
+        const expArg = parseExpression();
+        consume(')');
+        return Math.pow(arg, expArg);
+      }
       consume(')');
       switch (fn) {
         case 'sqrt': return Math.sqrt(arg);

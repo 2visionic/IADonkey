@@ -197,6 +197,20 @@ export const GitCloneModal: React.FC<GitCloneModalProps> = ({
     }
   };
 
+  const [isLocalAndroidProject, setIsLocalAndroidProject] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (status === 'success' && !isInstanceMode) {
+      const pathToOpen = clonedPath || targetDir;
+      const api = window.electronAPI as any;
+      if (pathToOpen && api?.isAndroidProject) {
+        api.isAndroidProject(pathToOpen).then((isAndroid: boolean) => {
+          if (isAndroid) setIsLocalAndroidProject(true);
+        });
+      }
+    }
+  }, [status, clonedPath, targetDir, isInstanceMode]);
+
   // Handle Escape and Enter keys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -223,7 +237,7 @@ export const GitCloneModal: React.FC<GitCloneModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, status, targetDir, isInstanceMode, isLoadingRepos, validInstanceRepos.length, onClose]);
+  }, [isOpen, status, targetDir, isInstanceMode, isLoadingRepos, validInstanceRepos.length, recursive, repoUrl, instanceRepos, onClose]);
 
   if (!isOpen) return null;
 
@@ -349,20 +363,6 @@ export const GitCloneModal: React.FC<GitCloneModalProps> = ({
       onClose();
     }
   };
-
-  const [isLocalAndroidProject, setIsLocalAndroidProject] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (status === 'success' && !isInstanceMode) {
-      const pathToOpen = clonedPath || targetDir;
-      const api = window.electronAPI as any;
-      if (pathToOpen && api?.isAndroidProject) {
-        api.isAndroidProject(pathToOpen).then((isAndroid: boolean) => {
-          if (isAndroid) setIsLocalAndroidProject(true);
-        });
-      }
-    }
-  }, [status, clonedPath, targetDir, isInstanceMode]);
 
   const isAndroid = !isInstanceMode && (
     isLocalAndroidProject ||

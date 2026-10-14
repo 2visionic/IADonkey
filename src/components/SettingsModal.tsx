@@ -1542,16 +1542,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           });
 
           if (pollRes.status === 'success' && pollRes.accessToken) {
+            const baseConfig = pendingConfigRef.current || formData;
             const updatedGithub: import('../types').GithubSettings = {
-              ...formData.github,
+              ...baseConfig.github,
               authMode: 'oauth',
-              token: formData.github?.token || '',
+              token: baseConfig.github?.token || '',
               clientId,
               oauthToken: pollRes.accessToken,
               oauthUser: pollRes.user,
             };
             const updatedConfig = {
-              ...formData,
+              ...baseConfig,
               github: updatedGithub,
             };
             setFormData(updatedConfig);
@@ -1588,6 +1589,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setIsConnectingOAuth(false);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (oauthPollingRef.current) {
+        clearTimeout(oauthPollingRef.current);
+        oauthPollingRef.current = null;
+      }
+    };
+  }, []);
 
   const handleCancelGitHubOAuth = () => {
     stopOAuthPolling();
@@ -1669,6 +1679,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Synchronization progress & smooth 2s minimum animation state
   const [syncPhase, setSyncPhase] = useState<'idle' | 'syncing' | 'success'>('idle');
   const [visualProgress, setVisualProgress] = useState(0);
+  const visualProgressFloatRef = useRef(0);
   const syncStartTimeRef = useRef<number | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
@@ -1677,6 +1688,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (syncPhase !== 'syncing') {
         setSyncPhase('syncing');
         syncStartTimeRef.current = Date.now();
+        visualProgressFloatRef.current = 5;
         setVisualProgress(5);
       }
     }
@@ -1705,23 +1717,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const timePercent = Math.min((elapsed / MIN_SYNC_DURATION_MS) * 85, 88);
         const targetPercent = Math.max(realPercent, timePercent, 8);
 
-        setVisualProgress((prev) => {
-          const step = Math.max((targetPercent - prev) * 0.15, 0.5);
-          return Math.min(prev + step, targetPercent);
-        });
+        const prev = visualProgressFloatRef.current;
+        const step = Math.max((targetPercent - prev) * 0.15, 0.5);
+        const next = Math.min(prev + step, targetPercent);
+        visualProgressFloatRef.current = next;
+        const nextRounded = Math.round(next);
+        setVisualProgress((curr) => (Math.round(curr) === nextRounded ? curr : nextRounded));
 
         animFrameRef.current = requestAnimationFrame(tick);
       } else {
         // Backend finished: ensure minimum MIN_SYNC_DURATION_MS elapsed time
         if (elapsed < MIN_SYNC_DURATION_MS) {
           const remainingTime = MIN_SYNC_DURATION_MS - elapsed;
-          setVisualProgress((prev) => {
-            const step = Math.max((100 - prev) / (remainingTime / 16), 0.8);
-            return Math.min(prev + step, 99);
-          });
+          const prev = visualProgressFloatRef.current;
+          const step = Math.max((100 - prev) / (remainingTime / 16), 0.8);
+          const next = Math.min(prev + step, 99);
+          visualProgressFloatRef.current = next;
+          const nextRounded = Math.round(next);
+          setVisualProgress((curr) => (Math.round(curr) === nextRounded ? curr : nextRounded));
           animFrameRef.current = requestAnimationFrame(tick);
         } else {
           // Both backend finished and minimum duration elapsed
+          visualProgressFloatRef.current = 100;
           setVisualProgress(100);
           setSyncPhase('success');
         }
@@ -1743,6 +1760,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (syncPhase === 'success') {
       const timer = setTimeout(() => {
         setSyncPhase('idle');
+        visualProgressFloatRef.current = 0;
         setVisualProgress(0);
         syncStartTimeRef.current = null;
       }, 1500);
@@ -1754,6 +1772,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (syncPhase !== 'idle') return;
     setSyncPhase('syncing');
     syncStartTimeRef.current = Date.now();
+    visualProgressFloatRef.current = 5;
     setVisualProgress(5);
     await onTriggerSync();
   };
@@ -1984,9 +2003,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
   }, [items, formData.snippets, formData.banlist]);
 
-  // Keep formData in sync when config prop updates from main process
+  // Keep formData in sync when config prop updates from main process (unless user has unsaved debounced edits)
   useEffect(() => {
-    setFormData(config);
+    if (!saveTimeoutRef.current && !pendingConfigRef.current) {
+      setFormData(config);
+    }
     if (!isRecordingHotkey) {
       originalHotkeyRef.current = config.hotkey || 'Ctrl+Alt+Space';
     }
@@ -1996,7 +2017,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (config.actionsColor) {
       applyActionsColor(config.actionsColor);
     }
-  }, [config, isRecordingHotkey]);
+  }, [config]);
 
   // Clean up global hotkey pause if component unmounts
   useEffect(() => {
@@ -2039,7 +2060,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   );
   const hasMissingName = detectedKeys.length > 0 && !detectedKeys.includes('name');
   const hasStructureError = Boolean(inspectError || hasMissingName || editingSource?.error || hasCustomMapping);
-  const hasMagicGateItem = items.some(hasMagicGate);
+  const hasMagicGateItem = useMemo(() => items.some(hasMagicGate), [items]);
 
   // New source templates
   const initialFileSource: FileSource = {
@@ -2497,6 +2518,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         return;
       }
 
+      // Check collision with PaletteMaster hotkey
+      const pmHotkey = formData.donkeyTools?.colorMaster?.paletteHotkey;
+      if (pmHotkey && finalHotkey.toLowerCase() === pmHotkey.toLowerCase()) {
+        const fallback = originalHotkeyRef.current || 'Ctrl+Alt+Space';
+        setFormData((prev) => ({ ...prev, hotkey: fallback }));
+        setHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou pro správu palet PaletteMaster.`);
+        setIsRecordingHotkey(false);
+        pressedKeysRef.current.clear();
+        maxComboRef.current = [];
+        setRecordedModifiers([]);
+        (e.target as HTMLInputElement).blur();
+        window.electronAPI?.resumeGlobalHotkey?.();
+        return;
+      }
+
+      // Check collision with EasyClip hotkey
+      const ecHotkey = formData.donkeyTools?.easyClip?.hotkey;
+      if (ecHotkey && finalHotkey.toLowerCase() === ecHotkey.toLowerCase()) {
+        const fallback = originalHotkeyRef.current || 'Ctrl+Alt+Space';
+        setFormData((prev) => ({ ...prev, hotkey: fallback }));
+        setHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou pro historii schránky EasyClip.`);
+        setIsRecordingHotkey(false);
+        pressedKeysRef.current.clear();
+        maxComboRef.current = [];
+        setRecordedModifiers([]);
+        (e.target as HTMLInputElement).blur();
+        window.electronAPI?.resumeGlobalHotkey?.();
+        return;
+      }
+
       setHotkeyError(null);
       const updated = { ...formData, hotkey: finalHotkey };
       setFormData(updated);
@@ -2765,6 +2816,60 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         };
         setFormData(updated);
         setColorMasterHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou pro správu palet PaletteMaster.`);
+        setIsRecordingColorMasterHotkey(false);
+        colorMasterPressedKeysRef.current.clear();
+        colorMasterMaxComboRef.current = [];
+        setColorMasterRecordedModifiers([]);
+        (e.target as HTMLInputElement).blur();
+        window.electronAPI?.resumeGlobalHotkey?.();
+        return;
+      }
+
+      // Check collision with QuickCap hotkey
+      const quickCapHotkey = formData.donkeyTools?.quickCap?.hotkey || formData.donkeyTools?.fastSnap?.hotkey || '';
+      if (quickCapHotkey && finalHotkey.toLowerCase() === quickCapHotkey.toLowerCase()) {
+        const fallback = colorMasterOriginalHotkeyRef.current || '';
+        const updated = {
+          ...formData,
+          donkeyTools: {
+            ...formData.donkeyTools,
+            colorMaster: {
+              enabled: formData.donkeyTools?.colorMaster?.enabled ?? false,
+              hotkey: fallback,
+              paletteHotkey: formData.donkeyTools?.colorMaster?.paletteHotkey || '',
+              defaultFormat: formData.donkeyTools?.colorMaster?.defaultFormat || 'hex',
+            },
+          },
+        };
+        setFormData(updated);
+        setColorMasterHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou pro výstřižek QuickCap.`);
+        setIsRecordingColorMasterHotkey(false);
+        colorMasterPressedKeysRef.current.clear();
+        colorMasterMaxComboRef.current = [];
+        setColorMasterRecordedModifiers([]);
+        (e.target as HTMLInputElement).blur();
+        window.electronAPI?.resumeGlobalHotkey?.();
+        return;
+      }
+
+      // Check collision with EasyClip hotkey
+      const easyClipHotkey = formData.donkeyTools?.easyClip?.hotkey || '';
+      if (easyClipHotkey && finalHotkey.toLowerCase() === easyClipHotkey.toLowerCase()) {
+        const fallback = colorMasterOriginalHotkeyRef.current || '';
+        const updated = {
+          ...formData,
+          donkeyTools: {
+            ...formData.donkeyTools,
+            colorMaster: {
+              enabled: formData.donkeyTools?.colorMaster?.enabled ?? false,
+              hotkey: fallback,
+              paletteHotkey: formData.donkeyTools?.colorMaster?.paletteHotkey || '',
+              defaultFormat: formData.donkeyTools?.colorMaster?.defaultFormat || 'hex',
+            },
+          },
+        };
+        setFormData(updated);
+        setColorMasterHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou pro historii schránky EasyClip.`);
         setIsRecordingColorMasterHotkey(false);
         colorMasterPressedKeysRef.current.clear();
         colorMasterMaxComboRef.current = [];
@@ -3202,7 +3307,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const finalHotkey = combo.join('+');
       const conflictReason = getReservedHotkeyCollision(combo);
 
-      if (conflictReason) {
+      const rollback = () => {
         const fallback = quickCapOriginalHotkeyRef.current || '';
         const updated = {
           ...formData,
@@ -3221,75 +3326,57 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           },
         };
         setFormData(updated);
-        setQuickCapHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – ${conflictReason}. Byla zachována původní zkratka.`);
         setIsRecordingQuickCapHotkey(false);
         quickCapPressedKeysRef.current.clear();
         quickCapMaxComboRef.current = [];
         setQuickCapRecordedModifiers([]);
         (e.target as HTMLInputElement).blur();
         window.electronAPI?.resumeGlobalHotkey?.();
+      };
+
+      if (conflictReason) {
+        rollback();
+        setQuickCapHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – ${conflictReason}. Byla zachována původní zkratka.`);
         return;
       }
 
       // Check collision with main launcher hotkey
       const launcherHotkey = formData.hotkey || 'Ctrl+Alt+Space';
       if (finalHotkey.toLowerCase() === launcherHotkey.toLowerCase()) {
-        const fallback = quickCapOriginalHotkeyRef.current || '';
-        const updated = {
-          ...formData,
-          donkeyTools: {
-            ...formData.donkeyTools,
-            quickCap: {
-              enabled: isEnabled,
-              hotkey: fallback,
-              saveDirectory: saveDir,
-            },
-            fastSnap: {
-              enabled: isEnabled,
-              hotkey: fallback,
-              saveDirectory: saveDir,
-            },
-          },
-        };
-        setFormData(updated);
+        rollback();
         setQuickCapHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou vyhledávacího okna. Byla zachována původní zkratka.`);
-        setIsRecordingQuickCapHotkey(false);
-        quickCapPressedKeysRef.current.clear();
-        quickCapMaxComboRef.current = [];
-        setQuickCapRecordedModifiers([]);
-        (e.target as HTMLInputElement).blur();
-        window.electronAPI?.resumeGlobalHotkey?.();
         return;
       }
 
       // Check collision with ColorMaster hotkey
       const colorMasterHotkey = formData.donkeyTools?.colorMaster?.hotkey || '';
       if (colorMasterHotkey && finalHotkey.toLowerCase() === colorMasterHotkey.toLowerCase()) {
-        const fallback = quickCapOriginalHotkeyRef.current || '';
-        const updated = {
-          ...formData,
-          donkeyTools: {
-            ...formData.donkeyTools,
-            quickCap: {
-              enabled: isEnabled,
-              hotkey: fallback,
-              saveDirectory: saveDir,
-            },
-            fastSnap: {
-              enabled: isEnabled,
-              hotkey: fallback,
-              saveDirectory: saveDir,
-            },
-          },
-        };
-        setFormData(updated);
+        rollback();
         setQuickCapHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou ColorMaster kapátka. Byla zachována původní zkratka.`);
-        setIsRecordingQuickCapHotkey(false);
-        quickCapPressedKeysRef.current.clear();
-        quickCapMaxComboRef.current = [];
-        setQuickCapRecordedModifiers([]);
-        (e.target as HTMLInputElement).blur();
-        window.electronAPI?.resumeGlobalHotkey?.();
+        return;
+      }
+
+      // Check collision with PaletteMaster hotkey
+      const paletteHotkey = formData.donkeyTools?.colorMaster?.paletteHotkey || '';
+      if (paletteHotkey && finalHotkey.toLowerCase() === paletteHotkey.toLowerCase()) {
+        rollback();
+        setQuickCapHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou pro správu palet PaletteMaster.`);
+        return;
+      }
+
+      // Check collision with ScreenRuler hotkey
+      const screenRulerHotkey = formData.donkeyTools?.screenRuler?.hotkey || '';
+      if (screenRulerHotkey && finalHotkey.toLowerCase() === screenRulerHotkey.toLowerCase()) {
+        rollback();
+        setQuickCapHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou pro měřítko ScreenRuler.`);
+        return;
+      }
+
+      // Check collision with EasyClip hotkey
+      const easyClipHotkey = formData.donkeyTools?.easyClip?.hotkey || '';
+      if (easyClipHotkey && finalHotkey.toLowerCase() === easyClipHotkey.toLowerCase()) {
+        rollback();
+        setQuickCapHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou pro historii schránky EasyClip.`);
         return;
       }
 
@@ -3485,7 +3572,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const finalHotkey = combo.join('+');
       const conflictReason = getReservedHotkeyCollision(combo);
 
-      if (conflictReason) {
+      const rollback = () => {
         const fallback = screenRulerOriginalHotkeyRef.current || '';
         const updated = {
           ...formData,
@@ -3500,94 +3587,57 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           },
         };
         setFormData(updated);
-        setScreenRulerHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – ${conflictReason}. Byla zachována původní zkratka.`);
         setIsRecordingScreenRulerHotkey(false);
         screenRulerPressedKeysRef.current.clear();
         screenRulerMaxComboRef.current = [];
         setScreenRulerRecordedModifiers([]);
         (e.target as HTMLInputElement).blur();
         window.electronAPI?.resumeGlobalHotkey?.();
+      };
+
+      if (conflictReason) {
+        rollback();
+        setScreenRulerHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – ${conflictReason}. Byla zachována původní zkratka.`);
         return;
       }
 
       // Check collision with main launcher hotkey
       const launcherHotkey = formData.hotkey || 'Ctrl+Alt+Space';
       if (finalHotkey.toLowerCase() === launcherHotkey.toLowerCase()) {
-        const fallback = screenRulerOriginalHotkeyRef.current || '';
-        const updated = {
-          ...formData,
-          donkeyTools: {
-            ...formData.donkeyTools,
-            screenRuler: {
-              enabled: isEnabled,
-              hotkey: fallback,
-              color,
-              defaultUnit,
-            },
-          },
-        };
-        setFormData(updated);
+        rollback();
         setScreenRulerHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou vyhledávacího okna. Byla zachována původní zkratka.`);
-        setIsRecordingScreenRulerHotkey(false);
-        screenRulerPressedKeysRef.current.clear();
-        screenRulerMaxComboRef.current = [];
-        setScreenRulerRecordedModifiers([]);
-        (e.target as HTMLInputElement).blur();
-        window.electronAPI?.resumeGlobalHotkey?.();
         return;
       }
 
       // Check collision with ColorMaster hotkey
       const colorMasterHotkey = formData.donkeyTools?.colorMaster?.hotkey || '';
       if (colorMasterHotkey && finalHotkey.toLowerCase() === colorMasterHotkey.toLowerCase()) {
-        const fallback = screenRulerOriginalHotkeyRef.current || '';
-        const updated = {
-          ...formData,
-          donkeyTools: {
-            ...formData.donkeyTools,
-            screenRuler: {
-              enabled: isEnabled,
-              hotkey: fallback,
-              color,
-              defaultUnit,
-            },
-          },
-        };
-        setFormData(updated);
+        rollback();
         setScreenRulerHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou ColorMaster kapátka. Byla zachována původní zkratka.`);
-        setIsRecordingScreenRulerHotkey(false);
-        screenRulerPressedKeysRef.current.clear();
-        screenRulerMaxComboRef.current = [];
-        setScreenRulerRecordedModifiers([]);
-        (e.target as HTMLInputElement).blur();
-        window.electronAPI?.resumeGlobalHotkey?.();
+        return;
+      }
+
+      // Check collision with PaletteMaster hotkey
+      const paletteHotkey = formData.donkeyTools?.colorMaster?.paletteHotkey || '';
+      if (paletteHotkey && finalHotkey.toLowerCase() === paletteHotkey.toLowerCase()) {
+        rollback();
+        setScreenRulerHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou pro správu palet PaletteMaster.`);
         return;
       }
 
       // Check collision with QuickCap hotkey
       const quickCapHotkey = formData.donkeyTools?.quickCap?.hotkey || formData.donkeyTools?.fastSnap?.hotkey || '';
       if (quickCapHotkey && finalHotkey.toLowerCase() === quickCapHotkey.toLowerCase()) {
-        const fallback = screenRulerOriginalHotkeyRef.current || '';
-        const updated = {
-          ...formData,
-          donkeyTools: {
-            ...formData.donkeyTools,
-            screenRuler: {
-              enabled: isEnabled,
-              hotkey: fallback,
-              color,
-              defaultUnit,
-            },
-          },
-        };
-        setFormData(updated);
+        rollback();
         setScreenRulerHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou QuickCap výstřižku. Byla zachována původní zkratka.`);
-        setIsRecordingScreenRulerHotkey(false);
-        screenRulerPressedKeysRef.current.clear();
-        screenRulerMaxComboRef.current = [];
-        setScreenRulerRecordedModifiers([]);
-        (e.target as HTMLInputElement).blur();
-        window.electronAPI?.resumeGlobalHotkey?.();
+        return;
+      }
+
+      // Check collision with EasyClip hotkey
+      const easyClipHotkey = formData.donkeyTools?.easyClip?.hotkey || '';
+      if (easyClipHotkey && finalHotkey.toLowerCase() === easyClipHotkey.toLowerCase()) {
+        rollback();
+        setScreenRulerHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou pro historii schránky EasyClip.`);
         return;
       }
 
@@ -3802,7 +3852,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const finalHotkey = combo.join('+');
       const conflictReason = getReservedHotkeyCollision(combo);
 
-      if (conflictReason) {
+      const rollback = () => {
         const fallback = easyClipOriginalHotkeyRef.current || '';
         const updated = {
           ...formData,
@@ -3816,117 +3866,57 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           },
         };
         setFormData(updated);
-        setEasyClipHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – ${conflictReason}. Byla zachována původní zkratka.`);
         setIsRecordingEasyClipHotkey(false);
         easyClipPressedKeysRef.current.clear();
         easyClipMaxComboRef.current = [];
         setEasyClipRecordedModifiers([]);
         (e.target as HTMLInputElement).blur();
         window.electronAPI?.resumeGlobalHotkey?.();
+      };
+
+      if (conflictReason) {
+        rollback();
+        setEasyClipHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – ${conflictReason}. Byla zachována původní zkratka.`);
         return;
       }
 
       // Check collision with main launcher hotkey
       const launcherHotkey = formData.hotkey || 'Ctrl+Alt+Space';
       if (finalHotkey.toLowerCase() === launcherHotkey.toLowerCase()) {
-        const fallback = easyClipOriginalHotkeyRef.current || '';
-        const updated = {
-          ...formData,
-          donkeyTools: {
-            ...formData.donkeyTools,
-            easyClip: {
-              enabled: isEnabled,
-              hotkey: fallback,
-              maxItems,
-            },
-          },
-        };
-        setFormData(updated);
+        rollback();
         setEasyClipHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou vyhledávacího okna. Byla zachována původní zkratka.`);
-        setIsRecordingEasyClipHotkey(false);
-        easyClipPressedKeysRef.current.clear();
-        easyClipMaxComboRef.current = [];
-        setEasyClipRecordedModifiers([]);
-        (e.target as HTMLInputElement).blur();
-        window.electronAPI?.resumeGlobalHotkey?.();
         return;
       }
 
       // Check collision with ColorMaster hotkey
       const colorMasterHotkey = formData.donkeyTools?.colorMaster?.hotkey || '';
       if (colorMasterHotkey && finalHotkey.toLowerCase() === colorMasterHotkey.toLowerCase()) {
-        const fallback = easyClipOriginalHotkeyRef.current || '';
-        const updated = {
-          ...formData,
-          donkeyTools: {
-            ...formData.donkeyTools,
-            easyClip: {
-              enabled: isEnabled,
-              hotkey: fallback,
-              maxItems,
-            },
-          },
-        };
-        setFormData(updated);
+        rollback();
         setEasyClipHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou ColorMaster kapátka. Byla zachována původní zkratka.`);
-        setIsRecordingEasyClipHotkey(false);
-        easyClipPressedKeysRef.current.clear();
-        easyClipMaxComboRef.current = [];
-        setEasyClipRecordedModifiers([]);
-        (e.target as HTMLInputElement).blur();
-        window.electronAPI?.resumeGlobalHotkey?.();
+        return;
+      }
+
+      // Check collision with PaletteMaster hotkey
+      const paletteHotkey = formData.donkeyTools?.colorMaster?.paletteHotkey || '';
+      if (paletteHotkey && finalHotkey.toLowerCase() === paletteHotkey.toLowerCase()) {
+        rollback();
+        setEasyClipHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou pro správu palet PaletteMaster.`);
         return;
       }
 
       // Check collision with QuickCap hotkey
       const quickCapHotkey = formData.donkeyTools?.quickCap?.hotkey || formData.donkeyTools?.fastSnap?.hotkey || '';
       if (quickCapHotkey && finalHotkey.toLowerCase() === quickCapHotkey.toLowerCase()) {
-        const fallback = easyClipOriginalHotkeyRef.current || '';
-        const updated = {
-          ...formData,
-          donkeyTools: {
-            ...formData.donkeyTools,
-            easyClip: {
-              enabled: isEnabled,
-              hotkey: fallback,
-              maxItems,
-            },
-          },
-        };
-        setFormData(updated);
+        rollback();
         setEasyClipHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou QuickCap výstřižku. Byla zachována původní zkratka.`);
-        setIsRecordingEasyClipHotkey(false);
-        easyClipPressedKeysRef.current.clear();
-        easyClipMaxComboRef.current = [];
-        setEasyClipRecordedModifiers([]);
-        (e.target as HTMLInputElement).blur();
-        window.electronAPI?.resumeGlobalHotkey?.();
         return;
       }
 
       // Check collision with ScreenRuler hotkey
       const screenRulerHotkey = formData.donkeyTools?.screenRuler?.hotkey || '';
       if (screenRulerHotkey && finalHotkey.toLowerCase() === screenRulerHotkey.toLowerCase()) {
-        const fallback = easyClipOriginalHotkeyRef.current || '';
-        const updated = {
-          ...formData,
-          donkeyTools: {
-            ...formData.donkeyTools,
-            easyClip: {
-              enabled: isEnabled,
-              hotkey: fallback,
-              maxItems,
-            },
-          },
-        };
-        setFormData(updated);
+        rollback();
         setEasyClipHotkeyError(`Zkratku „${finalHotkey}“ nelze nastavit – koliduje se zkratkou ScreenRuler měřítka. Byla zachována původní zkratka.`);
-        setIsRecordingEasyClipHotkey(false);
-        easyClipPressedKeysRef.current.clear();
-        easyClipMaxComboRef.current = [];
-        setEasyClipRecordedModifiers([]);
-        (e.target as HTMLInputElement).blur();
-        window.electronAPI?.resumeGlobalHotkey?.();
         return;
       }
 

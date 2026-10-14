@@ -93,12 +93,15 @@ export class FeedbackService {
       if (screenshotBase64 && screenshotBase64.length > 5) {
         screenshotFilename = `${id}.png`;
         const ssPath = path.join(targetFolder, screenshotFilename);
-        const ssTmpPath = `${ssPath}.tmp`;
+        const ssTmpPath = `${ssPath}.${process.pid}.${Date.now()}.tmp`;
 
         if (!screenshotBase64.startsWith('data:') && fs.existsSync(screenshotBase64)) {
-          await fs.promises.copyFile(screenshotBase64, ssTmpPath);
-          await fs.promises.rename(ssTmpPath, ssPath);
-          hasScreenshot = true;
+          const ext = path.extname(screenshotBase64).toLowerCase();
+          if (['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'].includes(ext)) {
+            await fs.promises.copyFile(screenshotBase64, ssTmpPath);
+            await fs.promises.rename(ssTmpPath, ssPath);
+            hasScreenshot = true;
+          }
         } else if (screenshotBase64.startsWith('data:') || screenshotBase64.length > 50) {
           const cleanBase64 = screenshotBase64.replace(/^data:image\/\w+;base64,/, '');
           await fs.promises.writeFile(ssTmpPath, Buffer.from(cleanBase64, 'base64'));
@@ -126,7 +129,7 @@ export class FeedbackService {
 
       // Atomický zápis JSONu
       const jsonPath = path.join(targetFolder, `${id}.json`);
-      const jsonTmpPath = `${jsonPath}.tmp`;
+      const jsonTmpPath = `${jsonPath}.${process.pid}.${Date.now()}.tmp`;
 
       await fs.promises.writeFile(jsonTmpPath, JSON.stringify(item, null, 2), 'utf-8');
       await fs.promises.rename(jsonTmpPath, jsonPath);
@@ -151,28 +154,37 @@ export class FeedbackService {
     try {
       this.ensureDirectory(targetFolder);
 
-      const jsonPath = path.join(targetFolder, `${item.id}.json`);
+      const safeId = path.basename(String(item.id || '')).replace(/\.json$/i, '');
+      if (!safeId) {
+        return { success: false, error: 'Neplatné ID feedbacku.' };
+      }
+
+      const jsonPath = path.join(targetFolder, `${safeId}.json`);
       if (!fs.existsSync(jsonPath)) {
-        return { success: false, error: `Feedback se souborem ${item.id}.json nebyl nalezen.` };
+        return { success: false, error: `Feedback se souborem ${safeId}.json nebyl nalezen.` };
       }
 
       const nowIso = new Date().toISOString();
       const updatedItem: FeedbackItem = {
         ...item,
+        id: safeId,
         updatedAt: nowIso,
       };
 
       // Nový screenshot, pokud byl přiložen (base64 nebo cesta k souboru)
       if (newScreenshotBase64 && newScreenshotBase64.length > 5) {
-        const screenshotFilename = `${item.id}.png`;
+        const screenshotFilename = `${safeId}.png`;
         const ssPath = path.join(targetFolder, screenshotFilename);
-        const ssTmpPath = `${ssPath}.tmp`;
+        const ssTmpPath = `${ssPath}.${process.pid}.${Date.now()}.tmp`;
 
         if (!newScreenshotBase64.startsWith('data:') && fs.existsSync(newScreenshotBase64)) {
-          await fs.promises.copyFile(newScreenshotBase64, ssTmpPath);
-          await fs.promises.rename(ssTmpPath, ssPath);
-          updatedItem.screenshotFilename = screenshotFilename;
-          updatedItem.hasScreenshot = true;
+          const ext = path.extname(newScreenshotBase64).toLowerCase();
+          if (['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'].includes(ext)) {
+            await fs.promises.copyFile(newScreenshotBase64, ssTmpPath);
+            await fs.promises.rename(ssTmpPath, ssPath);
+            updatedItem.screenshotFilename = screenshotFilename;
+            updatedItem.hasScreenshot = true;
+          }
         } else if (newScreenshotBase64.startsWith('data:') || newScreenshotBase64.length > 50) {
           const cleanBase64 = newScreenshotBase64.replace(/^data:image\/\w+;base64,/, '');
           await fs.promises.writeFile(ssTmpPath, Buffer.from(cleanBase64, 'base64'));
@@ -183,7 +195,7 @@ export class FeedbackService {
       }
 
       // Atomický zápis aktualizovaného JSONu
-      const jsonTmpPath = `${jsonPath}.tmp`;
+      const jsonTmpPath = `${jsonPath}.${process.pid}.${Date.now()}.tmp`;
       await fs.promises.writeFile(jsonTmpPath, JSON.stringify(updatedItem, null, 2), 'utf-8');
       await fs.promises.rename(jsonTmpPath, jsonPath);
 

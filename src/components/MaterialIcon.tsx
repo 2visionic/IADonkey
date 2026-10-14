@@ -42,6 +42,10 @@ export const MaterialIcon: React.FC<MaterialIconProps> = ({
   });
 
   useEffect(() => {
+    setImgError(false);
+  }, [image, location]);
+
+  useEffect(() => {
     if (!origin) return;
     const current = localStorage.getItem(`favicon:${origin}`);
     if (current !== cachedFavicon) {

@@ -50,6 +50,8 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({
   } | null>(null);
   const latestMovePointRef = useRef<{ screenX: number; screenY: number } | null>(null);
   const rafIdRef = useRef<number | null>(null);
+  const onToggleMaximizeRef = useRef(onToggleMaximize);
+  onToggleMaximizeRef.current = onToggleMaximize;
 
   useEffect(() => {
     if (!allowMaximize) return;
@@ -57,18 +59,18 @@ export const WindowTitleBar: React.FC<WindowTitleBarProps> = ({
     if (window.electronAPI?.isWindowMaximized) {
       window.electronAPI.isWindowMaximized().then((max) => {
         setInternalMaximized(Boolean(max));
-        onToggleMaximize?.(Boolean(max));
+        onToggleMaximizeRef.current?.(Boolean(max));
       });
     }
 
     if (window.electronAPI?.onWindowMaximizeChanged) {
       const unsub = window.electronAPI.onWindowMaximizeChanged((max: boolean) => {
         setInternalMaximized(max);
-        onToggleMaximize?.(max);
+        onToggleMaximizeRef.current?.(max);
       });
       return () => unsub();
     }
-  }, [allowMaximize, onToggleMaximize]);
+  }, [allowMaximize]);
 
   const handleMinimize = () => {
     window.electronAPI?.minimizeWindow?.();

@@ -15,6 +15,8 @@ export const PaletteBar: React.FC = () => {
   const [colors, setColors] = useState<(string | null)[]>([null, null, null, null, null]);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [isPicking, setIsPicking] = useState<boolean>(false);
+  const isPickingRef = useRef<boolean>(false);
+  isPickingRef.current = isPicking;
   const activeSlotRef = useRef<number | null>(activeSlot);
   activeSlotRef.current = activeSlot;
   const colorsRef = useRef(colors);
@@ -23,6 +25,7 @@ export const PaletteBar: React.FC = () => {
   paletteIdRef.current = paletteId;
   const paletteNameRef = useRef(paletteName);
   paletteNameRef.current = paletteName;
+  const createdAtRef = useRef<number>(Date.now());
 
   const saveNameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -35,7 +38,7 @@ export const PaletteBar: React.FC = () => {
     const payload: ColorPalette = {
       id: pId,
       name: pName,
-      createdAt: Date.now(),
+      createdAt: createdAtRef.current || Date.now(),
       updatedAt: Date.now(),
       colors: newColors,
     };
@@ -62,6 +65,37 @@ export const PaletteBar: React.FC = () => {
 
   // Initialize from URL search or hash
   useEffect(() => {
+    const loadPaletteData = (targetId: string, targetName: string) => {
+      setPaletteId(targetId);
+      paletteIdRef.current = targetId;
+      setPaletteName(targetName);
+      paletteNameRef.current = targetName;
+      createdAtRef.current = Date.now();
+
+      if (window.electronAPI?.getPalettes) {
+        window.electronAPI.getPalettes().then((list: ColorPalette[]) => {
+          const found = list.find((p) => p.id === targetId || p.name.toLowerCase() === targetName.toLowerCase());
+          if (found) {
+            setPaletteId(found.id);
+            paletteIdRef.current = found.id;
+            setPaletteName(found.name);
+            paletteNameRef.current = found.name;
+            createdAtRef.current = found.createdAt || Date.now();
+            const loadedColors: (string | null)[] = [null, null, null, null, null];
+            for (let i = 0; i < 5; i++) {
+              loadedColors[i] = found.colors && found.colors[i] ? found.colors[i] : null;
+            }
+            setColors(loadedColors);
+            colorsRef.current = loadedColors;
+          } else {
+            const emptyColors: (string | null)[] = [null, null, null, null, null];
+            setColors(emptyColors);
+            colorsRef.current = emptyColors;
+          }
+        });
+      }
+    };
+
     const params = new URLSearchParams(window.location.search);
     const idFromUrl = params.get('paletteId') || '';
     const nameFromUrl = params.get('paletteName') || '';
@@ -69,30 +103,18 @@ export const PaletteBar: React.FC = () => {
     const initId = idFromUrl || `palette-${Date.now()}`;
     const initName = nameFromUrl || 'Nová paleta';
 
-    setPaletteId(initId);
-    setPaletteName(initName);
-
-    // Fetch existing palettes to see if this palette already exists with colors
-    if (window.electronAPI?.getPalettes) {
-      window.electronAPI.getPalettes().then((list: ColorPalette[]) => {
-        const found = list.find((p) => p.id === initId || p.name.toLowerCase() === initName.toLowerCase());
-        if (found) {
-          setPaletteId(found.id);
-          setPaletteName(found.name);
-          const loadedColors: (string | null)[] = [null, null, null, null, null];
-          for (let i = 0; i < 5; i++) {
-            loadedColors[i] = found.colors && found.colors[i] ? found.colors[i] : null;
-          }
-          setColors(loadedColors);
-        }
-      });
-    }
+    loadPaletteData(initId, initName);
 
     // Listen for IPC re-init
     if (window.electronAPI?.onPaletteBarInit) {
       return window.electronAPI.onPaletteBarInit((data) => {
-        setPaletteId(data.paletteId);
-        setPaletteName(data.paletteName);
+        if (saveNameTimeoutRef.current) {
+          clearTimeout(saveNameTimeoutRef.current);
+          saveNameTimeoutRef.current = null;
+        }
+        setActiveSlot(null);
+        activeSlotRef.current = null;
+        loadPaletteData(data.paletteId, data.paletteName);
       });
     }
   }, []);
@@ -113,7 +135,8 @@ export const PaletteBar: React.FC = () => {
 
   // Trigger native eyedropper for a specific slot
   const triggerPick = async (targetSlot: number) => {
-    if (isPicking) return;
+    if (isPickingRef.current) return;
+    isPickingRef.current = true;
     setIsPicking(true);
     setActiveSlot(targetSlot);
 
@@ -132,6 +155,7 @@ export const PaletteBar: React.FC = () => {
     } catch (err) {
       console.error('[PaletteBar] Eyedropper error:', err);
     } finally {
+      isPickingRef.current = false;
       setIsPicking(false);
       setTimeout(() => {
         window.focus();

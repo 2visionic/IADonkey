@@ -312,9 +312,13 @@ class DiagnosticsService {
   public async exportCrashReport(fileName: string): Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }> {
     try {
       this.ensureDirectoryExists(this.crashLogDir);
-      const sourcePath = path.join(this.crashLogDir, fileName);
+      const safeFileName = path.basename(String(fileName || ''));
+      if (!safeFileName) {
+        return { success: false, error: 'Neplatný název souboru protokolu.' };
+      }
+      const sourcePath = path.join(this.crashLogDir, safeFileName);
       if (!fs.existsSync(sourcePath)) {
-        return { success: false, error: `Protokol ${fileName} nebyl nalezen.` };
+        return { success: false, error: `Protokol ${safeFileName} nebyl nalezen.` };
       }
 
       let content = fs.readFileSync(sourcePath, 'utf8');
@@ -330,7 +334,7 @@ class DiagnosticsService {
         defaultDir = app.getPath('downloads') || app.getPath('desktop') || '';
       } catch {}
 
-      const baseName = fileName.replace(/\.log$/i, '');
+      const baseName = safeFileName.replace(/\.log$/i, '');
       const exportFileName = `iadonkey-export-${baseName}.txt`;
       const defaultPath = defaultDir ? path.join(defaultDir, exportFileName) : exportFileName;
 

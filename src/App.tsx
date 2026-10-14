@@ -499,6 +499,32 @@ export const App: React.FC = () => {
     }
   };
 
+  // Filter items by enabled extensions and banlist (must be before conditional returns to satisfy Rules of Hooks)
+  const visibleItems = useMemo(() => {
+    return items
+      .filter((item) => {
+        if (isItemBanned(item, config?.banlist)) {
+          return false;
+        }
+        if (config?.extensions?.magicgate === false && item.sourceId === 'magicgate-xml') {
+          return false;
+        }
+        if (config?.extensions?.github === false && item.sourceId === 'github') {
+          return false;
+        }
+        return true;
+      })
+      .map((item) => {
+        if (!item.options || item.options.length === 0) return item;
+        const unbannedOptions = item.options.filter((sub) => !isItemBanned(sub, config?.banlist));
+        if (unbannedOptions.length === item.options.length) return item;
+        return {
+          ...item,
+          options: unbannedOptions,
+        };
+      });
+  }, [items, config?.extensions, config?.banlist]);
+
   // Dedicated Installer Window mode
   if (isInstallerMode) {
     return <InstallerWizard />;
@@ -769,32 +795,6 @@ export const App: React.FC = () => {
       </WindowFrame>
     );
   }
-
-  // Filter items by enabled extensions and banlist
-  const visibleItems = useMemo(() => {
-    return items
-      .filter((item) => {
-        if (isItemBanned(item, config?.banlist)) {
-          return false;
-        }
-        if (config?.extensions?.magicgate === false && item.sourceId === 'magicgate-xml') {
-          return false;
-        }
-        if (config?.extensions?.github === false && item.sourceId === 'github') {
-          return false;
-        }
-        return true;
-      })
-      .map((item) => {
-        if (!item.options || item.options.length === 0) return item;
-        const unbannedOptions = item.options.filter((sub) => !isItemBanned(sub, config?.banlist));
-        if (unbannedOptions.length === item.options.length) return item;
-        return {
-          ...item,
-          options: unbannedOptions,
-        };
-      });
-  }, [items, config?.extensions, config?.banlist]);
 
   // Floating Spotlight Search Bar mode
   return (

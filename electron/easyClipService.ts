@@ -1,4 +1,5 @@
 import { app, clipboard as electronClipboard, nativeImage, ClipboardItem } from 'electron';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { EasyClipItem, AppConfig } from '../src/types';
@@ -105,7 +106,7 @@ export class EasyClipService {
     const buf = existingBuf || img.toPNG();
     if (!buf || buf.length === 0) return false;
 
-    const hash = `${size.width}x${size.height}_${buf.length}_${buf.subarray(0, 32).toString('hex')}`;
+    const hash = `${size.width}x${size.height}_${buf.length}_${crypto.createHash('sha256').update(buf).digest('hex')}`;
 
     const topItem = this.items[0];
     const isSameAsTopImage =
@@ -113,7 +114,8 @@ export class EasyClipService {
       topItem.type === 'image' &&
       topItem.width === size.width &&
       topItem.height === size.height &&
-      topItem.sizeBytes === buf.length;
+      topItem.sizeBytes === buf.length &&
+      hash === this.lastImageHash;
 
     if (!isSameAsTopImage && hash !== this.lastImageHash) {
       this.lastImageHash = hash;
@@ -565,8 +567,10 @@ export class EasyClipService {
 
   private saveToDisk(): void {
     try {
-      // Save items; ensure JSON doesn't fail
-      fs.writeFileSync(this.storageFile, JSON.stringify(this.items, null, 2), 'utf-8');
+      // Save items atomically via temp file
+      const tmpFile = `${this.storageFile}.${process.pid}.tmp`;
+      fs.writeFileSync(tmpFile, JSON.stringify(this.items, null, 2), 'utf-8');
+      fs.renameSync(tmpFile, this.storageFile);
     } catch (err) {
       console.error('[EasyClip] Failed to save history to disk:', err);
     }

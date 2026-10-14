@@ -1680,7 +1680,17 @@ interface UserScheduleResult {
   initials: string;
   scheduledBlocks: TimelineScheduledBlock[];
   weekMergedBlocks: TimelineScheduledBlock[];
-  overflowTasks: { task: PlanTaskItem; remainingHours: number; partIndex?: number; totalParts?: number; originalTotalHours?: number }[];
+  overflowTasks: {
+    task: PlanTaskItem;
+    remainingHours: number;
+    partIndex?: number;
+    totalParts?: number;
+    dayPartIndex?: number;
+    dayTotalParts?: number;
+    weekPartIndex?: number;
+    weekTotalParts?: number;
+    originalTotalHours?: number;
+  }[];
   freeSlots: { dayIndex: number; startCol: number; spanCols: number; freeHours: number }[];
   dayCapacities: {
     dayIndex: number;
@@ -2135,7 +2145,17 @@ const calculateScheduleForTasks = (
   }
 
   // Overflow tasks (zbylé úkoly, které se nevešly do týdne – přenáší se pouze zbylý plán, nikoli přesah z aktuálního týdne)
-  const overflowTasks: { task: PlanTaskItem; remainingHours: number; partIndex?: number; totalParts?: number; originalTotalHours?: number }[] = [];
+  const overflowTasks: {
+    task: PlanTaskItem;
+    remainingHours: number;
+    partIndex?: number;
+    totalParts?: number;
+    dayPartIndex?: number;
+    dayTotalParts?: number;
+    weekPartIndex?: number;
+    weekTotalParts?: number;
+    originalTotalHours?: number;
+  }[] = [];
   for (const q of compQueue) {
     const rem = q.remainingPlannedHours;
     if (rem > 0) {
@@ -2391,11 +2411,19 @@ const calculateScheduleForTasks = (
   });
 
   for (const ot of overflowTasks) {
-    const tBlocks = weekTaskBlocksMap.get(ot.task.taskId) || [];
-    const partsInWeek = tBlocks.length;
-    const totalParts = partsInWeek > 0 ? partsInWeek + 1 : 1;
-    ot.partIndex = totalParts;
-    ot.totalParts = totalParts;
+    const dayPartsInWeek = taskPartsCount.get(ot.task.taskId) || 0;
+    const dayTotalParts = dayPartsInWeek > 0 ? dayPartsInWeek + 1 : 1;
+
+    const weekBlocksForTask = weekTaskBlocksMap.get(ot.task.taskId) || [];
+    const weekPartsInWeek = weekBlocksForTask.length;
+    const weekTotalParts = weekPartsInWeek > 0 ? weekPartsInWeek + 1 : 1;
+
+    ot.dayPartIndex = dayTotalParts;
+    ot.dayTotalParts = dayTotalParts;
+    ot.weekPartIndex = weekTotalParts;
+    ot.weekTotalParts = weekTotalParts;
+    ot.partIndex = dayTotalParts;
+    ot.totalParts = dayTotalParts;
     ot.originalTotalHours = (ot.task.estimatedHours && ot.task.estimatedHours > 0)
       ? ot.task.estimatedHours
       : (ot.task.totalHours || ot.remainingHours);
@@ -2460,12 +2488,13 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
         setUserMenuState(null);
       }
     };
+    const handleScroll = () => setUserMenuState(null);
     if (userMenuState !== null) {
       document.addEventListener('mousedown', handleClickOutside);
-      window.addEventListener('scroll', () => setUserMenuState(null), true);
+      window.addEventListener('scroll', handleScroll, true);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
-        window.removeEventListener('scroll', () => setUserMenuState(null), true);
+        window.removeEventListener('scroll', handleScroll, true);
       };
     }
   }, [userMenuState]);
@@ -2864,7 +2893,7 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
 
   // Overflow tasks: filtered by toggle [Moje úkoly / Všechny úkoly]
   const allOverflowTasks = useMemo(() => {
-    const list: { task: PlanTaskItem; remainingHours: number; partIndex?: number; totalParts?: number; originalTotalHours?: number }[] = [];
+    const list: UserScheduleResult['overflowTasks'] = [];
     const schedules = (filterMyOverflow && currentUser)
       ? userSchedules.filter((u) => isTaskForUser(u.userName, currentUser, availablePersons))
       : userSchedules;
@@ -5128,7 +5157,9 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
             <span>Úkoly přesahující do dalšího týdne ({allOverflowTasks.length})</span>
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 min-[1366px]:grid-cols-4 min-[1921px]:grid-cols-5 gap-2.5">
-            {allOverflowTasks.map(({ task, remainingHours, partIndex, totalParts, originalTotalHours }) => {
+            {allOverflowTasks.map(({ task, remainingHours, partIndex, totalParts, dayPartIndex, dayTotalParts, weekPartIndex, weekTotalParts, originalTotalHours }) => {
+              const activePartIndex = viewMode === 'week' ? (weekPartIndex ?? partIndex) : (dayPartIndex ?? partIndex);
+              const activeTotalParts = viewMode === 'week' ? (weekTotalParts ?? totalParts) : (dayTotalParts ?? totalParts);
               const originalTotal = originalTotalHours || task.estimatedHours || task.totalHours || remainingHours;
               const authorMatch = isTaskMatchingAuthor(task.author, selectedAuthorFilter);
               const queryMatch = isTaskMatchingQuery(task, searchQuery || '');
@@ -5155,10 +5186,10 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
                     currentUser={currentUser}
                     availablePersons={availablePersons}
                     overflowSplitInfo={
-                      totalParts && totalParts > 1 && partIndex
+                      activeTotalParts && activeTotalParts > 1 && activePartIndex
                         ? {
-                            partIndex,
-                            totalParts,
+                            partIndex: activePartIndex,
+                            totalParts: activeTotalParts,
                             originalTotalHours: originalTotal,
                           }
                         : undefined

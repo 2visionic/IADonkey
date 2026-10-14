@@ -1,6 +1,6 @@
 {
-  "version": "2.1.10",
-  "releaseNotes": "• Windows Taskbar & Nabídka Start: Opravena chyba, kdy se po aktualizaci v hlavním panelu Windows zobrazovala výchozí bílá ikona souboru namísto ikony IADonkey.\n• Systémové notifikace Windows: Zajištěno trvalé zachování ikony zástupce v nabídce Start i po vyvolání systémových oznámení.\n• Automatické aktualizace: Přidáno automatické obnovení mezipaměti ikon Windows při aktualizaci.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.10/IADonkey-Setup-2.1.10.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.10/IADonkey-2.1.10.zip"
+  "version": "2.1.11",
+  "releaseNotes": "• MagicPlan: Dynamické číslování přetečené části úkolu do dalšího týdne podle aktivního pohledu Den (např. 4/4) vs. Týden (např. 3/3).\n• Barevné palety & Pravítko (ScreenRuler): Spolehlivé přepínání mezi různými paletami za běhu a přesný přepočet jednotek % a dp při měření i kopírování.\n• Spotlight, EasyClip & Stabilita: Podpora funkce pow(x, y) v kalkulačce, přesné rozlišení obrázků se stejnými rozměry v EasyClip, kontrola kolizí všech globálních zkratek a zvýšení celkové bezpečnosti a stability aplikace.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.11/IADonkey-Setup-2.1.11.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.11/IADonkey-2.1.11.zip"
 }

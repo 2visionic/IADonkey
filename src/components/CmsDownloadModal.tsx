@@ -110,13 +110,16 @@ export const CmsDownloadModal: React.FC<CmsDownloadModalProps> = ({
     }
   }, [logs]);
 
-  // Auto-start download on first open
+  // Auto-start download when opened or when instance/target params change
+  const lastStartedKeyRef = useRef<string>('');
   useEffect(() => {
-    if (isOpen && adminUrl && targetDir && !hasStartedRef.current) {
+    const currentKey = `${instanceName}|${adminUrl}|${targetDir}`;
+    if (isOpen && adminUrl && targetDir && lastStartedKeyRef.current !== currentKey) {
+      lastStartedKeyRef.current = currentKey;
       hasStartedRef.current = true;
       startDownload();
     }
-  }, [isOpen, adminUrl, targetDir]);
+  }, [isOpen, instanceName, adminUrl, targetDir]);
 
   const handleFooterClose = async () => {
     if (window.electronAPI?.closeAndResetSpotlight) {
@@ -150,7 +153,7 @@ export const CmsDownloadModal: React.FC<CmsDownloadModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [status, onClose, targetDir]);
+  }, [status, onClose, targetDir, adminUrl, instanceName]);
 
   const handleOpenInVscode = async () => {
     if (targetDir && window.electronAPI?.openInVscode) {
