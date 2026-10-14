@@ -261,6 +261,7 @@ export class UpdateChecker {
       const batContent = `@echo off
 timeout /t 1 /nobreak >nul
 robocopy "${cleanFilePath}" "${cleanTargetDir}" /E /IS /IT /MOVE >nul 2>&1
+ie4uinit.exe -show >nul 2>&1
 start "" "${cleanTargetDir}\\IADonkey.exe" --updated
 del "%~f0" >nul 2>&1
 exit

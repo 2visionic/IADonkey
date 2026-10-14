@@ -1,6 +1,6 @@
 {
-  "version": "2.1.9",
-  "releaseNotes": "• MagicPlan přesah při přetečení: Do dalšího týdne se přenáší pouze čistý zbývající plán (např. 1h z 6h), nikoli přesah z aktuálního týdne. Worklog pro další týden je inicializován na 0h (0% overburn).\n• MagicPlan výpočet v týdnu: V aktuálním týdnu se procento přesahu vztahuje k plánu alokovanému na daný týden při zachování vizuální šířky bloku.\n• Týdenní přehled: U dokončených úkolů se již nezobrazuje ikona kritické priority, ale výhradně zelený indikátor splnění.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.9/IADonkey-Setup-2.1.9.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.9/IADonkey-2.1.9.zip"
+  "version": "2.1.10",
+  "releaseNotes": "• Windows Taskbar & Nabídka Start: Opravena chyba, kdy se po aktualizaci v hlavním panelu Windows zobrazovala výchozí bílá ikona souboru namísto ikony IADonkey.\n• Systémové notifikace Windows: Zajištěno trvalé zachování ikony zástupce v nabídce Start i po vyvolání systémových oznámení.\n• Automatické aktualizace: Přidáno automatické obnovení mezipaměti ikon Windows při aktualizaci.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.10/IADonkey-Setup-2.1.10.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.10/IADonkey-2.1.10.zip"
 }

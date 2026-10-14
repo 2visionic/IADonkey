@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.9';
+export const CURRENT_APP_VERSION = '2.1.10';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,16 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.10',
+    date: '14. 10. 2026',
+    title: 'Oprava zobrazení ikony aplikace v hlavním panelu Windows (Taskbar) a v nabídce Start po aktualizaci',
+    highlights: [
+      'Windows Taskbar & Nabídka Start – Spolehlivé zobrazení ikony aplikace: Opravena chyba, kdy se po aktualizaci aplikace v hlavním panelu Windows (Taskbar) a v nabídce Start zobrazovala výchozí bílá ikona souboru namísto ikony IADonkey. Všechna okna aplikace, systémová lišta (Tray) i zástupce v nabídce Start nově načítají ikonu přímo z rozbaleného úložiště (app.asar.unpacked).',
+      'Systémové notifikace Windows – Zachování ikony zástupce při notifikacích: Aktualizace zástupce v nabídce Start nově zachovává identifikátor ToastActivatorCLSID a po zobrazení systémové notifikace automaticky pojistí platnou cestu k ikoně, takže Windows při prvním oznámení ikonu zástupce nevymaže.',
+      'Automatické aktualizace – Obnovení cache ikon ve Windows: Při rychlé aktualizaci aplikace se před spuštěním nové verze automaticky obnoví systémová mezipaměť ikon Windows.',
+    ],
+  },
   {
     version: '2.1.9',
     date: '10. 10. 2026',

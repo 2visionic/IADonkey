@@ -4,6 +4,12 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.10] - 14. 10. 2026
+### Oprava zobrazení ikony aplikace v hlavním panelu Windows (Taskbar) a v nabídce Start po aktualizaci
+- **Windows Taskbar & Nabídka Start – Spolehlivé zobrazení ikony aplikace**: Opravena chyba, kdy se po aktualizaci aplikace v hlavním panelu Windows (Taskbar) a v nabídce Start zobrazovala výchozí bílá ikona souboru namísto ikony IADonkey. Všechna okna aplikace, systémová lišta (Tray) i zástupce v nabídce Start nově načítají ikonu přímo z rozbaleného úložiště (`app.asar.unpacked`).
+- **Systémové notifikace Windows – Zachování ikony zástupce při notifikacích**: Aktualizace zástupce v nabídce Start nově zachovává identifikátor `ToastActivatorCLSID` a po zobrazení systémové notifikace automaticky pojistí platnou cestu k ikoně, takže Windows při prvním oznámení ikonu zástupce nevymaže.
+- **Automatické aktualizace – Obnovení cache ikon ve Windows**: Při rychlé aktualizaci aplikace se před spuštěním nové verze automaticky obnoví systémová mezipaměť ikon Windows.
+
 ## [2.1.9] - 10. 10. 2026
 ### MagicPlan oprava přesahu (overburn) při přetečení týdne a skrytí kritické ikony u dokončených úkolů
 - **MagicPlan – Přesah (overburn) při přetečení do dalšího týdne**: Do přehledu úkolů přesahujících do dalšího týdne se přenáší pouze čistý zbývající plán (např. 1h z 6h), nikoli přesah z aktuálního týdne. Worklog pro další týden je inicializován na 0h (0% overburn). V aktuálním týdnu se procento přesahu vztahuje k plánu alokovanému na daný týden (např. 7,9h logu z 5h plánu = 158% / +2,9h) při zachování vizuální šířky bloku v mřížce dne.

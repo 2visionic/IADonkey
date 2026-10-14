@@ -9,8 +9,19 @@ const __dirname = path.dirname(__filename);
 
 let cachedDefaultIcon: string | undefined = undefined;
 
+const resolveUnpackedPath = (candidate: string): string => {
+  if (candidate.includes('app.asar') && !candidate.includes('app.asar.unpacked')) {
+    const unpacked = candidate.replace('app.asar', 'app.asar.unpacked');
+    if (fs.existsSync(unpacked)) {
+      return unpacked;
+    }
+  }
+  return candidate;
+};
+
 const resolveNotificationIconFile = (filename: string): string | undefined => {
   const candidates = [
+    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'electron', 'assets', 'notifications', filename),
     path.join(__dirname, 'assets/notifications', filename),
     path.join(__dirname, '../electron/assets/notifications', filename),
     path.join(__dirname, '../dist-electron/assets/notifications', filename),
@@ -19,8 +30,9 @@ const resolveNotificationIconFile = (filename: string): string | undefined => {
     path.join(process.cwd(), 'electron/assets/notifications', filename),
   ];
   for (const c of candidates) {
-    if (fs.existsSync(c)) {
-      return c;
+    const resolved = resolveUnpackedPath(c);
+    if (fs.existsSync(resolved)) {
+      return resolved;
     }
   }
   return undefined;
@@ -31,38 +43,43 @@ const getDefaultIcon = (): string | undefined => {
     return cachedDefaultIcon;
   }
   const candidates = [
+    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'electron', 'assets', 'icon.png'),
     path.join(__dirname, '../electron/assets/icon.png'),
     path.join(__dirname, 'assets/icon.png'),
     path.join(__dirname, '../dist/icon.png'),
+    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'electron', 'assets', 'icon.ico'),
     path.join(__dirname, '../electron/assets/icon.ico'),
     path.join(process.resourcesPath || '', 'app.asar/electron/assets/icon.png'),
     path.join(process.resourcesPath || '', 'app.asar/dist/icon.png'),
     path.join(process.cwd(), 'electron/assets/icon.png'),
   ];
   for (const c of candidates) {
-    if (fs.existsSync(c)) {
-      cachedDefaultIcon = c;
-      return c;
+    const resolved = resolveUnpackedPath(c);
+    if (fs.existsSync(resolved)) {
+      cachedDefaultIcon = resolved;
+      return resolved;
     }
   }
   return undefined;
 };
+
 const getNotificationIco = (): string | undefined => {
   const candidates = [
+    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'electron', 'assets', 'icon.ico'),
+    path.join(process.resourcesPath || '', 'electron', 'assets', 'icon.ico'),
+    path.join(process.resourcesPath || '', 'assets', 'icon.ico'),
     path.join(__dirname, '../electron/assets/icon.ico'),
     path.join(__dirname, 'assets/icon.ico'),
     path.join(__dirname, '../build/icon.ico'),
-    path.join(process.resourcesPath || '', 'app.asar/electron/assets/icon.ico'),
-    path.join(process.resourcesPath || '', 'electron/assets/icon.ico'),
-    path.join(process.resourcesPath || '', 'assets/icon.ico'),
     path.join(process.cwd(), 'electron/assets/icon.ico'),
   ];
   for (const c of candidates) {
-    if (fs.existsSync(c)) {
-      return c;
+    const resolved = resolveUnpackedPath(c);
+    if (fs.existsSync(resolved) && !resolved.includes('app.asar' + path.sep)) {
+      return resolved;
     }
   }
-  return undefined;
+  return app.isPackaged ? process.execPath : undefined;
 };
 
 export type NotificationType =
@@ -189,6 +206,47 @@ export class NotificationService {
     }
   }
 
+  private ensureStartMenuShortcut(): void {
+    if (process.platform !== 'win32') return;
+    const appId = 'com.iadonkey.launcher';
+    try {
+      const startMenuDir = path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs');
+      if (!fs.existsSync(startMenuDir)) return;
+
+      const shortcutPath = path.join(startMenuDir, 'IADonkey.lnk');
+      const icoPath = getNotificationIco() || process.execPath;
+
+      let existingClsid: string | undefined;
+      const exists = fs.existsSync(shortcutPath);
+      if (exists) {
+        try {
+          const existing = shell.readShortcutLink(shortcutPath);
+          if (existing?.toastActivatorClsid) {
+            existingClsid = existing.toastActivatorClsid;
+          }
+        } catch {}
+      }
+
+      const shortcutOptions: Electron.ShortcutDetails = {
+        target: process.execPath,
+        cwd: path.dirname(process.execPath),
+        description: 'IADonkey Launcher',
+        appUserModelId: appId,
+        icon: icoPath,
+        iconIndex: 0,
+        ...(existingClsid ? { toastActivatorClsid: existingClsid } : {}),
+      };
+
+      const operation = exists ? 'update' : 'create';
+      const written = shell.writeShortcutLink(shortcutPath, operation, shortcutOptions);
+      if (!written && exists) {
+        shell.writeShortcutLink(shortcutPath, 'replace', shortcutOptions);
+      }
+    } catch (err) {
+      console.warn('[NotificationService] Failed to register/update Start Menu shortcut for AUMID:', err);
+    }
+  }
+
   public init(config: any): void {
     this.config = config;
     if (process.platform === 'win32') {
@@ -199,14 +257,12 @@ export class NotificationService {
         console.error('[NotificationService] Failed to set AppUserModelId:', err);
       }
 
-      // Windows Toast header attribution:
-      // Windows 10 a Windows 11 zobrazují v záhlaví toast notifikace (u křížku pro zavření) název
+      // Windows Toast header attribution & Taskbar AUMID icon:
+      // Windows 10 a Windows 11 zobrazují v hlavním panelu a v záhlaví toast notifikace název
       // a ikonu zástupce v nabídce Start, jehož System.AppUserModel.ID odpovídá nastavenému AUMID
       // a jehož target odpovídá běžícímu spustitelnému souboru (process.execPath).
       try {
         const startMenuDir = path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs');
-        const shortcutPath = path.join(startMenuDir, 'IADonkey.lnk');
-        const icoPath = getNotificationIco();
 
         this.cleanupDevShortcut();
 
@@ -224,21 +280,10 @@ export class NotificationService {
           }
         }
 
-        const shortcutOptions: Electron.ShortcutDetails = {
-          target: process.execPath,
-          description: 'IADonkey Launcher',
-          appUserModelId: appId,
-          icon: icoPath,
-          iconIndex: 0,
-        };
-
-        if (fs.existsSync(startMenuDir)) {
-          const operation = fs.existsSync(shortcutPath) ? 'replace' : 'create';
-          shell.writeShortcutLink(shortcutPath, operation, shortcutOptions);
-          console.log('[NotificationService] Registered Start Menu shortcut with AUMID:', appId, 'target:', process.execPath);
-        }
+        this.ensureStartMenuShortcut();
+        console.log('[NotificationService] Registered Start Menu shortcut with AUMID:', appId, 'target:', process.execPath);
       } catch (err) {
-        console.warn('[NotificationService] Failed to register/update Start Menu shortcut for AUMID:', err);
+        console.warn('[NotificationService] Failed to initialize Start Menu shortcut:', err);
       }
     }
   }
@@ -336,9 +381,15 @@ export class NotificationService {
       this.currentNotification = notification;
       notification.show();
 
-      // Chromium ve vývojovém režimu vytváří zástupce asynchronně po zobrazení toastu
-      setTimeout(() => this.cleanupDevShortcut(), 100);
-      setTimeout(() => this.cleanupDevShortcut(), 500);
+      // Chromium vytváří/upravuje zástupce asynchronně po zobrazení toastu (kvůli ToastActivatorCLSID)
+      setTimeout(() => {
+        this.cleanupDevShortcut();
+        this.ensureStartMenuShortcut();
+      }, 150);
+      setTimeout(() => {
+        this.cleanupDevShortcut();
+        this.ensureStartMenuShortcut();
+      }, 600);
 
       diagnosticsService.logAction({
         type: 'action',
