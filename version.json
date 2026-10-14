@@ -1,6 +1,7 @@
 {
-  "version": "2.1.11",
-  "releaseNotes": "• MagicPlan: Dynamické číslování přetečené části úkolu do dalšího týdne podle aktivního pohledu Den (např. 4/4) vs. Týden (např. 3/3).\n• Barevné palety & Pravítko (ScreenRuler): Spolehlivé přepínání mezi různými paletami za běhu a přesný přepočet jednotek % a dp při měření i kopírování.\n• Spotlight, EasyClip & Stabilita: Podpora funkce pow(x, y) v kalkulačce, přesné rozlišení obrázků se stejnými rozměry v EasyClip, kontrola kolizí všech globálních zkratek a zvýšení celkové bezpečnosti a stability aplikace.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.11/IADonkey-Setup-2.1.11.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.11/IADonkey-2.1.11.zip"
+  "version": "2.1.12",
+  "releaseNotes": "• MagicGate – Vzdálené Deploy API: Přepínač mezi lokálním XML souborem a živým stahováním aktivních instancí z Deploy API včetně URL Administrace/Webu, verze Magicu a DB.\n• Google SSO & Tichá obnova relace: Přihlášení přes Google SSO se šifrovaným uložením session cookie, automatickou tichou obnovou relace při startu/autosyncu na pozadí a lokální offline cache.\n• Bezpečnost & Lokální ikona: Plná podpora klonování repozitářů a CMSinFS nad API položkami, lokální ikona v assets a čistá konfigurace bez předvyplněných firemních URL.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.12/IADonkey-Setup-2.1.12.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.12/IADonkey-2.1.12.zip"
 }
+

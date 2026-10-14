@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.11';
+export const CURRENT_APP_VERSION = '2.1.12';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,18 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.12',
+    date: '14. 10. 2026',
+    title: 'MagicGate vzdálené Deploy API s Google SSO, tichou obnovou relace, offline cache a lokální ikonou',
+    highlights: [
+      'MagicGate – Přepínač zdroje instancí (Lokální XML vs. Vzdálené Deploy API): V Nastavení -> MagicGate lze nově zvolit načítání serverů a aktivních instancí přímo ze vzdáleného Deploy API (/api/ui/agents) včetně URL adres Administrace a Webu z IIS bindingů, verze Magicu a názvu databáze.',
+      'MagicGate – Přihlášení přes Google SSO a šifrované úložiště: Přihlašování k Deploy serveru probíhá přes vestavěné Google SSO okno. Session cookie je bezpečně uložena v šifrovaném úložišti Windows (DPAPI / safeStorage) s možností ručního zadání v pokročilém režimu.',
+      'MagicGate – Tichá obnova relace na pozadí a automatická synchronizace: Při startu aplikace nebo pravidelném autosyncu na pozadí si aplikace v případě expirované session cookie automaticky a tiše obnoví přihlášení přes uloženou Google relaci bez nutnosti otevírat Nastavení.',
+      'MagicGate – Plná podpora klonování repozitářů, CMSinFS a offline cache: Položky načtené z Deploy API podporují stahování Git repozitářů (včetně rekurzivních balíčků), stahování CMSinFS zdrojových kódů i zobrazení informací o instanci. Stažený seznam se ukládá do lokální cache pro okamžitou dostupnost i při výpadku sítě.',
+      'Bezpečnost & Lokální assets: Odstraněny veškeré předvyplněné interní URL adresy (adresu serveru zadává uživatel sám) a ikona instancí MagicGate je načítána přímo z lokálních assets aplikace.',
+    ],
+  },
   {
     version: '2.1.11',
     date: '14. 10. 2026',
