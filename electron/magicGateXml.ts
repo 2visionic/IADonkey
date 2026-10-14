@@ -203,7 +203,7 @@ export function parseMagicGateXml(xmlContent: string): LauncherItem[] {
         settings: 'magicgate',
         priority: 1,
         icon: 'public',
-        image: 'https://magicware.istour.cz/Images/M2G/Desktop/Icon.png',
+        image: './assets/magicgate-icon.png',
         sourceId: 'magicgate-xml',
         actions,
         options: options.length > 0 ? options : undefined,

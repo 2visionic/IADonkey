@@ -12,6 +12,11 @@ import { WindowManager } from './windowManager';
 import { AppScanner } from './appScanner';
 import { AppConfig, LauncherItem, ActionLogEntry } from '../src/types';
 import { getMagicGateAutoLoginUrl } from './magicGate';
+import {
+  loginToMagicGateDeployInteractive,
+  fetchMagicGateDeployItems,
+  logoutFromMagicGateDeploy,
+} from './magicGateDeployApi';
 import { testGitHubConnection, startGitHubDeviceFlow, pollGitHubDeviceToken, getActiveGitHubToken } from './githubService';
 import { faviconService } from './faviconService';
 import { fetchInstanceSectionRepos, runMultiRepoClone, downloadInstanceCmsContent, normalizeInstanceCmsPath, MagicGateSectionRepo, createGitAuthEnv, createGitOutputSanitizer, executeGitProcess } from './magicGateService';
@@ -1557,7 +1562,10 @@ function setupIpcHandlers() {
 
     // If MagicGate or GitHub settings/extensions changed, trigger sync to update launcher items
     const magicgateChanged =
+      newConfig.magicgate?.sourceMode !== oldConfig.magicgate?.sourceMode ||
       newConfig.magicgate?.xmlPath !== oldConfig.magicgate?.xmlPath ||
+      newConfig.magicgate?.apiBaseUrl !== oldConfig.magicgate?.apiBaseUrl ||
+      newConfig.magicgate?.apiAuthCookie !== oldConfig.magicgate?.apiAuthCookie ||
       newConfig.extensions?.magicgate !== oldConfig.extensions?.magicgate;
     const oldGhToken = getActiveGitHubToken(oldConfig.github);
     const newGhToken = getActiveGitHubToken(newConfig.github);
@@ -1572,8 +1580,11 @@ function setupIpcHandlers() {
     if (magicgateChanged || githubChanged) {
       syncManager.syncAll().then(() => {
         const allItems = getCombinedItems();
+        const syncedConfig = store.getConfig();
         windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
         windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
+        windowManager.getMainWindow()?.webContents.send('config-updated', syncedConfig);
+        windowManager.getSettingsWindow()?.webContents.send('config-updated', syncedConfig);
       });
     }
 
@@ -1762,6 +1773,142 @@ function setupIpcHandlers() {
     const username = config.magicgate?.username;
     const password = config.magicgate?.password;
     return fetchInstanceSectionRepos(params.adminUrl, username, password);
+  });
+
+  ipcMain.handle('magicgate-deploy-login', async (_event, params?: { baseUrl?: string }) => {
+    const config = store.getConfig();
+    const baseUrl = (params?.baseUrl ?? config.magicgate?.apiBaseUrl ?? '').trim();
+    if (!baseUrl) {
+      return { ok: false, error: 'Zadejte nejprve URL adresu Deploy serveru.' };
+    }
+    const settingsWin = windowManager.getSettingsWindow();
+    const res = await loginToMagicGateDeployInteractive(baseUrl, settingsWin);
+    if (res.ok) {
+      const latest = store.getConfig();
+      const updatedCfg: AppConfig = {
+        ...latest,
+        magicgate: {
+          ...latest.magicgate,
+          sourceMode: 'api',
+          apiBaseUrl: baseUrl,
+          apiAuthCookie: res.cookie || latest.magicgate.apiAuthCookie,
+          apiUserEmail: res.email || latest.magicgate.apiUserEmail,
+          apiUserRole: res.role || latest.magicgate.apiUserRole,
+          lastApiSyncAt: new Date().toISOString(),
+          apiInstanceCount: res.instanceCount ?? latest.magicgate.apiInstanceCount,
+          apiLastError: undefined,
+        },
+      };
+      store.saveConfig(updatedCfg);
+      if (syncManager) {
+        await syncManager.syncAll();
+        const allItems = getCombinedItems();
+        windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
+        windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
+      }
+      const finalCfg = store.getConfig();
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed() && !win.webContents?.isDestroyed()) {
+          win.webContents.send('config-updated', finalCfg);
+        }
+      });
+    }
+    return res;
+  });
+
+  ipcMain.handle('magicgate-deploy-test', async (_event, params?: { baseUrl?: string; cookie?: string }) => {
+    const config = store.getConfig();
+    const baseUrl = (params?.baseUrl ?? config.magicgate?.apiBaseUrl ?? '').trim();
+    if (!baseUrl) {
+      return {
+        ok: false,
+        signedIn: false,
+        error: 'Zadejte nejprve URL adresu Deploy serveru.',
+      };
+    }
+    const cookie =
+      params?.cookie && params.cookie.trim()
+        ? params.cookie.trim()
+        : config.magicgate?.apiAuthCookie;
+
+    // Fetch items (automatically performs silent Google SSO re-auth if cookie expired)
+    const fetchRes = await fetchMagicGateDeployItems(
+      {
+        ...config.magicgate,
+        sourceMode: 'api',
+        apiBaseUrl: baseUrl,
+        apiAuthCookie: cookie,
+      },
+      { allowSilentReauth: true }
+    );
+
+    if (!fetchRes.ok) {
+      return {
+        ok: false,
+        signedIn: false,
+        error: fetchRes.error || 'Nejste přihlášeni (neplatná nebo expirovaná session cookie).',
+      };
+    }
+
+    const latest = store.getConfig();
+    store.saveConfig({
+      ...latest,
+      magicgate: {
+        ...latest.magicgate,
+        apiBaseUrl: baseUrl,
+        apiAuthCookie: fetchRes.cookie || cookie || latest.magicgate.apiAuthCookie,
+        apiUserEmail: fetchRes.email || latest.magicgate.apiUserEmail,
+        apiUserRole: fetchRes.role || latest.magicgate.apiUserRole,
+        lastApiSyncAt: new Date().toISOString(),
+        apiInstanceCount: fetchRes.items.length,
+        apiLastError: undefined,
+      },
+    });
+
+    if (syncManager && latest.magicgate?.sourceMode === 'api') {
+      await syncManager.syncAll();
+      const allItems = getCombinedItems();
+      windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
+      windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
+    }
+
+    const finalCfg = store.getConfig();
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed() && !win.webContents?.isDestroyed()) {
+        win.webContents.send('config-updated', finalCfg);
+      }
+    });
+
+    return {
+      ok: true,
+      signedIn: true,
+      email: fetchRes.email || finalCfg.magicgate?.apiUserEmail,
+      role: fetchRes.role || finalCfg.magicgate?.apiUserRole,
+      instanceCount: fetchRes.items.length,
+    };
+  });
+
+  ipcMain.handle('magicgate-deploy-logout', async (_event, params?: { baseUrl?: string }) => {
+    const config = store.getConfig();
+    const baseUrl = (params?.baseUrl ?? config.magicgate?.apiBaseUrl ?? '').trim();
+    await logoutFromMagicGateDeploy(baseUrl);
+    const updatedCfg: AppConfig = {
+      ...config,
+      magicgate: {
+        ...config.magicgate,
+        apiAuthCookie: '',
+        apiUserEmail: '',
+        apiUserRole: '',
+        apiLastError: undefined,
+      },
+    };
+    store.saveConfig(updatedCfg);
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed() && !win.webContents?.isDestroyed()) {
+        win.webContents.send('config-updated', updatedCfg);
+      }
+    });
+    return { ok: true };
   });
 
   ipcMain.handle('magicgate-clone-start', async (event, params: {

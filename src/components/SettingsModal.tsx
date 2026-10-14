@@ -285,6 +285,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [testTaskType, setTestTaskType] = useState<'dev' | 'service'>('dev');
   const [testIsCritical, setTestIsCritical] = useState<boolean>(false);
   const [testSituationId, setTestSituationId] = useState<number>(1);
+  const [isLoggingInDeploy, setIsLoggingInDeploy] = useState(false);
+  const [isTestingDeploy, setIsTestingDeploy] = useState(false);
+  const [deployStatusMsg, setDeployStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [showManualDeployCookie, setShowManualDeployCookie] = useState(false);
 
   useEffect(() => {
     if (!openSimDropdown && !openNotifDropdown) return;
@@ -6620,79 +6624,390 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              {/* MagicGate XML Deployment Config */}
-              <div className="space-y-3 bg-white/[0.03] p-5 rounded-2xl">
-                <div>
-                  <h4 className="font-semibold text-sm text-white flex items-center gap-2 mb-1">
-                    <span className="material-symbols-outlined text-lg text-amber-400">code_blocks</span>
-                    Konfigurační XML soubor instancí (Deploy Config)
-                  </h4>
-                  <p className="text-[13px] text-gray-400 mb-3 leading-relaxed">
-                    Vyberte XML soubor s definicí serverů a instancí. IADonkey z něj automaticky vyextrahuje jednotlivé instance
-                    jako hlavní položky s akcí MagicGate a jejich dílčí aplikace (Administrace, Web, API, BO) jako podpoložky s faviconou.
-                    Servery a instance s označením <span className="font-mono text-amber-300">Bench</span> jsou automaticky vynechány.
-                  </p>
-                </div>
+              {/* MagicGate Instance Source Mode (XML vs MagicWare Deploy API) */}
+              <div className="space-y-4 bg-white/[0.03] p-5 rounded-2xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="font-semibold text-sm text-white flex items-center gap-2 mb-1">
+                      <span className="material-symbols-outlined text-lg text-amber-400">dns</span>
+                      Zdroj seznamu instancí (Deploy)
+                    </h4>
+                    <p className="text-[13px] text-gray-400 leading-relaxed">
+                      Zvolte, zda se mají instance načítat z lokálního XML souboru nebo přímo ze vzdáleného API platformy <span className="text-amber-300 font-medium">MagicWare Deploy</span>.
+                    </p>
+                  </div>
 
-                <div>
-                  <label className="block text-[13px] font-medium text-gray-300 mb-1.5">Cesta k XML souboru</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={formData.magicgate?.xmlPath || ''}
-                      onChange={(e) => {
+                  {/* Segmented Source Mode Switch */}
+                  <div className="flex items-center gap-1.5 p-1 bg-white/[0.04] rounded-full w-fit shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
                         const updated = {
                           ...formData,
-                          magicgate: { ...formData.magicgate, xmlPath: e.target.value },
+                          magicgate: {
+                            ...formData.magicgate,
+                            sourceMode: 'xml' as const,
+                          },
                         };
                         setFormData(updated);
                         handleSave(updated);
+                        setDeployStatusMsg(null);
                       }}
-                      className="h-[38px] flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 outline-none font-mono"
-                      placeholder="C:\deploy\DeployConfig.xml"
-                    />
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer ${
+                        (formData.magicgate?.sourceMode || 'xml') === 'xml'
+                          ? 'bg-amber-500/20 text-white shadow-sm'
+                          : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      <span className={`material-symbols-outlined text-base ${(formData.magicgate?.sourceMode || 'xml') === 'xml' ? 'text-amber-400' : ''}`}>code_blocks</span>
+                      <span>Lokální XML soubor</span>
+                    </button>
                     <button
                       type="button"
-                      onClick={async () => {
-                        if (window.electronAPI?.selectXmlFile) {
-                          const selected = await window.electronAPI.selectXmlFile(formData.magicgate?.xmlPath);
-                          if (selected) {
+                      onClick={() => {
+                        const updated = {
+                          ...formData,
+                          magicgate: {
+                            ...formData.magicgate,
+                            sourceMode: 'api' as const,
+                            apiBaseUrl: formData.magicgate?.apiBaseUrl || '',
+                          },
+                        };
+                        setFormData(updated);
+                        handleSave(updated);
+                        setDeployStatusMsg(null);
+                      }}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer ${
+                        formData.magicgate?.sourceMode === 'api'
+                          ? 'bg-amber-500/20 text-white shadow-sm'
+                          : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      <span className={`material-symbols-outlined text-base ${formData.magicgate?.sourceMode === 'api' ? 'text-amber-400' : ''}`}>cloud_sync</span>
+                      <span>Vzdálené API (Deploy)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {(formData.magicgate?.sourceMode || 'xml') === 'xml' ? (
+                  <div className="space-y-3 pt-2 border-t border-white/[0.05] animate-fade-in">
+                    <p className="text-[13px] text-gray-400 leading-relaxed">
+                      Vyberte XML soubor s definicí serverů a instancí. IADonkey z něj automaticky vyextrahuje jednotlivé instance
+                      jako hlavní položky s akcí MagicGate a jejich dílčí aplikace (Administrace, Web, API, BO) jako podpoložky s faviconou.
+                      Servery a instance s označením <span className="font-mono text-amber-300">Bench</span> jsou automaticky vynechány.
+                    </p>
+
+                    <div>
+                      <label className="block text-[13px] font-medium text-gray-300 mb-1.5">Cesta k XML souboru</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={formData.magicgate?.xmlPath || ''}
+                          onChange={(e) => {
                             const updated = {
                               ...formData,
-                              magicgate: { ...formData.magicgate, xmlPath: selected },
+                              magicgate: { ...formData.magicgate, xmlPath: e.target.value },
                             };
                             setFormData(updated);
                             handleSave(updated);
-                          }
-                        }
-                      }}
-                      className="h-[38px] px-4 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-full text-[13px] font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
-                    >
-                      <span className="material-symbols-outlined text-base text-amber-400">folder_open</span>
-                      <span>Procházet...</span>
-                    </button>
-                    {formData.magicgate?.xmlPath && (
-                      <button
-                        type="button"
-                        onClick={() => {
+                          }}
+                          className="h-[38px] flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 outline-none font-mono"
+                          placeholder="C:\deploy\DeployConfig.xml"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (window.electronAPI?.selectXmlFile) {
+                              const selected = await window.electronAPI.selectXmlFile(formData.magicgate?.xmlPath);
+                              if (selected) {
+                                const updated = {
+                                  ...formData,
+                                  magicgate: { ...formData.magicgate, xmlPath: selected },
+                                };
+                                setFormData(updated);
+                                handleSave(updated);
+                              }
+                            }
+                          }}
+                          className="h-[38px] px-4 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-full text-[13px] font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                        >
+                          <span className="material-symbols-outlined text-base text-amber-400">folder_open</span>
+                          <span>Procházet...</span>
+                        </button>
+                        {formData.magicgate?.xmlPath && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = {
+                                ...formData,
+                                magicgate: { ...formData.magicgate, xmlPath: '' },
+                              };
+                              setFormData(updated);
+                              handleSave(updated);
+                            }}
+                            className="w-[38px] h-[38px] flex items-center justify-center text-rose-400 hover:text-rose-300 bg-rose-500/15 hover:bg-rose-500/25 rounded-full transition cursor-pointer shrink-0"
+                            title="Vymazat cestu"
+                          >
+                            <span className="material-symbols-outlined text-[18px] leading-none">delete</span>
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-400 mt-1.5 block">
+                        Změna cesty k XML souboru automaticky spustí synchronizaci položek launcheru.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4 pt-2 border-t border-white/[0.05] animate-fade-in">
+                    <p className="text-[13px] text-gray-400 leading-relaxed">
+                      Automaticky stahuje živý seznam serverů a aktivních instancí z <code className="bg-white/10 px-2 py-0.5 rounded-full text-amber-300">/api/ui/agents</code> včetně URL adres Administrace a Webu z IIS bindingů, aktuální nasazené verze Magicu a databáze. Funkce klonování repozitářů i stahování CMSinFS zůstávají plně funkční.
+                    </p>
+
+                    <div>
+                      <label className="block text-[13px] font-medium text-gray-300 mb-1.5">URL serveru Deploy</label>
+                      <input
+                        type="text"
+                        value={formData.magicgate?.apiBaseUrl || ''}
+                        onChange={(e) => {
                           const updated = {
                             ...formData,
-                            magicgate: { ...formData.magicgate, xmlPath: '' },
+                            magicgate: { ...formData.magicgate, apiBaseUrl: e.target.value },
                           };
                           setFormData(updated);
                           handleSave(updated);
                         }}
-                        className="w-[38px] h-[38px] flex items-center justify-center text-rose-400 hover:text-rose-300 bg-rose-500/15 hover:bg-rose-500/25 rounded-full transition cursor-pointer shrink-0"
-                        title="Vymazat cestu"
-                      >
-                        <span className="material-symbols-outlined text-[18px] leading-none">delete</span>
-                      </button>
-                    )}
+                        className="h-[38px] w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 outline-none font-mono"
+                        placeholder="Zadejte URL adresu Deploy serveru (např. https://...)"
+                      />
+                    </div>
+
+                    {/* Google SSO Login & Connection Status */}
+                    <div className="p-4 bg-black/25 rounded-xl space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                              formData.magicgate?.apiUserEmail && !formData.magicgate?.apiLastError
+                                ? 'bg-emerald-500/15 text-emerald-400'
+                                : formData.magicgate?.apiLastError
+                                  ? 'bg-rose-500/15 text-rose-400'
+                                  : 'bg-amber-500/15 text-amber-400'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-lg">
+                              {formData.magicgate?.apiUserEmail && !formData.magicgate?.apiLastError
+                                ? 'verified_user'
+                                : formData.magicgate?.apiLastError
+                                  ? 'error'
+                                  : 'account_circle'}
+                            </span>
+                          </div>
+                          <div className="min-w-0">
+                            {formData.magicgate?.apiUserEmail ? (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-semibold text-white truncate">
+                                  {formData.magicgate.apiUserEmail}
+                                </span>
+                                {formData.magicgate.apiUserRole && (
+                                  <span className="px-2 py-0.5 text-[11px] font-mono rounded-full bg-amber-500/20 text-amber-300 uppercase">
+                                    {formData.magicgate.apiUserRole}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-sm font-medium text-gray-300">
+                                Nepřihlášeno k Deploy serveru
+                              </div>
+                            )}
+                            <div className="text-xs text-gray-400 mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                              {typeof formData.magicgate?.apiInstanceCount === 'number' && (
+                                <span>
+                                  Načteno instancí: <strong className="text-amber-300">{formData.magicgate.apiInstanceCount}</strong>
+                                </span>
+                              )}
+                              {formData.magicgate?.lastApiSyncAt && (
+                                <span>
+                                  Poslední sync: {new Date(formData.magicgate.lastApiSyncAt).toLocaleString('cs-CZ')}
+                                </span>
+                              )}
+                              {!formData.magicgate?.apiUserEmail && !formData.magicgate?.lastApiSyncAt && (
+                                <span>Zadejte URL serveru a přihlaste se účtem Google</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            disabled={isLoggingInDeploy || !formData.magicgate?.apiBaseUrl?.trim()}
+                            onClick={async () => {
+                              if (!window.electronAPI?.loginMagicGateDeployApi) return;
+                              const targetUrl = (formData.magicgate?.apiBaseUrl || '').trim();
+                              if (!targetUrl) {
+                                setDeployStatusMsg({ ok: false, text: 'Zadejte nejprve URL adresu Deploy serveru.' });
+                                return;
+                              }
+                              setIsLoggingInDeploy(true);
+                              setDeployStatusMsg(null);
+                              try {
+                                const res = await window.electronAPI.loginMagicGateDeployApi(targetUrl);
+                                if (res.ok) {
+                                  const refreshedCfg = await window.electronAPI.getConfig();
+                                  setFormData(refreshedCfg);
+                                  setDeployStatusMsg({
+                                    ok: true,
+                                    text: `Přihlášeno jako ${res.email || 'uživatel'}${typeof res.instanceCount === 'number' ? ` (staženo ${res.instanceCount} instancí)` : ''}.`,
+                                  });
+                                } else if (res.error) {
+                                  setDeployStatusMsg({ ok: false, text: res.error });
+                                }
+                              } catch (err: any) {
+                                setDeployStatusMsg({
+                                  ok: false,
+                                  text: err?.message || 'Chyba při přihlašování k Deploy serveru.',
+                                });
+                              } finally {
+                                setIsLoggingInDeploy(false);
+                              }
+                            }}
+                            className="h-[36px] px-4 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            <span className="material-symbols-outlined text-base text-amber-400">
+                              {isLoggingInDeploy ? 'progress_activity' : 'login'}
+                            </span>
+                            <span>
+                              {isLoggingInDeploy
+                                ? 'Probíhá přihlašování...'
+                                : formData.magicgate?.apiUserEmail
+                                  ? 'Přihlásit znovu (Google)'
+                                  : 'Přihlásit přes Google'}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isTestingDeploy || !formData.magicgate?.apiBaseUrl?.trim()}
+                            onClick={async () => {
+                              if (!window.electronAPI?.testMagicGateDeployApi) return;
+                              const targetUrl = (formData.magicgate?.apiBaseUrl || '').trim();
+                              if (!targetUrl) {
+                                setDeployStatusMsg({ ok: false, text: 'Zadejte nejprve URL adresu Deploy serveru.' });
+                                return;
+                              }
+                              setIsTestingDeploy(true);
+                              setDeployStatusMsg(null);
+                              try {
+                                const res = await window.electronAPI.testMagicGateDeployApi({
+                                  baseUrl: targetUrl,
+                                  cookie: formData.magicgate?.apiAuthCookie,
+                                });
+                                if (res.ok) {
+                                  const refreshedCfg = await window.electronAPI.getConfig();
+                                  setFormData(refreshedCfg);
+                                  setDeployStatusMsg({
+                                    ok: true,
+                                    text: `Spojení ověřeno (${res.email || 'přihlášen'}) – načteno ${res.instanceCount ?? 0} aktivních instancí.`,
+                                  });
+                                } else {
+                                  setDeployStatusMsg({
+                                    ok: false,
+                                    text: res.error || 'Ověření selhalo.',
+                                  });
+                                }
+                              } catch (err: any) {
+                                setDeployStatusMsg({
+                                  ok: false,
+                                  text: err?.message || 'Chyba při ověřování spojení.',
+                                });
+                              } finally {
+                                setIsTestingDeploy(false);
+                              }
+                            }}
+                            className="h-[36px] px-3.5 bg-white/[0.06] hover:bg-white/[0.1] text-gray-200 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                            title="Ověřit přihlášení a okamžitě stáhnout čerstvý seznam instancí"
+                          >
+                            <span className={`material-symbols-outlined text-base text-amber-400 ${isTestingDeploy ? 'animate-spin' : ''}`}>
+                              sync
+                            </span>
+                            <span>{isTestingDeploy ? 'Synchronizuji...' : 'Synchronizovat'}</span>
+                          </button>
+
+                          {(formData.magicgate?.apiUserEmail || formData.magicgate?.apiAuthCookie) && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (window.electronAPI?.logoutMagicGateDeployApi) {
+                                  await window.electronAPI.logoutMagicGateDeployApi(formData.magicgate?.apiBaseUrl);
+                                  const refreshedCfg = await window.electronAPI.getConfig();
+                                  setFormData(refreshedCfg);
+                                  setDeployStatusMsg({ ok: true, text: 'Odhlášeno z MagicWare Deploy.' });
+                                }
+                              }}
+                              className="h-[36px] px-3 text-rose-400 hover:text-rose-300 bg-rose-500/15 hover:bg-rose-500/25 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1"
+                              title="Odhlásit a vymazat uloženou session cookie"
+                            >
+                              <span className="material-symbols-outlined text-base">logout</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {(deployStatusMsg || formData.magicgate?.apiLastError) && (
+                        <div
+                          className={`text-xs px-3 py-2 rounded-lg flex items-center gap-2 ${
+                            deployStatusMsg
+                              ? deployStatusMsg.ok
+                                ? 'bg-emerald-500/15 text-emerald-300'
+                                : 'bg-rose-500/15 text-rose-300'
+                              : 'bg-rose-500/15 text-rose-300'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-base shrink-0">
+                            {deployStatusMsg?.ok ? 'check_circle' : 'warning'}
+                          </span>
+                          <span>{deployStatusMsg ? deployStatusMsg.text : formData.magicgate?.apiLastError}</span>
+                        </div>
+                      )}
+
+                      {/* Manual Cookie / Token Fallback */}
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowManualDeployCookie((v) => !v)}
+                          className="text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1 cursor-pointer transition"
+                        >
+                          <span className="material-symbols-outlined text-sm">
+                            {showManualDeployCookie ? 'expand_less' : 'expand_more'}
+                          </span>
+                          <span>Pokročilé: Ruční vložení Session Cookie (.AspNetCore.Cookies)</span>
+                        </button>
+
+                        {showManualDeployCookie && (
+                          <div className="mt-2 space-y-1.5 animate-fade-in">
+                            <input
+                              type="password"
+                              value={formData.magicgate?.apiAuthCookie || ''}
+                              onChange={(e) => {
+                                const updated = {
+                                  ...formData,
+                                  magicgate: { ...formData.magicgate, apiAuthCookie: e.target.value },
+                                };
+                                setFormData(updated);
+                                handleSave(updated);
+                              }}
+                              className="h-[36px] w-full bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-amber-500 outline-none font-mono"
+                              placeholder=".AspNetCore.Cookies=CfDJ8... nebo samotná hodnota cookie"
+                            />
+                            <span className="text-[11px] text-gray-500 block">
+                              Hodnota je na disku šifrována pomocí systémového úložiště (DPAPI / safeStorage). Při běžném přihlášení přes Google tlačítko výše se vyplní automaticky.
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-xs text-gray-400 mt-1.5 block">
-                    Změna cesty k XML souboru automaticky spustí synchronizaci položek launcheru.
-                  </span>
-                </div>
+                )}
               </div>
 
               {/* Cesta ke zdrojovým kódům instance (CMSinFS) */}
@@ -11623,7 +11938,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   )}
 
-                  {formData.extensions?.magicgate !== false && (!!formData.magicgate?.username?.trim() || !!formData.magicgate?.xmlPath?.trim()) && (
+                  {formData.extensions?.magicgate !== false && (!!formData.magicgate?.username?.trim() || !!formData.magicgate?.xmlPath?.trim() || formData.magicgate?.sourceMode === 'api') && (
                     <div className="p-4 bg-white/[0.03] hover:bg-white/[0.05] rounded-2xl space-y-1.5 transition-colors">
                       <div className="flex items-center gap-2 text-amber-400 font-semibold">
                         <span className="material-symbols-outlined text-base">security</span>

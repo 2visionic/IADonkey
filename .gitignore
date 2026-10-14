@@ -14,3 +14,7 @@ release/
 .DS_Store
 Thumbs.db
 *.local
+
+# Internal technical analyses (contain sensitive company URLs/details)
+docs/*-analyza.md
+

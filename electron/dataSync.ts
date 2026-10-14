@@ -1,7 +1,8 @@
 import fs from 'node:fs';
-import type { DataSource, FileSource, ApiSource, StaticSource, LauncherItem, SourceFieldMapping, BannedItem } from '../src/types';
+import type { AppConfig, DataSource, FileSource, ApiSource, StaticSource, LauncherItem, SourceFieldMapping, BannedItem } from '../src/types';
 import { AppStore } from './store';
 import { loadMagicGateXml } from './magicGateXml';
+import { fetchMagicGateDeployItems, loadMagicGateDeployCache } from './magicGateDeployApi';
 import { fetchGitHubRepos, getActiveGitHubToken } from './githubService';
 import { faviconService } from './faviconService';
 
@@ -25,6 +26,63 @@ export class DataSyncManager {
   }
 
   /**
+   * Loads MagicGate instances from either local XML or remote MagicWare Deploy API
+   */
+  private async syncMagicGateItems(config: AppConfig): Promise<LauncherItem[]> {
+    if (config.extensions?.magicgate === false) {
+      return [];
+    }
+
+    const mg = config.magicgate;
+    if (!mg) return [];
+
+    if (mg.sourceMode === 'api') {
+      try {
+        const res = await fetchMagicGateDeployItems(mg);
+        const latestCfg = this.store.getConfig();
+        if (res.ok) {
+          this.store.saveConfig({
+            ...latestCfg,
+            magicgate: {
+              ...latestCfg.magicgate,
+              apiAuthCookie: res.cookie || latestCfg.magicgate.apiAuthCookie,
+              apiUserEmail: res.email || latestCfg.magicgate.apiUserEmail,
+              apiUserRole: res.role || latestCfg.magicgate.apiUserRole,
+              lastApiSyncAt: new Date().toISOString(),
+              apiInstanceCount: res.items.length,
+              apiLastError: undefined,
+            },
+          });
+          return res.items;
+        } else {
+          this.store.saveConfig({
+            ...latestCfg,
+            magicgate: {
+              ...latestCfg.magicgate,
+              apiLastError: res.error,
+            },
+          });
+          const cached = loadMagicGateDeployCache();
+          return cached;
+        }
+      } catch (err: any) {
+        console.error('[DataSync] Error loading MagicGate Deploy API:', err);
+        return loadMagicGateDeployCache();
+      }
+    }
+
+    // Default: XML mode
+    if (mg.xmlPath && fs.existsSync(mg.xmlPath)) {
+      try {
+        return loadMagicGateXml(mg.xmlPath);
+      } catch (err) {
+        console.error('[DataSync] Error loading MagicGate XML:', err);
+      }
+    }
+    return [];
+  }
+
+  /**
    * Synchronizes all enabled data sources (local JSON files and remote GET APIs)
    */
   public async syncAll(
@@ -39,14 +97,8 @@ export class DataSyncManager {
     const totalCount = enabledSources.length;
 
     if (totalCount === 0) {
-      if (config.extensions?.magicgate !== false && config.magicgate?.xmlPath && fs.existsSync(config.magicgate.xmlPath)) {
-        try {
-          const mgItems = loadMagicGateXml(config.magicgate.xmlPath);
-          allItems.push(...mgItems);
-        } catch (err) {
-          console.error('[DataSync] Error loading MagicGate XML:', err);
-        }
-      }
+      const mgItems = await this.syncMagicGateItems(config);
+      allItems.push(...mgItems);
 
       const activeGhToken = getActiveGitHubToken(config.github);
       if (config.extensions?.github !== false && activeGhToken) {
@@ -125,15 +177,9 @@ export class DataSyncManager {
       });
     }
 
-    // Load MagicGate XML items if configured and enabled
-    if (config.extensions?.magicgate !== false && config.magicgate?.xmlPath && fs.existsSync(config.magicgate.xmlPath)) {
-      try {
-        const mgItems = loadMagicGateXml(config.magicgate.xmlPath);
-        allItems.push(...mgItems);
-      } catch (err) {
-        console.error('[DataSync] Error loading MagicGate XML:', err);
-      }
-    }
+    // Load MagicGate items (XML or Deploy API) if configured and enabled
+    const mgItems = await this.syncMagicGateItems(config);
+    allItems.push(...mgItems);
 
     // Load GitHub repositories if configured and enabled
     const activeGhTokenEnd = getActiveGitHubToken(config.github);

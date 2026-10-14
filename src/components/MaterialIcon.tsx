@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import magicgateIcon from '../assets/magicgate-icon.png';
 
 interface MaterialIconProps {
   icon?: string | null;
@@ -68,6 +69,8 @@ export const MaterialIcon: React.FC<MaterialIconProps> = ({
   let effectiveSrc: string | null = null;
   if (isFaviconPlaceholder) {
     effectiveSrc = cachedFavicon;
+  } else if (image === './assets/magicgate-icon.png' || image === '/assets/magicgate-icon.png') {
+    effectiveSrc = magicgateIcon;
   } else if (image && image !== '{favicon}') {
     effectiveSrc = image;
   }

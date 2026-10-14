@@ -109,10 +109,20 @@ export interface StaticSource extends BaseSource {
 
 export type DataSource = FileSource | ApiSource | StaticSource;
 
+export type MagicGateSourceMode = 'xml' | 'api';
+
 export interface MagicGateSettings {
   username: string;
   password: string;
+  sourceMode?: MagicGateSourceMode;
   xmlPath?: string;
+  apiBaseUrl?: string;
+  apiAuthCookie?: string;
+  apiUserEmail?: string;
+  apiUserRole?: string;
+  lastApiSyncAt?: string;
+  apiInstanceCount?: number;
+  apiLastError?: string;
   instanceSourceCodesPath?: string;
 }
 

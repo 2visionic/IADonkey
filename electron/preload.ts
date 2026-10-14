@@ -51,6 +51,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('magicgate-get-repos', { adminUrl }),
   runMultiRepoClone: (params: { repos: any[]; targetDir: string; recursive?: boolean; rawJson?: string }): Promise<{ success: boolean; targetPath: string; error?: string; alreadyExists?: boolean }> =>
     ipcRenderer.invoke('magicgate-clone-start', params),
+  loginMagicGateDeployApi: (baseUrl?: string): Promise<{ ok: boolean; email?: string; role?: string; cookie?: string; instanceCount?: number; error?: string }> =>
+    ipcRenderer.invoke('magicgate-deploy-login', { baseUrl }),
+  testMagicGateDeployApi: (params?: { baseUrl?: string; cookie?: string }): Promise<{ ok: boolean; signedIn?: boolean; email?: string; role?: string; instanceCount?: number; error?: string }> =>
+    ipcRenderer.invoke('magicgate-deploy-test', params),
+  logoutMagicGateDeployApi: (baseUrl?: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('magicgate-deploy-logout', { baseUrl }),
   downloadInstanceCmsContent: (params: { instanceName?: string; adminUrl: string; targetDir?: string }): Promise<{ success: boolean; targetPath?: string; error?: string; fileCount?: number }> =>
     ipcRenderer.invoke('magicgate-download-cms-content', params),
   openCmsDownloadWindow: (params: { instanceName: string; adminUrl: string; targetDir: string }): Promise<void> =>

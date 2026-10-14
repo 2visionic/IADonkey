@@ -104,6 +104,23 @@ declare global {
         error?: string;
         alreadyExists?: boolean;
       }>;
+      loginMagicGateDeployApi?: (baseUrl?: string) => Promise<{
+        ok: boolean;
+        email?: string;
+        role?: string;
+        cookie?: string;
+        instanceCount?: number;
+        error?: string;
+      }>;
+      testMagicGateDeployApi?: (params?: { baseUrl?: string; cookie?: string }) => Promise<{
+        ok: boolean;
+        signedIn?: boolean;
+        email?: string;
+        role?: string;
+        instanceCount?: number;
+        error?: string;
+      }>;
+      logoutMagicGateDeployApi?: (baseUrl?: string) => Promise<{ ok: boolean }>;
       downloadInstanceCmsContent: (params: {
         instanceName?: string;
         adminUrl: string;

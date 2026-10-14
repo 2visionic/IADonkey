@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { app } from 'electron';
+import { app, safeStorage } from 'electron';
 import type { AppConfig, LauncherItem } from '../src/types';
 
 const USER_DATA_PATH = app?.getPath
@@ -22,6 +22,8 @@ const DEFAULT_CONFIG: AppConfig = {
   magicgate: {
     username: '',
     password: '',
+    sourceMode: 'xml',
+    apiBaseUrl: '',
   },
   mlog: {
     baseUrl: '',
@@ -133,6 +135,25 @@ export class AppStore {
         const parsed = JSON.parse(raw);
         cfg = { ...DEFAULT_CONFIG, ...parsed };
 
+        if (parsed.magicgate) {
+          cfg.magicgate = {
+            ...DEFAULT_CONFIG.magicgate,
+            ...parsed.magicgate,
+          };
+          if (
+            cfg.magicgate.apiAuthCookie &&
+            cfg.magicgate.apiAuthCookie.startsWith('enc:') &&
+            safeStorage?.isEncryptionAvailable?.()
+          ) {
+            try {
+              const encryptedBuf = Buffer.from(cfg.magicgate.apiAuthCookie.slice(4), 'base64');
+              cfg.magicgate.apiAuthCookie = safeStorage.decryptString(encryptedBuf);
+            } catch (decErr) {
+              console.warn('[Store] Failed to decrypt MagicGate apiAuthCookie:', decErr);
+            }
+          }
+        }
+
         if (parsed.donkeyTools) {
           cfg.donkeyTools = {
             ...DEFAULT_CONFIG.donkeyTools,
@@ -205,6 +226,7 @@ export class AppStore {
       const wox = tryImportWoxCredentials();
       if (wox && (wox.username || wox.password)) {
         cfg.magicgate = {
+          ...cfg.magicgate,
           username: cfg.magicgate?.username || wox.username,
           password: cfg.magicgate?.password || wox.password,
         };
@@ -223,9 +245,51 @@ export class AppStore {
 
   public saveConfig(newConfig: AppConfig): void {
     try {
-      this.config = { ...this.config, ...newConfig };
+      const prevMg = this.config?.magicgate;
+      const nextMg = newConfig?.magicgate;
+      const mergedMagicgate = nextMg
+        ? {
+            ...prevMg,
+            ...nextMg,
+            apiAuthCookie:
+              nextMg.apiAuthCookie !== undefined &&
+              (nextMg.apiAuthCookie !== '' || nextMg.apiUserEmail === '')
+                ? nextMg.apiAuthCookie
+                : prevMg?.apiAuthCookie,
+            apiUserEmail:
+              nextMg.apiUserEmail !== undefined ? nextMg.apiUserEmail : prevMg?.apiUserEmail,
+            apiUserRole:
+              nextMg.apiUserRole !== undefined ? nextMg.apiUserRole : prevMg?.apiUserRole,
+            lastApiSyncAt:
+              nextMg.lastApiSyncAt !== undefined ? nextMg.lastApiSyncAt : prevMg?.lastApiSyncAt,
+            apiInstanceCount:
+              nextMg.apiInstanceCount !== undefined
+                ? nextMg.apiInstanceCount
+                : prevMg?.apiInstanceCount,
+          }
+        : prevMg;
+
+      this.config = {
+        ...this.config,
+        ...newConfig,
+        magicgate: mergedMagicgate as any,
+      };
+      const diskConfig: AppConfig = {
+        ...this.config,
+        magicgate: this.config.magicgate ? { ...this.config.magicgate } : this.config.magicgate,
+      };
+      if (
+        diskConfig.magicgate?.apiAuthCookie &&
+        !diskConfig.magicgate.apiAuthCookie.startsWith('enc:') &&
+        safeStorage?.isEncryptionAvailable?.()
+      ) {
+        try {
+          const enc = safeStorage.encryptString(diskConfig.magicgate.apiAuthCookie).toString('base64');
+          diskConfig.magicgate.apiAuthCookie = `enc:${enc}`;
+        } catch {}
+      }
       const tmpFile = `${CONFIG_FILE}.${process.pid}.tmp`;
-      fs.writeFileSync(tmpFile, JSON.stringify(this.config, null, 2), 'utf-8');
+      fs.writeFileSync(tmpFile, JSON.stringify(diskConfig, null, 2), 'utf-8');
       fs.renameSync(tmpFile, CONFIG_FILE);
     } catch (err) {
       console.error('[Store] Failed to save config:', err);
