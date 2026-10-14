@@ -240,14 +240,16 @@ declare global {
       // QuickCap (dříve FastSnap) API
       startQuickCap?: () => Promise<void>;
       finishQuickCap?: (cropArea: { x: number; y: number; width: number; height: number; windowWidth?: number; windowHeight?: number }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+      openQuickCapEditor?: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+      saveEditedQuickCap?: (payload: { filePath: string; dataUrl: string }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
       cancelQuickCap?: () => Promise<void>;
       getRecentQuickCaps?: () => Promise<import('./index').QuickCapRecentItem[]>;
       copyQuickCapToClipboard?: (filePath: string) => Promise<{ success: boolean; error?: string }>;
       deleteQuickCap?: (filePath: string) => Promise<{ success: boolean; error?: string }>;
       showQuickCapInFolder?: (filePath: string) => Promise<void>;
       chooseQuickCapFolder?: () => Promise<string | null>;
-      getQuickCapInitData?: () => Promise<{ screenshotUrl: string; width: number; height: number; scaleFactor: number } | null>;
-      onQuickCapInitData?: (callback: (data: { screenshotUrl: string; width: number; height: number; scaleFactor: number }) => void) => () => void;
+      getQuickCapInitData?: () => Promise<{ screenshotUrl: string; width: number; height: number; scaleFactor: number; mode?: 'crop' | 'edit'; editFilePath?: string } | null>;
+      onQuickCapInitData?: (callback: (data: { screenshotUrl: string; width: number; height: number; scaleFactor: number; mode?: 'crop' | 'edit'; editFilePath?: string }) => void) => () => void;
       onQuickCapCleanup?: (callback: () => void) => () => void;
       onQuickCapCaptured?: (callback: (data: { filePath: string; fileName: string; dataUrl: string; width: number; height: number }) => void) => () => void;
 

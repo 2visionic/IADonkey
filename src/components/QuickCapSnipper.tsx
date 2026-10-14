@@ -5,12 +5,15 @@ import {
   calculateAspectBox,
   AspectRatioType,
 } from '../utils/aspectRatio';
+import { QuickCapEditor } from './QuickCapEditor';
 
 interface QuickCapInitData {
   screenshotUrl: string;
   width: number;
   height: number;
   scaleFactor: number;
+  mode?: 'crop' | 'edit';
+  editFilePath?: string;
 }
 
 export const QuickCapSnipper: React.FC = () => {
@@ -105,6 +108,8 @@ export const QuickCapSnipper: React.FC = () => {
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (initDataRef.current?.mode === 'edit') return;
+
       // Live modifier update while dragging (Shift = 16:9, Ctrl = 4:3, Alt = 1:1)
       if (['Shift', 'Control', 'Alt'].includes(e.key) && isDraggingRef.current) {
         const lock = getActiveAspectLock(e);
@@ -137,6 +142,7 @@ export const QuickCapSnipper: React.FC = () => {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (initDataRef.current?.mode === 'edit') return;
       if (['Shift', 'Control', 'Alt'].includes(e.key) && isDraggingRef.current) {
         const lock = getActiveAspectLock(e);
         setActiveRatioLock(lock ? lock.label : null);
@@ -254,6 +260,18 @@ export const QuickCapSnipper: React.FC = () => {
 
   if (!initData?.screenshotUrl) {
     return null;
+  }
+
+  if (initData.mode === 'edit' && initData.editFilePath) {
+    return (
+      <QuickCapEditor
+        imageUrl={initData.screenshotUrl}
+        filePath={initData.editFilePath}
+        imageWidth={initData.width}
+        imageHeight={initData.height}
+        onCancel={handleCancel}
+      />
+    );
   }
 
   return (

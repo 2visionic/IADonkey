@@ -1252,16 +1252,22 @@ export class WindowManager {
   public createSnipperWindow(
     displayBounds: { x: number; y: number; width: number; height: number },
     screenshotUrl: string,
-    scaleFactor: number
+    scaleFactor: number,
+    mode: 'crop' | 'edit' = 'crop',
+    editFilePath?: string,
+    imageWidth?: number,
+    imageHeight?: number
   ): BrowserWindow {
     const applyFullScreenAndShow = (win: BrowserWindow) => {
       win.setBounds(displayBounds);
       win.setAlwaysOnTop(true, 'screen-saver');
       const initPayload = {
         screenshotUrl,
-        width: displayBounds.width,
-        height: displayBounds.height,
+        width: imageWidth || displayBounds.width,
+        height: imageHeight || displayBounds.height,
         scaleFactor,
+        mode,
+        editFilePath,
       };
       // Poslat data před zobrazením okna pro plynulé navázání
       win.webContents.send('quickcap-init-data', initPayload);

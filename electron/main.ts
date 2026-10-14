@@ -650,7 +650,14 @@ function registerPaletteMasterHotkey(hotkey?: string) {
 
 let currentCapturedScreenImage: Electron.NativeImage | null = null;
 let currentCapturedBounds: { x: number; y: number; width: number; height: number; scaleFactor: number } | null = null;
-let currentQuickCapInitData: { screenshotUrl: string; width: number; height: number; scaleFactor: number } | null = null;
+let currentQuickCapInitData: {
+  screenshotUrl: string;
+  width: number;
+  height: number;
+  scaleFactor: number;
+  mode?: 'crop' | 'edit';
+  editFilePath?: string;
+} | null = null;
 const currentFastSnapInitData = currentQuickCapInitData;
 
 async function writeNativeImageToClipboard(nativeImg: Electron.NativeImage): Promise<void> {
@@ -1115,6 +1122,101 @@ function setupIpcHandlers() {
   };
   ipcMain.handle('quickcap-finish-crop', handleQuickCapFinishCrop);
   ipcMain.handle('fastsnap-finish-crop', handleQuickCapFinishCrop);
+
+  ipcMain.handle('quickcap-open-editor', async (_event: any, filePath: string) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) {
+        throw new Error('Soubor výstřižku nebyl nalezen.');
+      }
+      if (windowManager) {
+        windowManager.hideSpotlight();
+      }
+      const img = nativeImage.createFromPath(filePath);
+      if (!img || img.isEmpty()) {
+        throw new Error('Nepodařilo se načíst obrázek výstřižku pro úpravu.');
+      }
+      const size = img.getSize();
+      const dataUrl = img.toDataURL();
+      const cursorPoint = screen.getCursorScreenPoint();
+      const activeDisplay = screen.getDisplayNearestPoint(cursorPoint) || screen.getPrimaryDisplay();
+      const bounds = activeDisplay.bounds;
+      const scaleFactor = activeDisplay.scaleFactor || 1;
+
+      currentQuickCapInitData = {
+        screenshotUrl: dataUrl,
+        width: size.width,
+        height: size.height,
+        scaleFactor,
+        mode: 'edit',
+        editFilePath: filePath,
+      };
+
+      windowManager.createSnipperWindow(bounds, dataUrl, scaleFactor, 'edit', filePath, size.width, size.height);
+      return { success: true };
+    } catch (err: any) {
+      console.error('[Main] quickcap-open-editor error:', err);
+      return { success: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle('quickcap-save-edited', async (_event: any, payload: { filePath: string; dataUrl: string }) => {
+    try {
+      windowManager.closeSnipperWindow();
+      currentQuickCapInitData = null;
+
+      const { filePath, dataUrl } = payload || {};
+      if (!filePath || !dataUrl) {
+        throw new Error('Chybí cesta k souboru nebo obrazová data.');
+      }
+
+      const editedImg = nativeImage.createFromDataURL(dataUrl);
+      if (!editedImg || editedImg.isEmpty()) {
+        throw new Error('Nepodařilo se zpracovat upravený obrázek.');
+      }
+
+      const pngBuf = editedImg.toPNG();
+
+      // 1. Přepsat původní soubor ve složce (nezůstává originál / nevzniká duplikát)
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(filePath, pngBuf);
+
+      // 2. Aktualizovat položku v EasyClip (nahradit původní výstřižek in-place před zápisem do schránky)
+      if (easyClipService) {
+        easyClipService.replaceLatestImage(editedImg, pngBuf, filePath);
+      }
+
+      // 3. Zapsat upravený obrázek do systémové schránky Windows
+      await writeNativeImageToClipboard(editedImg);
+
+      const fileName = path.basename(filePath);
+      const size = editedImg.getSize();
+
+      diagnosticsService.logAction({
+        type: 'action',
+        title: `QuickCap výstřižek upraven a uložen: ${fileName}`,
+        details: `Rozměry: ${size.width}×${size.height} px, aktualizováno ve schránce i v souboru: ${filePath}`,
+        status: 'success',
+      });
+
+      notificationService.show({
+        type: 'quickCap',
+        title: 'QuickCap – Výstřižek upraven',
+        body: `Upravený snímek ${fileName} byl uložen do schránky i do složky.`,
+        onClick: () => {
+          shell.showItemInFolder(filePath);
+        },
+      });
+
+      return { success: true, filePath };
+    } catch (err: any) {
+      console.error('[Main] quickcap-save-edited error:', err);
+      diagnosticsService.recordCrash('Uložení upraveného výstřižku QuickCap', err);
+      return { success: false, error: err?.message || String(err) };
+    }
+  });
 
   const handleQuickCapGetRecent = async () => {
     try {

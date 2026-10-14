@@ -1085,7 +1085,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               icon: 'close',
             },
             {
-              name: 'Upravit (v přípravě)',
+              name: 'Upravit',
               action: 'edit-quickcap',
               location: data.filePath,
               icon: 'edit',
@@ -2788,13 +2788,11 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
 
     if (actionType === 'edit-quickcap') {
-      // V přípravě – momentálně nic nedělá
-      window.electronAPI?.logAction?.({
-        type: 'action',
-        title: 'Akce v přípravě: Upravit výstřižek',
-        details: 'Tato funkce bude dostupná v další aktualizaci',
-        status: 'info',
-      });
+      exitActions();
+      if (window.electronAPI?.openQuickCapEditor) {
+        await window.electronAPI.openQuickCapEditor(effectiveLocation);
+      }
+      handleClose();
       return;
     }
 
@@ -3018,6 +3016,51 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         }
       } else if (e.key === 'Enter') {
         e.preventDefault();
+        if (e.shiftKey && selectedEasyClipIds.size <= 1) {
+          const chosen = filteredEasyClipItems[easyClipSelectedIndex];
+          if (chosen && chosen.type === 'image' && chosen.filePath) {
+            const imgItem: LauncherItem = {
+              id: `easyclip-img-${chosen.id}`,
+              name: `Obrázek (${chosen.width ?? '?'} × ${chosen.height ?? '?'} px)`,
+              location: chosen.filePath,
+              icon: 'image',
+              imagePreview: chosen.dataUrl,
+              info: {
+                'Rozměry': `${chosen.width ?? '?'} × ${chosen.height ?? '?'} px`,
+                'Cesta': chosen.filePath,
+              },
+              actions: [
+                {
+                  name: 'Upravit',
+                  action: 'edit-quickcap',
+                  location: chosen.filePath,
+                  icon: 'edit',
+                },
+                {
+                  name: 'Otevřít',
+                  action: 'open',
+                  location: chosen.filePath,
+                  icon: 'open_in_new',
+                },
+                {
+                  name: 'Otevřít v malování',
+                  action: 'open-paint',
+                  location: chosen.filePath,
+                  icon: 'draw',
+                },
+                {
+                  name: 'Otevřít ve složce',
+                  action: 'show-in-folder',
+                  location: chosen.filePath,
+                  icon: 'folder_open',
+                },
+              ],
+            };
+            setActionsParentItem(imgItem);
+            setSelectedActionIndex(0);
+            return;
+          }
+        }
         const shouldPaste = !e.ctrlKey && !isCtrlDown;
         if (selectedEasyClipIds.size > 1) {
           handleCopyMultipleEasyClipItems(shouldPaste);
@@ -4344,7 +4387,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                               : isAndroid
                               ? 'Android Studio'
                               : isPreparation
-                              ? 'V přípravě'
+                              ? 'Editor'
                               : isPaint
                               ? 'Malování'
                               : isFolder
@@ -4477,6 +4520,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 const isSelected = selectedEasyClipIds.size > 1 ? isItemMultiSelected : idx === easyClipSelectedIndex;
                 const isCursor = idx === easyClipSelectedIndex;
                 const isImage = item.type === 'image';
+                const canOpenImageActions = isImage && Boolean(item.filePath);
+                const isShiftActionsActive = isSelected && selectedEasyClipIds.size <= 1 && isShiftDown && canOpenImageActions;
                 const charCount = item.charCount ?? (item.text ? item.text.length : 0);
                 const lineCount = item.lineCount ?? (item.text ? item.text.split('\n').length : 1);
                 const sizeKb = item.sizeBytes ? Math.round(item.sizeBytes / 1024) : 0;
@@ -4570,7 +4615,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                       )}
                     </div>
 
-                    {/* Actions on Item: Copy badge & Delete button OR Multi-select checkbox */}
+                    {/* Actions on Item: Copy/Actions badge & Delete button OR Multi-select checkbox */}
                     <div className="absolute right-3 top-3 flex items-center gap-2">
                       {selectedEasyClipIds.size > 1 ? (
                         <div
@@ -4585,9 +4630,15 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                       ) : (
                         <>
                           {isSelected && (
-                            <span className="text-xs font-semibold text-rose-400 hidden sm:inline">
-                              {isCtrlDown ? 'Kopírovat' : 'Vložit'}
-                            </span>
+                            isShiftActionsActive ? (
+                              <span className="text-xs font-semibold m3-actions-text hidden sm:inline animate-in fade-in duration-100">
+                                Akce
+                              </span>
+                            ) : (
+                              <span className="text-xs font-semibold text-rose-400 hidden sm:inline animate-in fade-in duration-100">
+                                {isCtrlDown ? 'Kopírovat' : 'Vložit'}
+                              </span>
+                            )
                           )}
                           <button
                             type="button"
@@ -4636,6 +4687,12 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                       {isCtrlDown ? 'Kopírovat' : 'Vložit'}
                     </span>
                   </span>
+                  {filteredEasyClipItems[easyClipSelectedIndex]?.type === 'image' && (
+                    <span className="text-xs font-semibold flex items-center gap-1.5">
+                      <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] m3-actions-text rounded-full font-mono text-[9px] leading-none select-none">Shift+Enter</kbd>
+                      <span className="text-white">Akce</span>
+                    </span>
+                  )}
                   <span className="text-xs font-semibold flex items-center gap-1.5">
                     <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-rose-400 rounded-full font-mono text-[9px] leading-none select-none">Del</kbd>
                     <span className="text-white">Smazat</span>

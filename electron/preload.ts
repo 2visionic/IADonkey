@@ -282,6 +282,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startQuickCap: (): Promise<void> => ipcRenderer.invoke('quickcap-start'),
   finishQuickCap: (cropArea: { x: number; y: number; width: number; height: number; windowWidth?: number; windowHeight?: number }): Promise<{ success: boolean; filePath?: string; error?: string }> =>
     ipcRenderer.invoke('quickcap-finish-crop', cropArea),
+  openQuickCapEditor: (filePath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('quickcap-open-editor', filePath),
+  saveEditedQuickCap: (payload: { filePath: string; dataUrl: string }): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke('quickcap-save-edited', payload),
   cancelQuickCap: (): Promise<void> => ipcRenderer.invoke('quickcap-cancel'),
   getRecentQuickCaps: (): Promise<any[]> => ipcRenderer.invoke('quickcap-get-recent'),
   copyQuickCapToClipboard: (filePath: string): Promise<{ success: boolean; error?: string }> =>
@@ -292,9 +296,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('quickcap-show-in-folder', filePath),
   chooseQuickCapFolder: (): Promise<string | null> =>
     ipcRenderer.invoke('quickcap-choose-folder'),
-  getQuickCapInitData: (): Promise<{ screenshotUrl: string; width: number; height: number; scaleFactor: number } | null> =>
+  getQuickCapInitData: (): Promise<{ screenshotUrl: string; width: number; height: number; scaleFactor: number; mode?: 'crop' | 'edit'; editFilePath?: string } | null> =>
     ipcRenderer.invoke('quickcap-get-init-data'),
-  onQuickCapInitData: (callback: (data: { screenshotUrl: string; width: number; height: number; scaleFactor: number }) => void) => {
+  onQuickCapInitData: (callback: (data: { screenshotUrl: string; width: number; height: number; scaleFactor: number; mode?: 'crop' | 'edit'; editFilePath?: string }) => void) => {
     const handler = (_event: any, data: any) => callback(data);
     ipcRenderer.on('quickcap-init-data', handler);
     ipcRenderer.on('fastsnap-init-data', handler);

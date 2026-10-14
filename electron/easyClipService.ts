@@ -14,6 +14,7 @@ export class EasyClipService {
   private lastText: string = '';
   private lastImageHash: string = '';
   private isWritingToClipboard = false;
+  private replaceInPlaceUntil = 0;
   private storageDir: string;
   private storageFile: string;
   private imagesDir: string;
@@ -121,6 +122,37 @@ export class EasyClipService {
       this.lastImageHash = hash;
       this.lastText = ''; // New image supersedes prior text
 
+      // If QuickCap just edited and replaced the latest screenshot, Windows clipboard re-encoding
+      // may produce a slightly different PNG buffer hash on the next poll. Update top item in-place!
+      if (Date.now() < this.replaceInPlaceUntil && this.items.length > 0 && this.items[0].type === 'image') {
+        this.replaceInPlaceUntil = 0;
+        const target = this.items[0];
+        const filePath = target.filePath || path.join(this.imagesDir, `${target.id}.png`);
+        try {
+          fs.writeFileSync(filePath, buf);
+        } catch (err) {
+          console.error('[EasyClip] Failed to overwrite in-place image on disk:', err);
+        }
+        let thumbImg = img;
+        if (size.width > 240 || size.height > 240) {
+          const maxDim = 240;
+          const ratio = Math.min(maxDim / size.width, maxDim / size.height);
+          thumbImg = img.resize({
+            width: Math.max(1, Math.round(size.width * ratio)),
+            height: Math.max(1, Math.round(size.height * ratio)),
+          });
+        }
+        target.filePath = filePath;
+        target.dataUrl = thumbImg.toDataURL();
+        target.width = size.width;
+        target.height = size.height;
+        target.sizeBytes = buf.length;
+        target.timestamp = Date.now();
+        this.saveToDisk();
+        this.notifyRenderer();
+        return true;
+      }
+
       // Check if identical image already in history (by dimensions + size)
       const existingIdx = this.items.findIndex(
         (it) => it.type === 'image' && it.width === size.width && it.height === size.height && it.sizeBytes === buf.length
@@ -184,6 +216,68 @@ export class EasyClipService {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Replaces the most recent image item in EasyClip history in-place (used when QuickCap edits an existing screenshot)
+   * so that the original unedited screenshot does not remain as a duplicate entry.
+   */
+  public replaceLatestImage(img: Electron.NativeImage, existingBuf?: Buffer, targetFilePath?: string): void {
+    if (!img || img.isEmpty()) return;
+    const size = img.getSize();
+    if (!size || size.width <= 0 || size.height <= 0) return;
+
+    const buf = existingBuf || img.toPNG();
+    if (!buf || buf.length === 0) return;
+
+    const hash = `${size.width}x${size.height}_${buf.length}_${crypto.createHash('sha256').update(buf).digest('hex')}`;
+    this.lastImageHash = hash;
+    this.lastText = '';
+    // Guard against Windows clipboard re-encoding producing a slightly different PNG buffer on the next poll
+    this.replaceInPlaceUntil = Date.now() + 4000;
+
+    let thumbImg = img;
+    if (size.width > 240 || size.height > 240) {
+      const maxDim = 240;
+      const ratio = Math.min(maxDim / size.width, maxDim / size.height);
+      thumbImg = img.resize({
+        width: Math.max(1, Math.round(size.width * ratio)),
+        height: Math.max(1, Math.round(size.height * ratio)),
+      });
+    }
+    const dataUrl = thumbImg.toDataURL();
+
+    const normTarget = targetFilePath ? path.resolve(targetFilePath).toLowerCase() : '';
+    let matchIdx = normTarget
+      ? this.items.findIndex((it) => it.type === 'image' && it.filePath && path.resolve(it.filePath).toLowerCase() === normTarget)
+      : -1;
+    if (matchIdx < 0) {
+      matchIdx = this.items.findIndex((it) => it.type === 'image');
+    }
+
+    if (matchIdx >= 0) {
+      const target = this.items[matchIdx];
+      const filePath = target.filePath || path.join(this.imagesDir, `${target.id}.png`);
+      try {
+        fs.writeFileSync(filePath, buf);
+      } catch (err) {
+        console.error('[EasyClip] Failed to overwrite edited image on disk:', err);
+      }
+      target.filePath = filePath;
+      target.dataUrl = dataUrl;
+      target.width = size.width;
+      target.height = size.height;
+      target.sizeBytes = buf.length;
+      target.timestamp = Date.now();
+      if (matchIdx > 0) {
+        this.items.splice(matchIdx, 1);
+        this.items.unshift(target);
+      }
+      this.saveToDisk();
+      this.notifyRenderer();
+    } else if (this.isEnabled) {
+      this.registerCapturedImage(img, buf);
+    }
   }
 
   private async checkClipboard(): Promise<void> {

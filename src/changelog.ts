@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.12';
+export const CURRENT_APP_VERSION = '2.1.13';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,18 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.13',
+    date: '14. 10. 2026',
+    title: 'Vestavěný editor výstřižků v QuickCapu a akce pro úpravu obrázků v historii schránky EasyClip',
+    highlights: [
+      'QuickCap – Vestavěný editor výstřižků (Upravit ze Spotlightu): Po vyfocení výstřižku lze přímo ze Spotlightu spustit rychlý editor s plovoucí horní lištou ve sjednoceném designu aplikace.',
+      'Editor – Tvary, zvýrazňovač textu, šipky a volná tužka: Kreslení obdélníků a koleček/elips s přepínáním stylu (Obrys, Výplň, Zvýraznit), samostatný zvýrazňovač textu, šipky s dynamickou velikostí dle délky tažení myší a volná tužka (2px).',
+      'Editor – Psaní textu, paleta barev a kroky Zpět / Vpřed: Vkládání víceřádkového textu s volbou 4 velikostí písma (S / M / L / XL, výchozí S), výběr z 8 základních barev pro všechny nástroje, historie kroků Zpět / Vpřed (Ctrl+Z / Ctrl+Y) a okamžité zrušení rozpracovaného tahu či textu klávesou Escape.',
+      'Editor – Přímé uložení klávesou Enter bez vzniku duplikátu: Stiskem klávesy Enter (mimo psaní textu) nebo tlačítkem Uložit se upravený snímek zapíše přímo do původního souboru ve složce a nahradí záznam v systémové schránce i v EasyClipu bez vytváření duplikátů.',
+      'EasyClip – Akce nad obrázky přes Shift+Enter: V historii schránky EasyClip lze u obrázků podržením klávesy Shift (změna popisku vpravo na Akce v sekundární barvě) a stiskem Shift+Enter vyvolat nabídku akcí (Upravit, Otevřít, Otevřít v malování, Otevřít ve složce).',
+    ],
+  },
   {
     version: '2.1.12',
     date: '14. 10. 2026',
