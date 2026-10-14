@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
-import { app } from 'electron';
+import { app, shell } from 'electron';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -252,7 +252,7 @@ export class InstallerService {
 }
 
   /**
-   * Helper to create a Windows shortcut (.lnk) via PowerShell WScript.Shell
+   * Helper to create or update a Windows shortcut (.lnk) in-place without resetting Desktop grid position or Taskbar pins
    */
   public static createShortcut(
     specialFolder: 'Desktop' | 'Programs',
@@ -261,6 +261,45 @@ export class InstallerService {
     workingDir: string,
     description: string
   ): void {
+    const appId = 'com.iadonkey.launcher';
+    try {
+      const dir =
+        specialFolder === 'Desktop'
+          ? app.getPath('desktop')
+          : path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs');
+      const shortcutPath = path.join(dir, shortcutName);
+      const exists = fs.existsSync(shortcutPath);
+
+      let existingClsid: string | undefined;
+      if (exists) {
+        try {
+          const existing = shell.readShortcutLink(shortcutPath);
+          if (existing?.toastActivatorClsid) {
+            existingClsid = existing.toastActivatorClsid;
+          }
+          if (
+            existing &&
+            existing.target?.toLowerCase() === targetExe.toLowerCase() &&
+            existing.appUserModelId === appId
+          ) {
+            return;
+          }
+        } catch {}
+      }
+
+      const written = shell.writeShortcutLink(shortcutPath, exists ? 'update' : 'create', {
+        target: targetExe,
+        cwd: workingDir,
+        description,
+        icon: targetExe,
+        iconIndex: 0,
+        appUserModelId: appId,
+        ...(existingClsid ? { toastActivatorClsid: existingClsid } : {}),
+      });
+
+      if (written) return;
+    } catch {}
+
     const psScript = `
 $ws = New-Object -ComObject WScript.Shell
 $dir = [Environment]::GetFolderPath('${specialFolder}')

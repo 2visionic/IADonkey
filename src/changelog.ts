@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.13';
+export const CURRENT_APP_VERSION = '2.1.14';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,15 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.14',
+    date: '14. 10. 2026',
+    title: 'Zachování připnutého zástupce na hlavní liště Windows a pozice ikony na Ploše při aktualizaci',
+    highlights: [
+      'Aktualizace – Čistý in-place přepis bez odepnutí z lišty (Taskbar): Proces aktualizace čeká na úplné ukončení předchozí instance a přepisuje soubory přímo na místě bez přesouvání z dočasné složky (/MOVE) a bez násilného resetu shell cache (ie4uinit), takže připnutá ikona na hlavním panelu Windows zůstává zachována.',
+      'Zástupci – Zachování pozice na Ploše (grid) a v nabídce Start: Existující zástupci se při startu aplikace ani při přeinstalaci zbytečně nemažou a nepřepisují, pokud již míří na platný spustitelný soubor IADonkey.exe.',
+    ],
+  },
   {
     version: '2.1.13',
     date: '14. 10. 2026',

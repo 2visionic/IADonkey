@@ -1,8 +1,8 @@
 {
-  "version": "2.1.13",
-  "releaseNotes": "• QuickCap – Vestavěný editor výstřižků: Přímá úprava snímků ze Spotlightu (obdélníky, kolečka, výplň/obrys, zvýrazňovač textu, šipky dle délky tažení, 2px tužka, text S–XL, 8 barev, Zpět/Vpřed).\n• Uložení bez duplikátu (Enter): Upravený snímek přepíše původní soubor ve složce a in-place aktualizuje položku ve schránce Windows i v EasyClipu.\n• EasyClip – Akce nad obrázky (Shift+Enter): Možnost vyvolat nabídku akcí (Upravit v editoru, Otevřít, Otevřít v malování, Otevřít ve složce) přímo z historie schránky.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.13/IADonkey-Setup-2.1.13.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.13/IADonkey-2.1.13.zip"
+  "version": "2.1.14",
+  "releaseNotes": "• Aktualizace – Zachování připnuté ikony na hlavní liště Windows (Taskbar): Čistý in-place přepis souborů při aktualizaci bez ztráty identity zástupce.\n• Zástupci na Ploše a ve Start menu: Zachování pozice ikony v mřížce (gridu) na Ploše bez zbytečného přepisování existujících zástupců.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.14/IADonkey-Setup-2.1.14.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.14/IADonkey-2.1.14.zip"
 }
 
 

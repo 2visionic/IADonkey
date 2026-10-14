@@ -3263,7 +3263,6 @@ app.whenReady().then(async () => {
   appScanner = new AppScanner();
 
   const initialConfig = store.getConfig();
-  notificationService.init(initialConfig);
   windowDragService.init();
   diagnosticsService.setOnCrashCallback((action, error) => {
     const errorMsg = error instanceof Error ? error.message : String(error?.message || error || 'Neznámá chyba');
@@ -3344,6 +3343,8 @@ app.whenReady().then(async () => {
     windowManager.createInstallerWindow();
     return;
   }
+
+  notificationService.init(initialConfig);
 
   const isSilentStart =
     process.argv.includes('--background') ||

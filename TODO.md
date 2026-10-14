@@ -38,9 +38,8 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-*(Žádné dokončené úkoly nečekají na revizi.)*
-
-
-
+- [x] **5. Zachování připnutého zástupce na hlavní liště Windows (Taskbar) a pozice ikony na Ploše při aktualizaci**
+  - **In-place přepis souborů při aktualizaci (`updater.ts`)**: Swap skript čeká na skutečné ukončení PID běžícího procesu `IADonkey.exe` a kopíruje soubory přes `robocopy` bez přepínače `/MOVE` a bez `ie4uinit.exe -show`, čímž zachovává NTFS identitu (`File ID` a `CreationTime`) spustitelného souboru `IADonkey.exe`.
+  - **Šetrná správa zástupců (`notificationService.ts`, `installerService.ts`, `main.ts`)**: Existující zástupci v nabídce Start a na Ploše se nepřepisují, pokud již míří na správný `IADonkey.exe` se správným `AppUserModelId` (`com.iadonkey.launcher`), a v dev/installer režimu se na systémové zástupce vůbec nesahá.
 
 

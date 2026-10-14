@@ -207,14 +207,14 @@ export class NotificationService {
   }
 
   private ensureStartMenuShortcut(): void {
-    if (process.platform !== 'win32') return;
+    if (process.platform !== 'win32' || !app.isPackaged) return;
     const appId = 'com.iadonkey.launcher';
     try {
       const startMenuDir = path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs');
       if (!fs.existsSync(startMenuDir)) return;
 
       const shortcutPath = path.join(startMenuDir, 'IADonkey.lnk');
-      const icoPath = getNotificationIco() || process.execPath;
+      const icoPath = process.execPath;
 
       let existingClsid: string | undefined;
       const exists = fs.existsSync(shortcutPath);
@@ -223,6 +223,16 @@ export class NotificationService {
           const existing = shell.readShortcutLink(shortcutPath);
           if (existing?.toastActivatorClsid) {
             existingClsid = existing.toastActivatorClsid;
+          }
+          // Pokud zástupce již míří na aktuální exe se správným AppUserModelId, vůbec na něj nesaháme,
+          // aby Windows Explorer neodepínal aplikaci z hlavního panelu (Taskbar).
+          if (
+            existing &&
+            existing.target?.toLowerCase() === process.execPath.toLowerCase() &&
+            existing.appUserModelId === appId &&
+            existing.icon?.toLowerCase() === icoPath.toLowerCase()
+          ) {
+            return;
           }
         } catch {}
       }
@@ -238,10 +248,7 @@ export class NotificationService {
       };
 
       const operation = exists ? 'update' : 'create';
-      const written = shell.writeShortcutLink(shortcutPath, operation, shortcutOptions);
-      if (!written && exists) {
-        shell.writeShortcutLink(shortcutPath, 'replace', shortcutOptions);
-      }
+      shell.writeShortcutLink(shortcutPath, operation, shortcutOptions);
     } catch (err) {
       console.warn('[NotificationService] Failed to register/update Start Menu shortcut for AUMID:', err);
     }

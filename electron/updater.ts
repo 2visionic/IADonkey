@@ -267,10 +267,21 @@ export class UpdateChecker {
       const cleanFilePath = filePath.replace(/[\\/]+$/, '');
       const cleanTargetDir = targetDir.replace(/[\\/]+$/, '');
 
+      const currentPid = process.pid;
       const batContent = `@echo off
-timeout /t 1 /nobreak >nul
-robocopy "${cleanFilePath}" "${cleanTargetDir}" /E /IS /IT /MOVE >nul 2>&1
-ie4uinit.exe -show >nul 2>&1
+setlocal
+set "TRIES=0"
+:waitloop
+tasklist /FI "PID eq ${currentPid}" 2>nul | find "${currentPid}" >nul
+if "%ERRORLEVEL%"=="0" (
+  set /a TRIES+=1
+  if %TRIES% LSS 30 (
+    ping 127.0.0.1 -n 2 -w 200 >nul
+    goto waitloop
+  )
+)
+robocopy "${cleanFilePath}" "${cleanTargetDir}" /E /IS /IT /R:10 /W:1 >nul 2>&1
+rmdir /s /q "${cleanFilePath}" >nul 2>&1
 start "" "${cleanTargetDir}\\IADonkey.exe" --updated
 del "%~f0" >nul 2>&1
 exit
