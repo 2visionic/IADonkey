@@ -56,3 +56,4 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 *Žádné dokončené úkoly nečekají na kontrolu.*
 
+
