@@ -38,12 +38,8 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-- [x] **Kompletní revize a rozšíření Action Logu a Crash Logu (vč. MagicGate cookie a živého propisování)**
-  - **MagicGate Deploy API & XML v Action Logu**: Samostatné logování každé synchronizace MagicGate, detekce expirace session cookie (`401/302`), průběhu a výsledku tiché obnovy cookie přes Google SSO na pozadí (`trySilentDeployReauth`), přechodu na offline cache i interaktivního přihlášení/odhlášení.
-  - **Synchronizace a akce na pozadí**: Zápis startu aplikace, úvodní indexace Windows aplikací, startovní i periodické synchronizace na pozadí (nyní se spouští i tehdy, když nejsou ruční zdroje, ale je zapnutý MagicGate nebo GitHub), synchronizace GitHub repozitářů a kontroly aktualizací.
-  - **Pokrytí nových modulů**: Doplněno logování akcí a odchytávání pádů (`recordCrash`) pro QuickCap Editor, EasyClip operace, Git Clone / Multi-repo clone, CMSinFS stahování, MagicPlan, Feedback a Auto-Updater.
-  - **Crash handlery na všech oknech**: Aktivováno `registerCrashHandlers` pro všechna sekundární a overlay okna (`powerWindow`, `gitCloneWindow`, `cmsDownloadWindow`, `tuneColorWindow`, `paletteBarWindow`, `paletteDetailWindow`, `snipperWindow`, `rulerWindow`).
-  - **Živý přenos do Nastavení & navýšení kapacity**: Kapacita Action Logu v paměti navýšena z 50 na 150 záznamů (stále s nulovou zátěží RAM/CPU) a napojena na živou IPC událost `action-logs-updated`, takže se záznamy v otevřeném okně Nastavení aktualizují okamžitě v reálném čase.
+*(Žádné dokončené úkoly nečekají na revizi.)*
+
 
 
 
