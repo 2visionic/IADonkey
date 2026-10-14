@@ -38,8 +38,6 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-- [x] **1. MagicGate: Přepínač mezi lokálním XML souborem a vzdáleným API GET (Deploy)** – Přidán přepínač `sourceMode: 'xml' | 'api'` v Nastavení -> MagicGate, Google SSO přihlašování se šifrovaným uložením session cookie (`safeStorage`) a tichou obnovou relace na pozadí, stahování aktivních instancí z `/api/ui/agents` včetně `adminUrls`/`webUrls`, verze Magicu, DB a plné podpory klonování repozitářů (`mgclone`) i stahování CMSinFS + lokální offline cache (`electron/magicGateDeployApi.ts`, `electron/dataSync.ts`, `src/components/SettingsModal.tsx`). Odkaz na analýzu: [Technická analýza Deploy API](docs/deploy-magicware-api-analyza.md).
-
-
+*(Žádné dokončené úkoly nečekají na revizi.)*
 
 
