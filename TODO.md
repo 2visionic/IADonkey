@@ -38,8 +38,4 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-*(Žádné dokončené úkoly nečekají na revizi.)*
-
-
-
-
+- [x] **1. MagicGate Deploy API: vynechání duplicitní AdminUrl z podpoložek a chytré řazení domén (priorita www -> doména 2. řádu -> domény 3.+ řádu)**
