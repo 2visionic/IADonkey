@@ -34,8 +34,17 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
     - **Vizuální styl a sladění**: Sjednocení s primární barvou aplikace, plynulé animace náběhu a ukončení (fade in/out), případně dynamické barevné zvýraznění verze (dev vs produkce).
     - **Plynulý přechod do hlavního okna**: Zajištění hladkého předání fokusu a zobrazení hlavního okna/Spotlightu bez probliknutí.
 
+- [ ] **5. Integrace funkcí z interního Woxu: Kopírování FTP a otevírání SQL dotazů v SSMS (`Query in SSMS` & `db <název>`)**
+  - **Popis**: Převod zbývajících workflow z interních pluginů `Wox.MagicGate` a `Wox.QueryStarter` do IADonkey – rychlé kopírování/otevírání FTP adresy instance, akce *„Otevřít dotaz v SSMS“* přímo nad databází instance (`DB Server` + `Databáze`) a vyhledávání lokálních databází přes klíčové slovo `db <název>` (`SELECT name FROM sys.databases`).
+  - **Odkaz na analýzu**: [Technická analýza FTP a SQL / SSMS z Woxu](docs/wox-ftp-sql-analyza.md)
+  - **Klíčové kroky**:
+    - **FTP nad Deploy API (nízká–střední obtížnost)**: Jelikož je `Applications.xml` deprecated a nebude již podporován, načítat nebo skládat FTP adresu čistě z dat **Deploy API** (`agent.properties` / `instance.properties` nebo odvození ze serveru/instance) + přidat rychlou akci / prefix `ftp <instance>` pro zkopírování do schránky.
+    - **SSMS u instancí (střední obtížnost)**: Automatická detekce `Ssms.exe`, volitelné uložení SQL přihlašovacích údajů (DPAPI) a spouštění dotazu nad `dbServerName` a `database` z Deploy API (přes parametry `Ssms.exe` / dočasný `.sql` skript nebo Named Pipe `ScriptDocumentActivator`).
+    - **Lokální DB přes příkaz `db` (střední obtížnost)**: Načítání seznamu lokálních databází ze `sys.databases` na `localhost` a okamžité otevření New Query v SSMS.
+
 ---
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-- [x] **1. MagicGate Deploy API: vynechání duplicitní AdminUrl z podpoložek a chytré řazení domén (priorita www -> doména 2. řádu -> domény 3.+ řádu)**
+*(Momentálně žádné dokončené úkoly nečekají na revizi.)*
+

@@ -63,7 +63,7 @@ export class DataSyncManager {
               apiLastError: res.error,
             },
           });
-          const cached = loadMagicGateDeployCache();
+          const cached = loadMagicGateDeployCache(mg.apiInfoFields);
           if (cached.length > 0) {
             diagnosticsService.logAction({
               type: 'sync',
@@ -77,7 +77,7 @@ export class DataSyncManager {
       } catch (err: any) {
         console.error('[DataSync] Error loading MagicGate Deploy API:', err);
         diagnosticsService.recordCrash('Synchronizace MagicGate Deploy API', err);
-        return loadMagicGateDeployCache();
+        return loadMagicGateDeployCache(mg.apiInfoFields);
       }
     }
 

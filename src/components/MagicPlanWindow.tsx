@@ -761,24 +761,14 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
       }
     }
 
-    if (canonical.length === 0) {
-      for (const t of myTasks) {
-        if (t.userName && t.userName.trim()) {
-          const displayName = formatUserDisplayName(t.userName.trim(), availablePersons);
-          if (!canonical.some((c) => c.trim().toLowerCase() === displayName.toLowerCase())) {
-            canonical.push(displayName);
-          }
-        }
-      }
-    }
-
     return canonical;
-  }, [config.magicplan, myTasks, availablePersons]);
+  }, [config.magicplan, availablePersons]);
 
   const hasMultipleUsers = distinctUsers.length >= 2 && !(showOnlyMyTasks && currentUser);
 
   // Filter tasks by active user toggle ("Pouze moje úkoly" vs "Všechny úkoly")
   const userFilteredMyTasks = useMemo(() => {
+    if (distinctUsers.length === 0) return [];
     let list = myTasks;
     if (showOnlyMyTasks && currentUser) {
       list = list.filter((t) => isTaskForUser(t, currentUser, availablePersons));
@@ -787,7 +777,7 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
       list = groupDeduplicateTasks(list);
     }
     return list;
-  }, [myTasks, showOnlyMyTasks, currentUser, availablePersons]);
+  }, [myTasks, showOnlyMyTasks, currentUser, availablePersons, distinctUsers.length]);
 
   // Unique authors (zadavatelé) extracted from the current plan
   const uniqueAuthors = useMemo(() => {

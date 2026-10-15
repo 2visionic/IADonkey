@@ -111,6 +111,16 @@ export type DataSource = FileSource | ApiSource | StaticSource;
 
 export type MagicGateSourceMode = 'xml' | 'api';
 
+export interface MagicGateDeploySchemaField {
+  key: string;
+  label: string;
+  scope: 'agent' | 'instance';
+  jsonPath: string;
+  defaultEnabled: boolean;
+  sampleValue?: string;
+  presentCount?: number;
+}
+
 export interface MagicGateSettings {
   username: string;
   password: string;
@@ -124,6 +134,7 @@ export interface MagicGateSettings {
   apiInstanceCount?: number;
   apiLastError?: string;
   instanceSourceCodesPath?: string;
+  apiInfoFields?: string[];
 }
 
 export interface MlogSettings {

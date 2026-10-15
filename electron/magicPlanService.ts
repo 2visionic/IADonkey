@@ -210,47 +210,82 @@ export interface TrackedTaskSnapshot {
 export class MagicPlanService {
   private store: AppStore;
   private timer: NodeJS.Timeout | null = null;
+  private initialTimer: NodeJS.Timeout | null = null;
   private cachedData: MagicPlanData | null = null;
   private previousMyTasks: Map<string, PlanTaskItem> = new Map();
   private previousUnassignedTasks: Map<string, PlanTaskItem> = new Map();
   private previousSnapshot: Map<string, TrackedTaskSnapshot> = new Map();
   private queryHistory: MagicPlanQueryLog[] = [];
   private isFetching = false;
+  private configVersion = 0;
+  private initializedUsers: Set<string> = new Set();
   private currentUserConfigKey: string = '';
+  private currentUrlsKey: string = '';
   private knownPersonsMap: Map<string, PlanPersonInfo> = new Map();
+  private windowOpen = false;
+  private screenLocked = false;
+
+  private computeConfigKey(planCfg?: MagicPlanSettings): string {
+    const urls = (planCfg?.urls && planCfg.urls.length > 0)
+      ? planCfg.urls.map((u) => u.trim()).filter(Boolean)
+      : (planCfg?.url?.trim() ? [planCfg.url.trim()] : []);
+    const users = (planCfg?.userColumns && planCfg.userColumns.length > 0)
+      ? planCfg.userColumns.map((u) => u.trim()).filter(Boolean)
+      : (planCfg?.userColumn?.trim() ? [planCfg.userColumn.trim()] : []);
+    const worklogUrl = (planCfg?.worklogUrl ?? 'http://mlog/Logs.aspx').trim();
+    return JSON.stringify({ urls, users, worklogUrl });
+  }
+
+  private computeUrlsKey(planCfg?: MagicPlanSettings): string {
+    const urls = (planCfg?.urls && planCfg.urls.length > 0)
+      ? planCfg.urls.map((u) => u.trim()).filter(Boolean)
+      : (planCfg?.url?.trim() ? [planCfg.url.trim()] : []);
+    return JSON.stringify(urls);
+  }
 
   constructor(store: AppStore) {
     this.store = store;
     const cfg = this.store.getConfig().magicplan;
-    this.currentUserConfigKey = JSON.stringify({
-      urls: cfg?.urls || (cfg?.url ? [cfg.url] : []),
-      users: cfg?.userColumns || (cfg?.userColumn ? [cfg.userColumn] : []),
-    });
+    this.currentUserConfigKey = this.computeConfigKey(cfg);
+    this.currentUrlsKey = this.computeUrlsKey(cfg);
     const { myTasks: loadedMyTasks, unassignedTasks: loadedUnassigned, availablePersons: loadedPersons } = this.loadDiskCache();
-    this.previousMyTasks = loadedMyTasks;
-    this.previousUnassignedTasks = loadedUnassigned;
 
     const uCols = (cfg?.userColumns && cfg.userColumns.length > 0)
       ? cfg.userColumns.map((u: string) => u.trim()).filter(Boolean)
       : (cfg?.userColumn?.trim() ? [cfg.userColumn.trim()] : []);
+
+    // 0 osob = 0 plan
+    this.previousMyTasks = uCols.length > 0 ? loadedMyTasks : new Map();
+    this.previousUnassignedTasks = loadedUnassigned;
+
+    if (uCols.length > 0 && this.previousMyTasks.size > 0) {
+      for (const u of uCols) {
+        if (u.trim()) this.initializedUsers.add(u.trim().toLowerCase());
+      }
+    }
+
     const curU = (cfg?.currentUserColumn?.trim() || uCols[0] || '').toLowerCase();
     const qName = cfg?.unassignedColumn?.trim() || 'FK';
 
-    for (const t of loadedMyTasks.values()) {
-      const key = getTaskBusinessKey(t);
-      const isMe = isTaskForUser(t, curU, loadedPersons) || (!t.userName && !t.userId && uCols.length <= 1);
-      this.previousSnapshot.set(key, {
-        key,
-        location: isMe ? 'me' : 'other',
-        userName: t.userName?.trim() || (isMe ? 'Já' : 'Kolega'),
-        task: t,
-        isSolved: Boolean(t.isSolved || t.isCompleted),
-        isCritical: Boolean(t.isCritical),
-        totalHours: t.totalHours || 0,
-      });
+    if (uCols.length > 0) {
+      for (const t of this.previousMyTasks.values()) {
+        if (t.taskId?.startsWith('wl-') || t.isNotAvailable) continue;
+        const key = getTaskBusinessKey(t);
+        const isMe = isTaskForUser(t, curU, loadedPersons) || (!t.userName && !t.userId && uCols.length <= 1);
+        this.previousSnapshot.set(key, {
+          key,
+          location: isMe ? 'me' : 'other',
+          userName: t.userName?.trim() || (isMe ? 'Já' : 'Kolega'),
+          task: t,
+          isSolved: Boolean(t.isSolved || t.isCompleted),
+          isCritical: Boolean(t.isCritical),
+          totalHours: t.estimatedHours ?? t.totalHours ?? 0,
+        });
+      }
     }
 
     for (const t of loadedUnassigned.values()) {
+      if (t.taskId?.startsWith('wl-') || t.isNotAvailable) continue;
       const key = getTaskBusinessKey(t);
       this.previousSnapshot.set(key, {
         key,
@@ -259,7 +294,7 @@ export class MagicPlanService {
         task: t,
         isSolved: Boolean(t.isSolved || t.isCompleted),
         isCritical: Boolean(t.isCritical),
-        totalHours: t.totalHours || 0,
+        totalHours: t.estimatedHours ?? t.totalHours ?? 0,
       });
     }
 
@@ -360,6 +395,8 @@ export class MagicPlanService {
         title: t.title,
         customName: t.customName,
         totalHours: t.totalHours,
+        estimatedHours: t.estimatedHours,
+        worklogHours: t.worklogHours,
         project: t.project,
         taskType: t.taskType,
         dates: t.dates,
@@ -412,46 +449,116 @@ export class MagicPlanService {
     }
   }
 
-  public clearData(): void {
+  public clearData(preservePersons: boolean = false): void {
+    this.configVersion++;
+    this.initializedUsers.clear();
+    const preservedPersons = preservePersons
+      ? (this.cachedData?.availablePersons && this.cachedData.availablePersons.length > 0
+          ? [...this.cachedData.availablePersons]
+          : Array.from(this.knownPersonsMap.values()))
+      : [];
+
     this.cachedData = null;
     this.previousMyTasks.clear();
     this.previousUnassignedTasks.clear();
     this.previousSnapshot.clear();
-    try {
-      if (fs.existsSync(CACHE_FILE)) {
-        fs.unlinkSync(CACHE_FILE);
+
+    if (!preservePersons) {
+      this.knownPersonsMap.clear();
+      try {
+        if (fs.existsSync(CACHE_FILE)) {
+          fs.unlinkSync(CACHE_FILE);
+        }
+      } catch (err) {
+        console.warn('[MagicPlan] Chyba při mazání souboru mezipaměti:', err);
       }
-    } catch (err) {
-      console.warn('[MagicPlan] Chyba při mazání souboru mezipaměti:', err);
+    } else {
+      this.saveDiskCache([], [], preservedPersons);
     }
+
     const emptyData: MagicPlanData = {
       lastChecked: new Date().toLocaleTimeString('cs-CZ'),
       myTasks: [],
       unassignedTasks: [],
       totalMyHours: 0,
       days: [],
+      availablePersons: preservedPersons,
     };
     this.cachedData = emptyData;
     this.broadcastData(emptyData);
   }
 
+  private pruneRemovedUsers(userColumns: string[]): void {
+    const activeNorm = new Set(userColumns.map((u) => u.trim().toLowerCase()).filter(Boolean));
+    for (const prevU of Array.from(this.initializedUsers)) {
+      if (!activeNorm.has(prevU)) {
+        this.initializedUsers.delete(prevU);
+      }
+    }
+    const personsList = this.cachedData?.availablePersons || Array.from(this.knownPersonsMap.values());
+    for (const [key, snap] of Array.from(this.previousSnapshot.entries())) {
+      if (snap.location === 'queue') continue;
+      const stillMonitored = userColumns.some((u) => isTaskForUser(snap.task, u, personsList));
+      if (!stillMonitored) {
+        this.previousSnapshot.delete(key);
+      }
+    }
+  }
+
   public onUserColumnChanged(newUserColumn?: string, newUserColumns?: string[], newUrls?: string[]): void {
     const config = this.store.getConfig();
-    const worklogUrl = config.magicplan?.worklogUrl ?? 'http://mlog/Logs.aspx';
-    const urls = (newUrls && newUrls.length > 0)
-      ? newUrls.map((u) => u.trim()).filter(Boolean)
-      : (config.magicplan?.urls && config.magicplan.urls.length > 0
-          ? config.magicplan.urls.map((u) => u.trim()).filter(Boolean)
-          : (config.magicplan?.url?.trim() ? [config.magicplan.url.trim()] : []));
-    const users = (newUserColumns && newUserColumns.length > 0)
-      ? newUserColumns.map((u) => u.trim()).filter(Boolean)
-      : (newUserColumn?.trim() ? [newUserColumn.trim()] : []);
-    const key = JSON.stringify({ urls, users, worklogUrl });
+    const planCfg: MagicPlanSettings = {
+      ...config.magicplan,
+      ...(newUserColumn !== undefined ? { userColumn: newUserColumn } : {}),
+      ...(newUserColumns !== undefined ? { userColumns: newUserColumns } : {}),
+      ...(newUrls !== undefined ? { urls: newUrls } : {}),
+    };
+    const key = this.computeConfigKey(planCfg);
+    const urlsKey = this.computeUrlsKey(planCfg);
     if (this.currentUserConfigKey !== key) {
-      this.clearData();
+      const urlsChanged = Boolean(this.currentUrlsKey && this.currentUrlsKey !== urlsKey);
+      const userColumns = (planCfg.userColumns && planCfg.userColumns.length > 0)
+        ? planCfg.userColumns.map((u) => u.trim()).filter(Boolean)
+        : (planCfg.userColumn?.trim() ? [planCfg.userColumn.trim()] : []);
+
+      this.configVersion++;
+      if (urlsChanged) {
+        this.clearData(false);
+      } else if (userColumns.length === 0) {
+        this.clearData(true);
+      } else {
+        this.pruneRemovedUsers(userColumns);
+      }
       this.currentUserConfigKey = key;
+      this.currentUrlsKey = urlsKey;
       this.restart();
     }
+  }
+
+  public setWindowOpen(isOpen: boolean): void {
+    if (this.windowOpen === isOpen) return;
+    this.windowOpen = isOpen;
+    if (isOpen && !this.screenLocked) {
+      this.start();
+    } else {
+      this.stop();
+      console.log('[MagicPlan] Okno MagicPlan zavřeno – synchronizace na pozadí pozastavena.');
+    }
+  }
+
+  public setScreenLocked(isLocked: boolean): void {
+    if (this.screenLocked === isLocked) return;
+    this.screenLocked = isLocked;
+    if (isLocked) {
+      this.stop();
+      console.log('[MagicPlan] Počítač uzamčen / uspán – synchronizace pozastavena.');
+    } else if (this.windowOpen) {
+      this.start();
+    }
+  }
+
+  public isWindowOpen(): boolean {
+    return this.windowOpen;
   }
 
   public start(): void {
@@ -466,13 +573,31 @@ export class MagicPlanService {
       ? config.magicplan.userColumns.map((u) => u.trim()).filter(Boolean)
       : (config.magicplan?.userColumn?.trim() ? [config.magicplan.userColumn.trim()] : []);
 
-    const worklogUrl = config.magicplan?.worklogUrl ?? 'http://mlog/Logs.aspx';
-    const currentKey = JSON.stringify({ urls, users: userColumns, worklogUrl });
-    // If user configuration changed from what was previously stored, clear old user data
+    const currentKey = this.computeConfigKey(config.magicplan);
+    const urlsKey = this.computeUrlsKey(config.magicplan);
     if (this.currentUserConfigKey && this.currentUserConfigKey !== currentKey) {
-      this.clearData();
+      const urlsChanged = Boolean(this.currentUrlsKey && this.currentUrlsKey !== urlsKey);
+      this.configVersion++;
+      if (urlsChanged) {
+        this.clearData(false);
+      } else if (userColumns.length === 0) {
+        this.clearData(true);
+      } else {
+        this.pruneRemovedUsers(userColumns);
+      }
     }
     this.currentUserConfigKey = currentKey;
+    this.currentUrlsKey = urlsKey;
+
+    // 0 osob = 0 plan (ensure cached myTasks are cleared when 0 persons are selected)
+    if (userColumns.length === 0 && this.cachedData && this.cachedData.myTasks.length > 0) {
+      this.clearData(true);
+    }
+
+    // Only poll when MagicPlan window is open and computer is unlocked
+    if (!this.windowOpen || this.screenLocked) {
+      return;
+    }
 
     if (!isExtensionEnabled || !isPlanEnabled || urls.length === 0 || userColumns.length === 0) {
       return;
@@ -481,23 +606,30 @@ export class MagicPlanService {
     const intervalMinutes = Math.max(1, config.magicplan?.pollIntervalMinutes || 2);
     const intervalMs = intervalMinutes * 60 * 1000;
 
-    // Run first check shortly after app startup
-    setTimeout(() => {
+    // Run first check shortly after opening window / config change
+    this.initialTimer = setTimeout(() => {
+      this.initialTimer = null;
+      if (!this.windowOpen || this.screenLocked) return;
       this.fetchAndDiff().catch((err) => {
         console.error('[MagicPlan] Initial fetch error:', err);
       });
-    }, 2000);
+    }, 300);
 
     this.timer = setInterval(() => {
+      if (!this.windowOpen || this.screenLocked) return;
       this.fetchAndDiff().catch((err) => {
         console.error('[MagicPlan] Polling fetch error:', err);
       });
     }, intervalMs);
 
-    console.log(`[MagicPlan] Služba aktivována (interval: ${intervalMinutes} min).`);
+    console.log(`[MagicPlan] Služba aktivována (okno otevřeno, interval: ${intervalMinutes} min).`);
   }
 
   public stop(): void {
+    if (this.initialTimer) {
+      clearTimeout(this.initialTimer);
+      this.initialTimer = null;
+    }
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
@@ -518,6 +650,102 @@ export class MagicPlanService {
   }
 
   /**
+   * Fetches only the available persons from the specified (or configured) plan URLs
+   * without running task diffing or notifications. Used when configuring URLs in Settings.
+   */
+  public async fetchAvailablePersons(customUrls?: string[]): Promise<{
+    success: boolean;
+    persons: PlanPersonInfo[];
+    planRange?: string;
+    error?: string;
+  }> {
+    const config = this.store.getConfig();
+    const planConfig: MagicPlanSettings = config.magicplan || {};
+    const urls = (customUrls && customUrls.length > 0)
+      ? customUrls.map((u) => u.trim()).filter(Boolean)
+      : (planConfig.urls && planConfig.urls.length > 0
+          ? planConfig.urls.map((u) => u.trim()).filter(Boolean)
+          : (planConfig.url?.trim() ? [planConfig.url.trim()] : []));
+
+    if (urls.length === 0) {
+      return {
+        success: false,
+        persons: [],
+        error: 'Zadejte alespoň jednu URL adresu plánu.',
+      };
+    }
+
+    const freshPersonsMap = new Map<string, PlanPersonInfo>();
+    let planRange: string | undefined;
+    let successfulUrls = 0;
+    let lastError = '';
+
+    for (const currentUrl of urls) {
+      try {
+        const html = await this.fetchHtmlWithCredentials(currentUrl);
+        const parsed = this.parsePlanHtml(html, [], '', false);
+        if (!planRange && parsed.planRange) {
+          planRange = parsed.planRange;
+        }
+        if (parsed.availablePersons && parsed.availablePersons.length > 0) {
+          for (const p of parsed.availablePersons) {
+            const key = String(p.id).trim();
+            if (!key) continue;
+            const existing = freshPersonsMap.get(key);
+            if (!existing) {
+              freshPersonsMap.set(key, { ...p });
+            } else {
+              if (!existing.shortcut && p.shortcut) existing.shortcut = p.shortcut;
+              if (!existing.cleanName && p.cleanName) existing.cleanName = p.cleanName;
+              if (existing.name === existing.id && p.name !== p.id) existing.name = p.name;
+            }
+          }
+        }
+        successfulUrls++;
+      } catch (err: any) {
+        lastError = err?.message || String(err);
+        console.warn(`[MagicPlan] Chyba načítání osob z URL (${currentUrl}):`, lastError);
+      }
+    }
+
+    if (successfulUrls === 0) {
+      return {
+        success: false,
+        persons: [],
+        error: lastError || 'Nelze se připojit k zadané URL adrese plánu.',
+      };
+    }
+
+    // Replace knownPersonsMap with the persons from the active URLs so stale persons from old URLs are removed
+    this.knownPersonsMap.clear();
+    const sortedPersons = Array.from(freshPersonsMap.values()).sort((a, b) =>
+      (a.name || a.id || '').localeCompare(b.name || b.id || '', 'cs')
+    );
+    for (const p of sortedPersons) {
+      this.knownPersonsMap.set(String(p.id).trim(), p);
+    }
+
+    const updatedData: MagicPlanData = {
+      ...(this.cachedData || {
+        lastChecked: new Date().toLocaleTimeString('cs-CZ'),
+        myTasks: [],
+        unassignedTasks: [],
+        totalMyHours: 0,
+      }),
+      ...(planRange ? { planRange } : {}),
+      availablePersons: sortedPersons,
+    };
+    this.cachedData = updatedData;
+    this.saveDiskCache(updatedData.myTasks, updatedData.unassignedTasks, sortedPersons);
+    this.broadcastData(updatedData);
+
+    return {
+      success: true,
+      persons: sortedPersons,
+      planRange,
+    };
+  }
+
   /**
    * Builds direct link to task or requirement respecting TaskManager extension settings
    */
@@ -569,6 +797,7 @@ export class MagicPlanService {
     }
 
     this.isFetching = true;
+    const fetchVersion = this.configVersion;
     const startTime = Date.now();
     const config = this.store.getConfig();
     const planConfig: MagicPlanSettings = config.magicplan || {};
@@ -622,6 +851,9 @@ export class MagicPlanService {
             mlogTaskPrefix,
             mlogRequestPrefix
           );
+          if ((!parsed.days || parsed.days.length === 0) && (!parsed.availablePersons || parsed.availablePersons.length === 0)) {
+            throw new Error('Server vrátil neplatnou strukturu plánu (chybí dny i osoby).');
+          }
           if (!planNumber && parsed.planNumber) planNumber = parsed.planNumber;
           if (!planRange && parsed.planRange) planRange = parsed.planRange;
           if (combinedDays.length === 0 && parsed.days && parsed.days.length > 0) {
@@ -639,7 +871,9 @@ export class MagicPlanService {
               }
             }
           }
-          allMyTasks.push(...parsed.myTasks);
+          if (userColumns.length > 0) {
+            allMyTasks.push(...parsed.myTasks);
+          }
           allUnassignedTasks.push(...parsed.unassignedTasks);
           successfulUrls++;
         } catch (fetchErr: any) {
@@ -647,18 +881,53 @@ export class MagicPlanService {
         }
       }
 
-      if (successfulUrls === 0 && urls.length > 0) {
-        throw new Error('Nelze se připojit k žádné ze zadaných URL adres plánu.');
+      // Require ALL configured URLs to load properly so a partial outage never wipes tasks from the failed URL
+      if (successfulUrls < urls.length) {
+        throw new Error(
+          successfulUrls === 0
+            ? 'Nelze se připojit k žádné ze zadaných URL adres plánu.'
+            : `Nepodařilo se načíst všechny plány (${successfulUrls}/${urls.length}). Zachována předchozí data.`
+        );
       }
 
-      // 2b. Fetch and integrate worklogs from MLog Logs.aspx
+      // Guard: if a monitored user was previously present in availablePersons, verify their column is still in the HTML
+      const prevPersons = this.cachedData?.availablePersons && this.cachedData.availablePersons.length > 0
+        ? this.cachedData.availablePersons
+        : Array.from(this.knownPersonsMap.values());
+      if (prevPersons.length > 0 && userColumns.length > 0) {
+        for (const uCol of userColumns) {
+          const normU = normalizeStr(uCol);
+          if (!normU) continue;
+          const wasInPrev = prevPersons.some(
+            (p) =>
+              normalizeStr(p.id) === normU ||
+              normalizeStr(p.name) === normU ||
+              normalizeStr(p.cleanName || '') === normU ||
+              normalizeStr(p.shortcut || '') === normU
+          );
+          if (wasInPrev) {
+            const isInCurr = allAvailablePersons.some(
+              (p) =>
+                normalizeStr(p.id) === normU ||
+                normalizeStr(p.name) === normU ||
+                normalizeStr(p.cleanName || '') === normU ||
+                normalizeStr(p.shortcut || '') === normU
+            );
+            if (!isInCurr) {
+              throw new Error(`Server vrátil neúplný plán (chybí sloupec osoby "${uCol}"). Zachována předchozí data.`);
+            }
+          }
+        }
+      }
+
+      // 2b. Fetch and integrate worklogs from MLog Logs.aspx (only when at least 1 person is selected: 0 osob = 0 plan)
       const worklogBase = planConfig.worklogUrl !== undefined
         ? planConfig.worklogUrl.trim()
         : 'http://mlog/Logs.aspx';
 
       let dailyUserWorklogs: Record<string, Record<string, number>> | undefined = undefined;
       let worklogTimelineEntries: WorklogTimelineEntry[] | undefined = undefined;
-      if (worklogBase && combinedDays.length > 0) {
+      if (userColumns.length > 0 && worklogBase && combinedDays.length > 0) {
         try {
           const wlRes = await this.fetchAndApplyWorklogs(
             worklogBase,
@@ -674,12 +943,53 @@ export class MagicPlanService {
           dailyUserWorklogs = wlRes.dailyUserWorklogs;
           worklogTimelineEntries = wlRes.worklogTimelineEntries;
         } catch (wlErr: any) {
-          console.warn('[MagicPlan] Chyba načtení worklogu:', wlErr?.message || wlErr);
+          console.warn('[MagicPlan] Chyba načtení worklogu (zachována předchozí worklog data):', wlErr?.message || wlErr);
+          dailyUserWorklogs = this.cachedData?.dailyUserWorklogs;
+          worklogTimelineEntries = this.cachedData?.worklogTimelineEntries;
+          if (this.cachedData?.myTasks && this.cachedData.myTasks.length > 0) {
+            for (const prevTask of this.cachedData.myTasks) {
+              const isMonitored = userColumns.some((u) => isTaskForUser(prevTask, u, allAvailablePersons));
+              if (!isMonitored) continue;
+              if (prevTask.taskId?.startsWith('wl-')) {
+                allMyTasks.push({ ...prevTask });
+              } else if (prevTask.worklogHours !== undefined) {
+                const prevKey = getTaskBusinessKey(prevTask);
+                for (const currTask of allMyTasks) {
+                  if (getTaskBusinessKey(currTask) === prevKey && currTask.userName === prevTask.userName) {
+                    currTask.worklogHours = prevTask.worklogHours;
+                    if (currTask.isCompleted || currTask.isSolved) {
+                      if (!currTask.estimatedHours) currTask.estimatedHours = currTask.totalHours;
+                      currTask.totalHours = prevTask.totalHours;
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
 
-      allAvailablePersons.sort((a, b) => (a.name || a.id || '').localeCompare(b.name || b.id || '', 'cs'));
-      const myTasks = this.deduplicateTasks(allMyTasks);
+      // If configuration changed while this fetch was in flight, discard stale result and re-fetch with new config
+      if (fetchVersion !== this.configVersion) {
+        this.isFetching = false;
+        return this.fetchAndDiff();
+      }
+
+      if (allAvailablePersons.length > 0) {
+        allAvailablePersons.sort((a, b) => (a.name || a.id || '').localeCompare(b.name || b.id || '', 'cs'));
+        this.knownPersonsMap.clear();
+        for (const p of allAvailablePersons) {
+          if (p.id) {
+            this.knownPersonsMap.set(String(p.id).trim(), p);
+          }
+        }
+      } else {
+        allAvailablePersons = this.cachedData?.availablePersons && this.cachedData.availablePersons.length > 0
+          ? [...this.cachedData.availablePersons]
+          : Array.from(this.knownPersonsMap.values());
+      }
+
+      const myTasks = userColumns.length > 0 ? this.deduplicateTasks(allMyTasks) : [];
       const unassignedTasks = this.deduplicateTasks(allUnassignedTasks);
       const totalMyHours = myTasks.reduce((sum, t) => sum + (t.totalHours || 0), 0);
 
@@ -700,8 +1010,14 @@ export class MagicPlanService {
 
       this.cachedData = newData;
 
-      // Check diffs and show notifications
-      const diffResult = this.checkDiffsAndNotify(myTasks, unassignedTasks, planConfig);
+      // Check diffs and show notifications (only when at least 1 person is configured)
+      const diffResult = userColumns.length > 0
+        ? this.checkDiffsAndNotify(myTasks, unassignedTasks, planConfig)
+        : { newTasks: [], completedTasks: [], changedTasks: [] };
+
+      if (userColumns.length === 0) {
+        this.saveDiskCache([], unassignedTasks, allAvailablePersons);
+      }
 
       this.broadcastData(newData);
 
@@ -735,12 +1051,16 @@ export class MagicPlanService {
       console.warn('[MagicPlan] Chyba načtení plánu (možná offline / mimo VPN):', err?.message || err);
 
       const nowIso = new Date().toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const fallbackPersons = this.cachedData?.availablePersons && this.cachedData.availablePersons.length > 0
+        ? this.cachedData.availablePersons
+        : Array.from(this.knownPersonsMap.values());
       const offlineData: MagicPlanData = {
         ...(this.cachedData || {
           myTasks: [],
           unassignedTasks: [],
           totalMyHours: 0,
         }),
+        availablePersons: fallbackPersons,
         lastChecked: nowIso,
         error: err?.message || 'Nelze se připojit k internímu serveru plánu',
         isOffline: true,
@@ -777,16 +1097,26 @@ export class MagicPlanService {
    * falling back to Windows PowerShell Invoke-WebRequest if needed.
    */
   private async fetchHtmlWithCredentials(url: string, validator?: (html: string) => boolean): Promise<string> {
-    const isValid = validator || ((text: string) => Boolean(text && (text.includes('class="plan"') || text.includes('TitleHeading') || text.includes('Denní přehled MLog') || text.includes('<table'))));
+    const isValid = validator || ((text: string) => Boolean(
+      text && (
+        text.includes('class="plan"') ||
+        text.includes('TitleHeading') ||
+        text.includes('class="user"') ||
+        text.includes("class='user'") ||
+        text.includes('plan-selection')
+      )
+    ));
 
     // 1. Try Chromium net.fetch (handles Windows Integrated Authentication natively)
     try {
       const response = await net.fetch(url, {
         method: 'GET',
         credentials: 'include',
+        signal: AbortSignal.timeout(10000),
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) IADonkey/2.0',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Connection': 'close',
         },
       });
 
@@ -802,7 +1132,7 @@ export class MagicPlanService {
 
     // 2. Windows native curl with Negotiate/NTLM authentication (fast and robust, no shell injection)
     try {
-      const { stdout: curlOut } = await execFileAsync('curl.exe', ['-s', '--negotiate', '-u', ':', url], {
+      const { stdout: curlOut } = await execFileAsync('curl.exe', ['-s', '--no-keepalive', '--negotiate', '-u', ':', url], {
         maxBuffer: 15 * 1024 * 1024,
         timeout: 10000,
         encoding: 'utf-8',
@@ -1037,6 +1367,7 @@ export class MagicPlanService {
       return { dailyUserWorklogs: {}, worklogTimelineEntries: [] };
     }
 
+    let failedDays = 0;
     const dailyResults = await Promise.all(
       targetDays.map(async (day) => {
         try {
@@ -1047,11 +1378,16 @@ export class MagicPlanService {
           const html = await this.fetchHtmlWithCredentials(url, (t) => Boolean(t && (t.includes('TitleHeading') || t.includes('table'))));
           return { date: day.date, usersMap: this.parseWorklogHtml(html, day.date) };
         } catch (err: any) {
+          failedDays++;
           console.warn(`[MagicPlan] Chyba načtení worklogu pro ${day.date}:`, err?.message || err);
           return { date: day.date, usersMap: new Map<string, WorklogParsedItem[]>() };
         }
       })
     );
+
+    if (failedDays > 0) {
+      throw new Error(`Nepodařilo se načíst všechny dny worklogu (${targetDays.length - failedDays}/${targetDays.length}).`);
+    }
 
     // Aggregate worklog items across all days per person
     const aggregatedByUser = new Map<string, Map<string, {
@@ -1151,7 +1487,7 @@ export class MagicPlanService {
 
     // Helper to verify if person is included in the plan / userColumns
     const isUserMonitored = (wUser: string, person?: PlanPersonInfo): boolean => {
-      if (userColumns.length === 0) return true;
+      if (userColumns.length === 0) return false;
 
       // 1. Direct check of wUser against userColumns
       for (const uCol of userColumns) {
@@ -1266,8 +1602,11 @@ export class MagicPlanService {
             else if (wTask.isDev) existingTask.taskType = 'dev';
             if (!existingTask.project && wTask.project) existingTask.project = wTask.project;
             if (!existingTask.title && wTask.title) existingTask.title = wTask.title;
-            if (!existingTask.requirementId && wTask.reqId) existingTask.requirementId = wTask.reqId;
-            if (!existingTask.taskIdentifier && wTask.taskId) existingTask.taskIdentifier = wTask.taskId;
+            // Only populate requirementId/taskIdentifier if the plan task had neither, so getTaskBusinessKey never mutates
+            if (!existingTask.requirementId && !existingTask.taskIdentifier) {
+              if (wTask.reqId) existingTask.requirementId = wTask.reqId;
+              if (wTask.taskId) existingTask.taskIdentifier = wTask.taskId;
+            }
           }
         } else {
           const code = wTask.taskId || wTask.reqId || '';
@@ -2054,6 +2393,10 @@ export class MagicPlanService {
       const fp = getTaskFingerprint(t);
       currentMap.set(fp, t);
 
+      if (t.taskId?.startsWith('wl-') || t.isNotAvailable) {
+        continue;
+      }
+
       const key = getTaskBusinessKey(t);
       const isMe = isTaskForUser(t, currentUserName, personsList) || (!t.userName && !t.userId && userColumns.length <= 1);
       const location: 'me' | 'other' = isMe ? 'me' : 'other';
@@ -2066,13 +2409,17 @@ export class MagicPlanService {
         task: t,
         isSolved: Boolean(t.isSolved || t.isCompleted),
         isCritical: Boolean(t.isCritical),
-        totalHours: t.totalHours || 0,
+        totalHours: t.estimatedHours ?? t.totalHours ?? 0,
       });
     }
 
     for (const t of currentUnassigned) {
       const fp = getTaskFingerprint(t);
       currentUnassignedMap.set(fp, t);
+
+      if (t.taskId?.startsWith('wl-') || t.isNotAvailable) {
+        continue;
+      }
 
       const key = getTaskBusinessKey(t);
       currentSnapshot.set(key, {
@@ -2082,26 +2429,42 @@ export class MagicPlanService {
         task: t,
         isSolved: Boolean(t.isSolved || t.isCompleted),
         isCritical: Boolean(t.isCritical),
-        totalHours: t.totalHours || 0,
+        totalHours: t.estimatedHours ?? t.totalHours ?? 0,
       });
     }
 
+    const newlyAddedUsers = userColumns.filter((u) => !this.initializedUsers.has(u.trim().toLowerCase()));
+    const isTaskFromNewlyAddedUser = (task: PlanTaskItem): boolean =>
+      newlyAddedUsers.length > 0 && newlyAddedUsers.some((u) => isTaskForUser(task, u, personsList));
+
     // On the very first run (no cache exists on disk), record baseline without spamming notifications
     if (this.previousSnapshot.size === 0) {
+      for (const u of userColumns) {
+        if (u.trim()) this.initializedUsers.add(u.trim().toLowerCase());
+      }
       this.previousSnapshot = currentSnapshot;
       this.previousMyTasks = currentMap;
       this.previousUnassignedTasks = currentUnassignedMap;
-      this.saveDiskCache(currentTasks, currentUnassigned);
+      this.saveDiskCache(currentTasks, currentUnassigned, personsList);
       return diffResult;
     }
 
     // 1. Process tasks present in current snapshot
     for (const [key, curr] of currentSnapshot) {
+      // First load of a newly added person: silently establish baseline without firing notifications
+      if (curr.location !== 'queue' && isTaskFromNewlyAddedUser(curr.task)) {
+        continue;
+      }
+
       const prev = this.previousSnapshot.get(key);
       const taskDesc = formatTaskDesc(curr.task);
       const taskTitle = formatTaskTitle(curr.task);
 
       if (!prev) {
+        // Do not notify as a "new task" if it is already marked as solved/completed
+        if (curr.isSolved) {
+          continue;
+        }
         // Completely new task
         if (curr.location === 'queue') {
           // Situace 1: požadavek se objevil ve frontě
@@ -2456,6 +2819,12 @@ export class MagicPlanService {
           continue;
         }
 
+        // If the person was removed from monitored userColumns, do not notify their tasks as completed
+        const isStillMonitored = userColumns.some((u) => isTaskForUser(prev.task, u, personsList));
+        if (!isStillMonitored) {
+          continue;
+        }
+
         // If the task was ALREADY solved, its disappearance is expected and MUST NOT be notified
         if (prev.isSolved) {
           continue;
@@ -2494,10 +2863,13 @@ export class MagicPlanService {
       }
     }
 
+    for (const u of userColumns) {
+      if (u.trim()) this.initializedUsers.add(u.trim().toLowerCase());
+    }
     this.previousSnapshot = currentSnapshot;
     this.previousMyTasks = currentMap;
     this.previousUnassignedTasks = currentUnassignedMap;
-    this.saveDiskCache(currentTasks, currentUnassigned);
+    this.saveDiskCache(currentTasks, currentUnassigned, personsList);
     return diffResult;
   }
 

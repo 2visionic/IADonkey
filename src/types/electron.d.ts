@@ -121,6 +121,21 @@ declare global {
         error?: string;
       }>;
       logoutMagicGateDeployApi?: (baseUrl?: string) => Promise<{ ok: boolean }>;
+      getMagicGateDeploySchema?: (params?: { forceRefresh?: boolean }) => Promise<{
+        ok: boolean;
+        hasSyncedData: boolean;
+        hasRawCache: boolean;
+        totalInstances: number;
+        fields: Array<{
+          key: string;
+          label: string;
+          scope: 'agent' | 'instance';
+          jsonPath: string;
+          defaultEnabled: boolean;
+          sampleValue?: string;
+          presentCount?: number;
+        }>;
+      }>;
       downloadInstanceCmsContent: (params: {
         instanceName?: string;
         adminUrl: string;
@@ -303,6 +318,12 @@ declare global {
       closeMagicPlanWindow?: () => Promise<void>;
       getMagicPlanData?: () => Promise<import('./index').MagicPlanData>;
       refreshMagicPlan?: () => Promise<import('./index').MagicPlanData>;
+      fetchMagicPlanPersons?: (urls?: string[]) => Promise<{
+        success: boolean;
+        persons: import('./index').PlanPersonInfo[];
+        planRange?: string;
+        error?: string;
+      }>;
       getMagicPlanDevLogs?: () => Promise<any>;
       clearMagicPlanData?: () => Promise<any>;
       onMagicPlanDataUpdated?: (callback: (data: import('./index').MagicPlanData) => void) => () => void;

@@ -434,10 +434,16 @@ export const App: React.FC = () => {
 
   const handleCheckUpdate = async () => {
     setUpdateStatusMessage('Zjišťuji dostupnost nové verze...');
+    setUpdateInfo(null);
     if (window.electronAPI) {
       try {
         const info = await window.electronAPI.checkUpdate();
         if (info.hasUpdate) {
+          setConfig((prev) => ({
+            ...prev,
+            lastDeclinedVersion: null,
+            lastDeclinedTime: null,
+          }));
           setUpdateInfo(info);
           setUpdateStatusMessage(`K dispozici nová verze: ${info.latestVersion}`);
         } else {

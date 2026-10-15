@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { AppConfig, DataSource, FileSource, ApiSource, StaticSource, LauncherItem, SyncProgress, UpdateInfo, SourceFieldMapping, MappingTargetKey, BannedItem, CustomSnippet, ActionLogEntry, CrashLogEntry } from '../types';
+import { AppConfig, DataSource, FileSource, ApiSource, StaticSource, LauncherItem, SyncProgress, UpdateInfo, SourceFieldMapping, MappingTargetKey, BannedItem, CustomSnippet, ActionLogEntry, CrashLogEntry, MagicGateDeploySchemaField } from '../types';
 import { applyPrimaryColor, applyActionsColor, APP_COLOR_PRESETS } from '../utils/theme';
 import { formatLastSyncDate } from '../utils/dateHelper';
 import { CURRENT_APP_VERSION, DISPLAY_APP_VERSION, IS_DEV, getLatestRelease } from '../changelog';
@@ -289,6 +289,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [isTestingDeploy, setIsTestingDeploy] = useState(false);
   const [deployStatusMsg, setDeployStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [showManualDeployCookie, setShowManualDeployCookie] = useState(false);
+  const [showDeploySchemaModal, setShowDeploySchemaModal] = useState(false);
+  const [isLoadingDeploySchema, setIsLoadingDeploySchema] = useState(false);
+  const [deploySchemaData, setDeploySchemaData] = useState<{
+    hasSyncedData: boolean;
+    hasRawCache: boolean;
+    totalInstances: number;
+    fields: MagicGateDeploySchemaField[];
+  } | null>(null);
+  const [deploySchemaSelectedKeys, setDeploySchemaSelectedKeys] = useState<string[]>([]);
+  const [deploySchemaSearch, setDeploySchemaSearch] = useState('');
+
+  const openDeploySchemaModal = useCallback(
+    async (forceRefresh: boolean = false) => {
+      setShowDeploySchemaModal(true);
+      setIsLoadingDeploySchema(true);
+      try {
+        if (window.electronAPI?.getMagicGateDeploySchema) {
+          const res = await window.electronAPI.getMagicGateDeploySchema({ forceRefresh });
+          if (res?.ok) {
+            setDeploySchemaData({
+              hasSyncedData: res.hasSyncedData,
+              hasRawCache: res.hasRawCache,
+              totalInstances: res.totalInstances,
+              fields: res.fields,
+            });
+            const savedKeys = formData.magicgate?.apiInfoFields;
+            if (Array.isArray(savedKeys)) {
+              setDeploySchemaSelectedKeys(savedKeys);
+            } else {
+              setDeploySchemaSelectedKeys(
+                res.fields.filter((f) => f.defaultEnabled).map((f) => f.key)
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load MagicGate Deploy API schema:', err);
+      } finally {
+        setIsLoadingDeploySchema(false);
+      }
+    },
+    [formData.magicgate?.apiInfoFields]
+  );
 
   useEffect(() => {
     if (!openSimDropdown && !openNotifDropdown) return;
@@ -1345,6 +1388,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const [magicPlanPersons, setMagicPlanPersons] = useState<{ id: string; name: string }[]>([]);
+  const [isFetchingMagicPlanPersons, setIsFetchingMagicPlanPersons] = useState(false);
+  const [fetchPersonsFeedback, setFetchPersonsFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const handleFetchPersonsFromUrls = async (urlsToFetch?: string[]) => {
+    if (!window.electronAPI?.fetchMagicPlanPersons) return;
+    const rawList = urlsToFetch ?? (
+      formData.magicplan?.urls && formData.magicplan.urls.length > 0
+        ? formData.magicplan.urls
+        : [formData.magicplan?.url ?? '']
+    );
+    const cleanUrls = rawList.map((u) => u.trim()).filter(Boolean);
+    if (cleanUrls.length === 0) {
+      setFetchPersonsFeedback({ type: 'error', message: 'Zadejte nejprve URL adresu plánu.' });
+      return;
+    }
+
+    setIsFetchingMagicPlanPersons(true);
+    setFetchPersonsFeedback(null);
+    try {
+      const res = await window.electronAPI.fetchMagicPlanPersons(cleanUrls);
+      if (res && res.success) {
+        setMagicPlanPersons(res.persons || []);
+        setFetchPersonsFeedback({
+          type: 'success',
+          message: `Načteno ${res.persons?.length || 0} osob z plánu${res.planRange ? ` (${res.planRange})` : ''}`,
+        });
+      } else {
+        setFetchPersonsFeedback({
+          type: 'error',
+          message: res?.error || 'Nepodařilo se načíst osoby ze zadané URL plánu.',
+        });
+      }
+    } catch (err: any) {
+      setFetchPersonsFeedback({
+        type: 'error',
+        message: err?.message || 'Chyba při načítání osob z plánu.',
+      });
+    } finally {
+      setIsFetchingMagicPlanPersons(false);
+    }
+  };
 
   const loadMagicPlanPersons = useCallback(async () => {
     if (!window.electronAPI?.getMagicPlanData) return;
@@ -1387,19 +1471,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const allAvailablePersons = useMemo(() => {
     const map = new Map<string, string>();
-    for (const p of magicPlanPersons || []) {
+    const sourcePersons = (magicPlanPersons && magicPlanPersons.length > 0)
+      ? magicPlanPersons
+      : (Array.isArray(magicPlanDevLogs?.cachedData?.availablePersons) ? magicPlanDevLogs.cachedData.availablePersons : []);
+
+    for (const p of sourcePersons) {
       if (p && p.id) {
         const idStr = String(p.id).trim();
         if (idStr) map.set(idStr, String(p.name || idStr));
-      }
-    }
-    const cachedPersons = magicPlanDevLogs?.cachedData?.availablePersons;
-    if (Array.isArray(cachedPersons)) {
-      for (const p of cachedPersons) {
-        if (p && p.id) {
-          const idStr = String(p.id).trim();
-          if (idStr && !map.has(idStr)) map.set(idStr, String(p.name || idStr));
-        }
       }
     }
     const userCols = formData.magicplan?.userColumns || (formData.magicplan?.userColumn ? [formData.magicplan.userColumn] : []);
@@ -6667,6 +6746,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     >
                       <span className={`material-symbols-outlined text-base ${(formData.magicgate?.sourceMode || 'xml') === 'xml' ? 'text-amber-400' : ''}`}>code_blocks</span>
                       <span>Lokální XML soubor</span>
+                      <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-rose-500/20 text-rose-300">
+                        Deprecated
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -6697,6 +6779,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 {(formData.magicgate?.sourceMode || 'xml') === 'xml' ? (
                   <div className="space-y-3 pt-2 border-t border-white/[0.05] animate-fade-in">
+                    <div className="p-3.5 rounded-xl bg-amber-500/10 text-amber-200 text-xs flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <span className="material-symbols-outlined text-lg text-amber-400 shrink-0 mt-0.5">warning</span>
+                        <div className="leading-relaxed">
+                          <strong className="text-amber-300 font-semibold block mb-0.5">
+                            Upozornění: Načítání z lokálního XML souboru (Applications.xml) je zastaralé (Deprecated)
+                          </strong>
+                          Tato možnost slouží pouze pro dočasnou zpětnou kompatibilitu a v dalších verzích již nebude podporována. Doporučujeme přepnout zdroj instancí na <strong>Vzdálené API (Deploy)</strong>.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = {
+                            ...formData,
+                            magicgate: {
+                              ...formData.magicgate,
+                              sourceMode: 'api' as const,
+                              apiBaseUrl: formData.magicgate?.apiBaseUrl || '',
+                            },
+                          };
+                          setFormData(updated);
+                          handleSave(updated);
+                          setDeployStatusMsg(null);
+                        }}
+                        className="h-[30px] px-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded-full text-[11px] font-semibold transition cursor-pointer shrink-0 flex items-center gap-1"
+                      >
+                        <span>Přepnout na API</span>
+                        <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                      </button>
+                    </div>
+
                     <p className="text-[13px] text-gray-400 leading-relaxed">
                       Vyberte XML soubor s definicí serverů a instancí. IADonkey z něj automaticky vyextrahuje jednotlivé instance
                       jako hlavní položky s akcí MagicGate a jejich dílčí aplikace (Administrace, Web, API, BO) jako podpoložky s faviconou.
@@ -6975,6 +7089,54 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           <span>{deployStatusMsg ? deployStatusMsg.text : formData.magicgate?.apiLastError}</span>
                         </div>
                       )}
+
+                      {/* Per-user API Info Schema Selector */}
+                      <div className="pt-2 border-t border-white/[0.05] flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-sm text-amber-400">checklist</span>
+                            <span>Schéma informací zobrazovaných u instance (záložka Informace)</span>
+                          </div>
+                          <p className="text-[11px] text-gray-400 mt-0.5">
+                            {Array.isArray(formData.magicgate?.apiInfoFields)
+                              ? `Vlastní výběr (${formData.magicgate.apiInfoFields.length} polí z root agenta a instances[])`
+                              : 'Výchozí sada polí (Server, Stroj, Instance, Verze, URL, DB, Cesta, Umístění...)'}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {Array.isArray(formData.magicgate?.apiInfoFields) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = {
+                                  ...formData,
+                                  magicgate: {
+                                    ...formData.magicgate,
+                                    apiInfoFields: undefined,
+                                  },
+                                };
+                                setFormData(updated);
+                                handleSave(updated);
+                              }}
+                              className="h-[32px] px-3 bg-white/[0.05] hover:bg-white/[0.1] text-gray-300 rounded-full text-[11px] font-medium transition cursor-pointer flex items-center gap-1"
+                              title="Vrátit zobrazení informací do výchozího nastavení"
+                            >
+                              <span className="material-symbols-outlined text-sm">restart_alt</span>
+                              <span>Výchozí</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => openDeploySchemaModal(false)}
+                            className="h-[34px] px-3.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+                          >
+                            <span className="material-symbols-outlined text-base text-amber-400">tune</span>
+                            <span>Vybrat pole z API schématu...</span>
+                          </button>
+                        </div>
+                      </div>
 
                       {/* Manual Cookie / Token Fallback */}
                       <div className="pt-1">
@@ -8127,33 +8289,63 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               )}
                             </div>
                           ))}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const currentUrls = formData.magicplan?.urls && formData.magicplan.urls.length > 0
-                                ? [...formData.magicplan.urls, '']
-                                : [formData.magicplan?.url || '', ''];
-                              const updated = {
-                                ...formData,
-                                magicplan: {
-                                  ...formData.magicplan,
-                                  urls: currentUrls,
-                                  url: currentUrls[0] || '',
-                                },
-                              };
-                              setFormData(updated);
-                              handleSave(updated);
-                            }}
-                            className="px-3 py-1.5 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer w-fit"
-                          >
-                            <span className="material-symbols-outlined text-sm">add</span>
-                            <span>Přidat plán</span>
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentUrls = formData.magicplan?.urls && formData.magicplan.urls.length > 0
+                                  ? [...formData.magicplan.urls, '']
+                                  : [formData.magicplan?.url || '', ''];
+                                const updated = {
+                                  ...formData,
+                                  magicplan: {
+                                    ...formData.magicplan,
+                                    urls: currentUrls,
+                                    url: currentUrls[0] || '',
+                                  },
+                                };
+                                setFormData(updated);
+                                handleSave(updated);
+                              }}
+                              className="px-3 py-1.5 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer w-fit"
+                            >
+                              <span className="material-symbols-outlined text-sm">add</span>
+                              <span>Přidat plán</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={isFetchingMagicPlanPersons}
+                              onClick={() => handleFetchPersonsFromUrls(urlList)}
+                              className="px-3.5 py-1.5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 disabled:opacity-50 text-emerald-300 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer w-fit"
+                              title="Stáhne ze zadaných URL adres plánů aktuální seznam dostupných osob do výběrů níže"
+                            >
+                              <span className={`material-symbols-outlined text-sm ${isFetchingMagicPlanPersons ? 'animate-spin' : ''}`}>
+                                {isFetchingMagicPlanPersons ? 'sync' : 'person_search'}
+                              </span>
+                              <span>{isFetchingMagicPlanPersons ? 'Načítám osoby...' : 'Načíst osoby z plánu'}</span>
+                            </button>
+
+                            {fetchPersonsFeedback && (
+                              <span
+                                className={`text-xs px-2.5 py-1 rounded-full flex items-center gap-1 ${
+                                  fetchPersonsFeedback.type === 'success'
+                                    ? 'bg-emerald-500/10 text-emerald-300'
+                                    : 'bg-red-500/10 text-red-300'
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-xs">
+                                  {fetchPersonsFeedback.type === 'success' ? 'check_circle' : 'error'}
+                                </span>
+                                {fetchPersonsFeedback.message}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       );
                     })()}
                     <span className="text-[11px] text-gray-400 block">
-                      Dotaz se provádí na všechny zadané URL s výchozími přihlašovacími údaji Windows (NTLM Integrated Authentication).
+                      Dotaz se provádí na všechny zadané URL s výchozími přihlašovacími údaji Windows (NTLM Integrated Authentication). Po zadání nebo změně URL klikněte na <strong>Načíst osoby z plánu</strong> pro aktualizaci nabídky osob níže.
                     </span>
                   </div>
 
@@ -8231,14 +8423,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     const oldVal = newUsers[uIdx];
                                     const selectedId = e.target.value;
                                     newUsers[uIdx] = selectedId;
+                                    const cleanUsers = newUsers.map((u) => String(u || '').trim()).filter(Boolean);
                                     const isCur = String(formData.magicplan?.currentUserColumn || '').trim() === String(oldVal || '').trim();
                                     const updated = {
                                       ...formData,
                                       magicplan: {
                                         ...formData.magicplan,
-                                        userColumns: newUsers,
-                                        userColumn: newUsers[0] || '',
-                                        currentUserColumn: isCur ? selectedId : formData.magicplan?.currentUserColumn,
+                                        userColumns: cleanUsers.length > 0 ? newUsers : [],
+                                        userColumn: cleanUsers[0] || '',
+                                        currentUserColumn: isCur ? (selectedId || undefined) : formData.magicplan?.currentUserColumn,
                                       },
                                     };
                                     setFormData(updated);
@@ -8246,7 +8439,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   }}
                                   className="flex-1 h-[38px] bg-black/30 border border-white/10 rounded-xl px-3.5 text-sm text-white focus:border-cyan-500 outline-none cursor-pointer"
                                 >
-                                  <option value="" disabled className="bg-[#181920] text-gray-400">
+                                  <option value="" className="bg-[#181920] text-gray-400">
                                     -- Vyberte osobu z plánu --
                                   </option>
                                   {!hasCurrentOption && uStr && (
@@ -8314,18 +8507,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   <span>Já</span>
                                 </button>
 
-                                {userList.length > 1 && (
+                                {(userList.length > 1 || Boolean(uStr)) && (
                                   <button
                                     type="button"
                                     onClick={() => {
                                       const deletedVal = String(userList[uIdx] || '').trim();
-                                      const newUsers = userList.filter((_, i) => i !== uIdx);
+                                      const newUsers = userList.length > 1 ? userList.filter((_, i) => i !== uIdx) : [];
+                                      const cleanUsers = newUsers.map((u) => String(u || '').trim()).filter(Boolean);
                                       const updated = {
                                         ...formData,
                                         magicplan: {
                                           ...formData.magicplan,
                                           userColumns: newUsers,
-                                          userColumn: newUsers[0] || '',
+                                          userColumn: cleanUsers[0] || '',
                                           currentUserColumn:
                                             String(formData.magicplan?.currentUserColumn || '').trim() === deletedVal
                                               ? undefined
@@ -12976,6 +13170,305 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 window-modal-overlay">
           <div className="w-[940px] h-[640px] max-w-full max-h-full rounded-[28px] overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
             <InstallerWizard previewMode={true} onClose={() => setShowInstallerPreview(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* MagicGate Deploy API Schema Selector Modal */}
+      {showDeploySchemaModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 window-modal-overlay"
+          onClick={() => setShowDeploySchemaModal(false)}
+        >
+          <div
+            className="w-[820px] max-w-full max-h-[86vh] bg-[#161821] rounded-[24px] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-white/[0.02] flex items-center justify-between gap-4 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 flex items-center justify-center text-amber-400 shrink-0">
+                  <span className="material-symbols-outlined text-xl">checklist</span>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-white truncate">
+                    Schéma informací z MagicGate Deploy API
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    Vyberte informace ze serveru (root objekt) a instance (<code className="text-amber-300 font-mono">instances[]</code>), které se mají zobrazovat na záložce <strong>Informace</strong>.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDeploySchemaModal(false)}
+                className="w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-gray-300 flex items-center justify-center transition cursor-pointer shrink-0"
+                title="Zavřít"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Toolbar: Search + Quick Actions */}
+            <div className="px-6 py-3 bg-black/20 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="relative flex-1 min-w-[220px]">
+                <span className="material-symbols-outlined text-base text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  search
+                </span>
+                <input
+                  type="text"
+                  value={deploySchemaSearch}
+                  onChange={(e) => setDeploySchemaSearch(e.target.value)}
+                  placeholder="Hledat název pole, JSON cestu nebo ukázkovou hodnotu..."
+                  className="h-[34px] w-full bg-white/[0.05] rounded-full pl-9 pr-8 text-xs text-white placeholder-gray-500 outline-none focus:bg-white/[0.08]"
+                />
+                {deploySchemaSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setDeploySchemaSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm">close</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!deploySchemaData) return;
+                    setDeploySchemaSelectedKeys(
+                      deploySchemaData.fields.filter((f) => f.defaultEnabled).map((f) => f.key)
+                    );
+                  }}
+                  className="h-[32px] px-3 bg-white/[0.06] hover:bg-white/[0.1] text-amber-300 rounded-full text-xs font-medium transition cursor-pointer flex items-center gap-1"
+                  title="Zaškrtnout doporučenou výchozí sadu polí"
+                >
+                  <span className="material-symbols-outlined text-sm">restart_alt</span>
+                  <span>Výchozí sada</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!deploySchemaData) return;
+                    setDeploySchemaSelectedKeys(deploySchemaData.fields.map((f) => f.key));
+                  }}
+                  className="h-[32px] px-3 bg-white/[0.06] hover:bg-white/[0.1] text-gray-200 rounded-full text-xs font-medium transition cursor-pointer"
+                >
+                  Vybrat vše
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeploySchemaSelectedKeys([])}
+                  className="h-[32px] px-3 bg-white/[0.06] hover:bg-white/[0.1] text-gray-300 rounded-full text-xs font-medium transition cursor-pointer"
+                >
+                  Zrušit výběr
+                </button>
+                <button
+                  type="button"
+                  disabled={isLoadingDeploySchema}
+                  onClick={() => openDeploySchemaModal(true)}
+                  className="h-[32px] px-3 bg-white/[0.06] hover:bg-white/[0.1] text-gray-200 rounded-full text-xs font-medium transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                  title="Znovu načíst živá data z /api/ui/agents a aktualizovat schéma"
+                >
+                  <span className={`material-symbols-outlined text-sm text-amber-400 ${isLoadingDeploySchema ? 'animate-spin' : ''}`}>
+                    sync
+                  </span>
+                  <span>Obnovit z API</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: Root (Agent) & Instance Fields */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1">
+              {isLoadingDeploySchema ? (
+                <div className="py-16 flex flex-col items-center justify-center gap-3 text-gray-400">
+                  <span className="material-symbols-outlined text-3xl text-amber-400 animate-spin">
+                    progress_activity
+                  </span>
+                  <span className="text-xs">Načítám schéma a ukázková data z Deploy API...</span>
+                </div>
+              ) : !deploySchemaData ? (
+                <div className="py-12 text-center text-xs text-gray-400">
+                  Nepodařilo se načíst schéma API.
+                </div>
+              ) : (
+                <>
+                  {!deploySchemaData.hasSyncedData && (
+                    <div className="p-3.5 rounded-xl bg-amber-500/10 text-amber-200 text-xs flex items-center gap-2.5">
+                      <span className="material-symbols-outlined text-lg text-amber-400 shrink-0">info</span>
+                      <span>
+                        Zatím neproběhla první synchronizace s Deploy serverem (ukázkové hodnoty z vašich instancí a dynamické <code className="font-mono">properties</code> se doplní po prvním přihlášení / synchronizaci). Výběr polí můžete nastavit už nyní.
+                      </span>
+                    </div>
+                  )}
+
+                  {(['agent', 'instance'] as const).map((scope) => {
+                    const q = deploySchemaSearch.trim().toLowerCase();
+                    const scopeFields = deploySchemaData.fields.filter((f) => {
+                      if (f.scope !== scope) return false;
+                      if (!q) return true;
+                      return (
+                        f.label.toLowerCase().includes(q) ||
+                        f.key.toLowerCase().includes(q) ||
+                        f.jsonPath.toLowerCase().includes(q) ||
+                        (f.sampleValue && f.sampleValue.toLowerCase().includes(q))
+                      );
+                    });
+
+                    if (scopeFields.length === 0) return null;
+
+                    const isAgentScope = scope === 'agent';
+                    return (
+                      <div key={scope} className="space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-base text-amber-400">
+                              {isAgentScope ? 'dns' : 'deployed_code'}
+                            </span>
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-200">
+                              {isAgentScope
+                                ? '1. Root data serveru / agenta (nadřazený objekt pro instances[])'
+                                : '2. Data instance (položka v poli instances[])'}
+                            </h4>
+                          </div>
+                          <span className="text-[11px] text-gray-400">
+                            {scopeFields.filter((f) => deploySchemaSelectedKeys.includes(f.key)).length} / {scopeFields.length} vybráno
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {scopeFields.map((field) => {
+                            const isChecked = deploySchemaSelectedKeys.includes(field.key);
+                            return (
+                              <div
+                                key={field.key}
+                                onClick={() => {
+                                  setDeploySchemaSelectedKeys((prev) =>
+                                    prev.includes(field.key)
+                                      ? prev.filter((k) => k !== field.key)
+                                      : [...prev, field.key]
+                                  );
+                                }}
+                                className={`p-3 rounded-xl transition cursor-pointer flex items-start gap-3 select-none ${
+                                  isChecked
+                                    ? 'bg-amber-500/15 hover:bg-amber-500/20'
+                                    : 'bg-white/[0.03] hover:bg-white/[0.06]'
+                                }`}
+                              >
+                                <div
+                                  className={`w-5 h-5 rounded-md flex items-center justify-center mt-0.5 shrink-0 transition ${
+                                    isChecked
+                                      ? 'bg-amber-500 text-black'
+                                      : 'bg-white/10 text-transparent'
+                                  }`}
+                                >
+                                  <span className="material-symbols-outlined text-sm font-bold">
+                                    check
+                                  </span>
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-semibold text-white">
+                                      {field.label}
+                                    </span>
+                                    <code className="px-1.5 py-0.5 rounded bg-black/30 text-[10px] font-mono text-amber-300/90">
+                                      {field.jsonPath}
+                                    </code>
+                                    {field.defaultEnabled && (
+                                      <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-[10px] text-gray-300">
+                                        Výchozí
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="mt-1 text-[11px] text-gray-400 truncate">
+                                    {field.sampleValue ? (
+                                      <>
+                                        <span className="text-gray-500">Ukázka: </span>
+                                        <span className="font-mono text-gray-300">{field.sampleValue}</span>
+                                      </>
+                                    ) : (
+                                      <span className="text-gray-500 italic">
+                                        {deploySchemaData.hasSyncedData
+                                          ? 'V aktuálních datech prázdné / nevyplněno'
+                                          : 'Ukázka dostupná po synchronizaci'}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {deploySchemaData.totalInstances > 0 && typeof field.presentCount === 'number' && (
+                                    <div className="mt-0.5 text-[10px] text-gray-500">
+                                      Vyplněno u {field.presentCount} z {deploySchemaData.totalInstances} instancí
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-white/[0.02] flex items-center justify-between gap-4 shrink-0">
+              <div className="text-xs text-gray-400">
+                Vybráno <strong className="text-amber-300">{deploySchemaSelectedKeys.length}</strong> z{' '}
+                {deploySchemaData?.fields.length ?? 0} dostupných polí
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDeploySchemaModal(false)}
+                  className="h-[36px] px-4 bg-white/[0.06] hover:bg-white/[0.1] text-gray-300 rounded-full text-xs font-semibold transition cursor-pointer"
+                >
+                  Zrušit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!deploySchemaData) {
+                      setShowDeploySchemaModal(false);
+                      return;
+                    }
+                    const defaultKeys = deploySchemaData.fields
+                      .filter((f) => f.defaultEnabled)
+                      .map((f) => f.key);
+                    const isSameAsDefault =
+                      deploySchemaSelectedKeys.length === defaultKeys.length &&
+                      defaultKeys.every((k) => deploySchemaSelectedKeys.includes(k));
+
+                    const updated = {
+                      ...formData,
+                      magicgate: {
+                        ...formData.magicgate,
+                        apiInfoFields: isSameAsDefault ? undefined : deploySchemaSelectedKeys,
+                      },
+                    };
+                    setFormData(updated);
+                    handleSave(updated);
+                    setShowDeploySchemaModal(false);
+                    setDeployStatusMsg({
+                      ok: true,
+                      text: isSameAsDefault
+                        ? 'Zobrazení informací z API nastaveno na výchozí sadu.'
+                        : `Uloženo vlastní schéma informací (${deploySchemaSelectedKeys.length} polí) a aplikováno na instance.`,
+                    });
+                  }}
+                  className="h-[36px] px-5 bg-amber-500 hover:bg-amber-400 text-black rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-base">check</span>
+                  <span>Uložit a aplikovat</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

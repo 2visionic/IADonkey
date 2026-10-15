@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { app, BrowserWindow, session } from 'electron';
-import type { LauncherItem, MagicGateSettings } from '../src/types';
+import type { LauncherItem, MagicGateDeploySchemaField, MagicGateSettings } from '../src/types';
 import { diagnosticsService } from './diagnosticsService';
 
 const USER_DATA_PATH = app?.getPath
@@ -9,6 +9,7 @@ const USER_DATA_PATH = app?.getPath
   : path.join(process.cwd(), '.user_data');
 
 const DEPLOY_CACHE_FILE = path.join(USER_DATA_PATH, 'magicgate_deploy_cache.json');
+const DEPLOY_RAW_AGENTS_CACHE_FILE = path.join(USER_DATA_PATH, 'magicgate_deploy_agents_cache.json');
 
 export const DEFAULT_DEPLOY_BASE_URL = '';
 
@@ -75,12 +76,29 @@ export function normalizeDeployBaseUrl(rawUrl?: string): string {
   return trimmed;
 }
 
-function getHostnameLabel(rawUrl: string): string {
+function getHostnameLabel(rawUrl: string, keepWww: boolean = false): string {
   try {
     const parsed = new URL(rawUrl);
-    return parsed.hostname.replace(/^www\./i, '');
+    return keepWww ? parsed.hostname : parsed.hostname.replace(/^www\./i, '');
   } catch {
-    return rawUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+    const host = rawUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+    return keepWww ? host : host.replace(/^www\./i, '');
+  }
+}
+
+function normalizeUrlIdentity(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl.trim());
+    const host = parsed.hostname.toLowerCase().replace(/^www\./i, '');
+    const pathname = parsed.pathname.replace(/\/+$/, '').toLowerCase();
+    return `${host}${pathname}`;
+  } catch {
+    return rawUrl
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//i, '')
+      .replace(/^www\./i, '')
+      .replace(/\/+$/, '');
   }
 }
 
@@ -98,14 +116,228 @@ function isValidHttpUrl(rawUrl?: string): boolean {
   return /^https?:\/\//i.test(trimmed);
 }
 
-function sortWebUrls(urls: string[]): string[] {
-  return [...urls].sort((a, b) => {
-    const hostA = getHostnameLabel(a).toLowerCase();
-    const hostB = getHostnameLabel(b).toLowerCase();
-    const isContentA = hostA.endsWith('.iscontent.cz') ? 1 : 0;
-    const isContentB = hostB.endsWith('.iscontent.cz') ? 1 : 0;
-    return isContentA - isContentB;
+function extractPreferredKeywords(adminUrls: string[], instanceName: string = ''): string[] {
+  const keywords: string[] = [];
+  const genericLabels = new Set([
+    'www',
+    'admin',
+    'administrace',
+    'bo',
+    'b2b',
+    'sis',
+    'api',
+    'web',
+    'portal',
+    'intranet',
+    'extranet',
+    'iscontent',
+    'istour',
+  ]);
+
+  const addKw = (raw: string) => {
+    const clean = raw.trim().toLowerCase();
+    if (!clean || clean.length < 2 || genericLabels.has(clean)) return;
+    if (!keywords.includes(clean)) keywords.push(clean);
+    const stripped = clean.replace(/^(?:test|dev|stage)[-_]?/i, '').replace(/[-_]?test$/i, '');
+    if (stripped && stripped.length >= 2 && !genericLabels.has(stripped) && !keywords.includes(stripped)) {
+      keywords.push(stripped);
+    }
+  };
+
+  for (const au of adminUrls) {
+    const host = getHostnameLabel(au).toLowerCase();
+    const parts = host.split('.').filter(Boolean);
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!genericLabels.has(parts[i])) {
+        addKw(parts[i]);
+        break;
+      }
+    }
+  }
+  if (instanceName) {
+    addKw(instanceName);
+  }
+  return keywords;
+}
+
+/**
+ * Sorts MagicGate API web URLs so that:
+ * 1) Domain families matching the adminUrl / instance keyword (e.g. "atis" from atis.istour.cz) are prioritized first.
+ * 2) 2nd-level domains (e.g. atis.cz, firotour.cz) are placed at the top of their family,
+ *    immediately followed by their paired 3rd+ level domains (e.g. atis.neco.cz, prodej.atis.cz, firotour.neco.cz).
+ */
+export function sortMagicGateWebUrls(
+  urls: string[],
+  adminUrls: string[] = [],
+  instanceName: string = ''
+): string[] {
+  const preferredKeywords = extractPreferredKeywords(adminUrls, instanceName);
+
+  interface ParsedDomainEntry {
+    url: string;
+    rawHost: string;
+    cleanHost: string;
+    rawParts: string[];
+    cleanParts: string[];
+    isWww: boolean;
+    isContent: boolean;
+    tld: string;
+    familyKey: string;
+    subRank: number;
+  }
+
+  const secondLevelBases = new Set<string>();
+
+  const initial = urls.map((url) => {
+    let rawHost = '';
+    try {
+      rawHost = new URL(url.trim()).hostname.toLowerCase();
+    } catch {
+      rawHost = getHostnameLabel(url, true).toLowerCase();
+    }
+    const rawParts = rawHost.split('.').filter(Boolean);
+    const isWww = rawParts[0] === 'www';
+    const cleanParts = isWww ? rawParts.slice(1) : rawParts;
+    const cleanHost = cleanParts.join('.');
+    const isContent = cleanHost.endsWith('.iscontent.cz');
+    const tld = cleanParts[cleanParts.length - 1] || '';
+
+    if (cleanParts.length === 2 && !isContent) {
+      secondLevelBases.add(cleanParts[0]);
+    }
+
+    return {
+      url,
+      rawHost,
+      cleanHost,
+      rawParts,
+      cleanParts,
+      isWww,
+      isContent,
+      tld,
+    };
   });
+
+  const sortedBasesByLen = Array.from(secondLevelBases).sort((a, b) => b.length - a.length);
+
+  const resolveFamilyForThirdLevel = (cleanParts: string[], isContent: boolean): string => {
+    const first = cleanParts[0] || '';
+    const sld = cleanParts[cleanParts.length - 2] || '';
+    const innerLabels = cleanParts.slice(0, -1);
+
+    // 1. Exact first label match (e.g. atis.2dovolena.cz -> atis)
+    if (secondLevelBases.has(first)) return first;
+
+    // 2. Exact SLD match (e.g. prodej.atis.cz -> atis)
+    if (secondLevelBases.has(sld)) return sld;
+
+    // 3. Any inner label exact match (e.g. dashboard.atis.istour.cz -> atis)
+    for (const lbl of innerLabels) {
+      if (secondLevelBases.has(lbl)) return lbl;
+    }
+
+    // 4. Prefix match against known 2nd-level bases (e.g. atis23.iscontent.cz -> atis, firo.iscontent.cz -> firotour)
+    for (const base of sortedBasesByLen) {
+      if (base.length >= 3 && first.startsWith(base)) {
+        return base;
+      }
+    }
+    if (first.length >= 4) {
+      for (const base of sortedBasesByLen) {
+        if (base.startsWith(first)) {
+          return base;
+        }
+      }
+    }
+
+    // 5. Match against preferred admin keyword
+    for (const kw of preferredKeywords) {
+      if (first === kw || sld === kw || first.startsWith(kw)) {
+        return kw;
+      }
+    }
+
+    return isContent ? first : (sld || first);
+  };
+
+  const entries: ParsedDomainEntry[] = initial.map((item) => {
+    let familyKey = '';
+    let subRank = 2;
+
+    if (item.cleanParts.length === 2 && !item.isContent) {
+      familyKey = item.cleanParts[0];
+      subRank = 0; // Both www.atis.cz and atis.cz are top-level family domains
+    } else {
+      familyKey = resolveFamilyForThirdLevel(item.cleanParts, item.isContent);
+      if (item.isContent) {
+        subRank = 3;
+      } else if (item.cleanParts[0] === familyKey) {
+        subRank = 1; // e.g. atis.neco.cz right under www.atis.cz / atis.cz
+      } else {
+        subRank = 2; // e.g. prodej.atis.cz, dashboard.atis.istour.cz
+      }
+    }
+
+    return {
+      ...item,
+      familyKey,
+      subRank,
+    };
+  });
+
+  const getFamilyAdminRank = (familyKey: string): number => {
+    for (let i = 0; i < preferredKeywords.length; i++) {
+      const kw = preferredKeywords[i];
+      if (familyKey === kw) return i * 3;
+      if (familyKey.startsWith(kw)) return i * 3 + 1;
+      if (familyKey.includes(kw)) return i * 3 + 2;
+    }
+    return 100;
+  };
+
+  entries.sort((a, b) => {
+    if (a.familyKey !== b.familyKey) {
+      const adminRankA = getFamilyAdminRank(a.familyKey);
+      const adminRankB = getFamilyAdminRank(b.familyKey);
+      if (adminRankA !== adminRankB) return adminRankA - adminRankB;
+
+      const has2ndA = secondLevelBases.has(a.familyKey) ? 0 : 1;
+      const has2ndB = secondLevelBases.has(b.familyKey) ? 0 : 1;
+      if (has2ndA !== has2ndB) return has2ndA - has2ndB;
+
+      const famCmp = a.familyKey.localeCompare(b.familyKey, 'cs');
+      if (famCmp !== 0) return famCmp;
+    }
+
+    if (a.subRank !== b.subRank) {
+      return a.subRank - b.subRank;
+    }
+
+    // For 2nd-level domains of the same family (e.g. firotour.cz vs firotour.eu), prefer .cz first
+    if (a.subRank === 0) {
+      const isCzA = a.tld === 'cz' ? 0 : 1;
+      const isCzB = b.tld === 'cz' ? 0 : 1;
+      if (isCzA !== isCzB) return isCzA - isCzB;
+    }
+
+    if (a.cleanParts.length !== b.cleanParts.length) {
+      return a.cleanParts.length - b.cleanParts.length;
+    }
+
+    // Pair www.<domain> and <domain> together, always prioritizing www.<domain> first
+    if (a.cleanHost !== b.cleanHost) {
+      const cleanCmp = a.cleanHost.localeCompare(b.cleanHost, 'cs');
+      if (cleanCmp !== 0) return cleanCmp;
+    }
+
+    if (a.isWww !== b.isWww) {
+      return a.isWww ? -1 : 1;
+    }
+
+    return a.rawHost.localeCompare(b.rawHost, 'cs');
+  });
+
+  return entries.map((e) => e.url);
 }
 
 function extractDbServerFromResourceKeys(resourceKeys?: string[]): string {
@@ -118,12 +350,414 @@ function extractDbServerFromResourceKeys(resourceKeys?: string[]): string {
   return '';
 }
 
+export interface DeployFieldCandidate {
+  key: string;
+  label: string;
+  scope: 'agent' | 'instance';
+  jsonPath: string;
+  defaultEnabled: boolean;
+  value: string;
+}
+
+const BASE_DEPLOY_SCHEMA_FIELDS: Omit<MagicGateDeploySchemaField, 'sampleValue' | 'presentCount'>[] = [
+  // Root data (DeployAgent)
+  { key: 'agent.name', label: 'Server', scope: 'agent', jsonPath: 'name', defaultEnabled: true },
+  { key: 'agent.machineName', label: 'Stroj', scope: 'agent', jsonPath: 'machineName', defaultEnabled: true },
+  { key: 'agent.properties.location', label: 'Umístění serveru', scope: 'agent', jsonPath: 'properties.location', defaultEnabled: true },
+  { key: 'agent.id', label: 'ID serveru (Agent ID)', scope: 'agent', jsonPath: 'id', defaultEnabled: false },
+  { key: 'agent.agentVersion', label: 'Verze agenta', scope: 'agent', jsonPath: 'agentVersion', defaultEnabled: false },
+  { key: 'agent.pwshVersion', label: 'Verze PowerShellu', scope: 'agent', jsonPath: 'pwshVersion', defaultEnabled: false },
+  { key: 'agent.ring', label: 'Ring (prstenec)', scope: 'agent', jsonPath: 'ring', defaultEnabled: false },
+  { key: 'agent.lastSeenAt', label: 'Agent naposledy online', scope: 'agent', jsonPath: 'lastSeenAt', defaultEnabled: false },
+  { key: 'agent.identityNote', label: 'Poznámka serveru', scope: 'agent', jsonPath: 'identityNote', defaultEnabled: false },
+  { key: 'agent.discoveryError', label: 'Chyba detekce serveru', scope: 'agent', jsonPath: 'discoveryError', defaultEnabled: false },
+
+  // Instance data (DeployInstance in instances[])
+  { key: 'instance.name', label: 'Instance', scope: 'instance', jsonPath: 'instances[].name', defaultEnabled: true },
+  { key: 'instance.currentVersion', label: 'Verze', scope: 'instance', jsonPath: 'instances[].currentVersion', defaultEnabled: true },
+  { key: 'instance.adminUrls', label: 'Admin URL', scope: 'instance', jsonPath: 'instances[].adminUrls', defaultEnabled: true },
+  { key: 'instance.webUrls', label: 'Web URL', scope: 'instance', jsonPath: 'instances[].webUrls', defaultEnabled: true },
+  { key: 'instance.dbServerName', label: 'DB Server', scope: 'instance', jsonPath: 'instances[].dbServerName', defaultEnabled: true },
+  { key: 'instance.database', label: 'Databáze', scope: 'instance', jsonPath: 'instances[].database', defaultEnabled: true },
+  { key: 'instance.instanceRoot', label: 'Cesta na serveru', scope: 'instance', jsonPath: 'instances[].instanceRoot', defaultEnabled: true },
+  { key: 'instance.deployWindow', label: 'Nasazovací okno', scope: 'instance', jsonPath: 'instances[].deployWindow', defaultEnabled: true },
+  { key: 'instance.id', label: 'ID instance', scope: 'instance', jsonPath: 'instances[].id', defaultEnabled: false },
+  { key: 'instance.productId', label: 'Produkt', scope: 'instance', jsonPath: 'instances[].productId', defaultEnabled: false },
+  { key: 'instance.currentVersionBuiltAt', label: 'Sestaveno dne', scope: 'instance', jsonPath: 'instances[].currentVersionBuiltAt', defaultEnabled: false },
+  { key: 'instance.converted', label: 'Zkonvertováno (Converted)', scope: 'instance', jsonPath: 'instances[].converted', defaultEnabled: false },
+  { key: 'instance.resourceKeys', label: 'Klíče zdrojů (resourceKeys)', scope: 'instance', jsonPath: 'instances[].resourceKeys', defaultEnabled: false },
+  { key: 'instance.meta.iis', label: 'IIS Site', scope: 'instance', jsonPath: 'instances[].meta.iis', defaultEnabled: false },
+  { key: 'instance.meta.dialect', label: 'SQL Dialekt', scope: 'instance', jsonPath: 'instances[].meta.dialect', defaultEnabled: false },
+];
+
+const KNOWN_AGENT_ROOT_KEYS = new Set([
+  'id',
+  'name',
+  'machineName',
+  'agentVersion',
+  'pwshVersion',
+  'ring',
+  'lastSeenAt',
+  'revoked',
+  'identityNote',
+  'discoveryError',
+  'properties',
+  'instances',
+]);
+
+const KNOWN_INSTANCE_KEYS = new Set([
+  'id',
+  'name',
+  'instanceRoot',
+  'path',
+  'agentId',
+  'productId',
+  'currentVersion',
+  'currentVersionBuiltAt',
+  'version',
+  'missingSince',
+  'archivedAt',
+  'archivedBy',
+  'adminUrls',
+  'webUrls',
+  'dbServerName',
+  'database',
+  'meta',
+  'resourceKeys',
+  'deployWindow',
+  'converted',
+  'properties',
+]);
+
+function extractDeployInstanceFieldCandidates(
+  agent: DeployAgent,
+  inst: DeployInstance,
+  ctx: {
+    serverName: string;
+    machineName: string;
+    instanceName: string;
+    adminUrl: string;
+    webUrls: string[];
+  }
+): DeployFieldCandidate[] {
+  const candidates: DeployFieldCandidate[] = [];
+
+  // 1. Root agent fields
+  candidates.push({
+    key: 'agent.name',
+    label: 'Server',
+    scope: 'agent',
+    jsonPath: 'name',
+    defaultEnabled: true,
+    value: ctx.serverName,
+  });
+
+  candidates.push({
+    key: 'agent.machineName',
+    label: 'Stroj',
+    scope: 'agent',
+    jsonPath: 'machineName',
+    defaultEnabled: true,
+    value: ctx.machineName,
+  });
+
+  candidates.push({
+    key: 'agent.properties.location',
+    label: 'Umístění serveru',
+    scope: 'agent',
+    jsonPath: 'properties.location',
+    defaultEnabled: true,
+    value: agent.properties?.location ? String(agent.properties.location).trim() : '',
+  });
+
+  candidates.push({
+    key: 'agent.id',
+    label: 'ID serveru (Agent ID)',
+    scope: 'agent',
+    jsonPath: 'id',
+    defaultEnabled: false,
+    value: agent.id != null ? String(agent.id) : '',
+  });
+
+  candidates.push({
+    key: 'agent.agentVersion',
+    label: 'Verze agenta',
+    scope: 'agent',
+    jsonPath: 'agentVersion',
+    defaultEnabled: false,
+    value: agent.agentVersion ? String(agent.agentVersion).trim() : '',
+  });
+
+  candidates.push({
+    key: 'agent.pwshVersion',
+    label: 'Verze PowerShellu',
+    scope: 'agent',
+    jsonPath: 'pwshVersion',
+    defaultEnabled: false,
+    value: agent.pwshVersion ? String(agent.pwshVersion).trim() : '',
+  });
+
+  candidates.push({
+    key: 'agent.ring',
+    label: 'Ring (prstenec)',
+    scope: 'agent',
+    jsonPath: 'ring',
+    defaultEnabled: false,
+    value: agent.ring ? String(agent.ring).trim() : '',
+  });
+
+  candidates.push({
+    key: 'agent.lastSeenAt',
+    label: 'Agent naposledy online',
+    scope: 'agent',
+    jsonPath: 'lastSeenAt',
+    defaultEnabled: false,
+    value: agent.lastSeenAt ? String(agent.lastSeenAt).trim() : '',
+  });
+
+  candidates.push({
+    key: 'agent.identityNote',
+    label: 'Poznámka serveru',
+    scope: 'agent',
+    jsonPath: 'identityNote',
+    defaultEnabled: false,
+    value: agent.identityNote ? String(agent.identityNote).trim() : '',
+  });
+
+  candidates.push({
+    key: 'agent.discoveryError',
+    label: 'Chyba detekce serveru',
+    scope: 'agent',
+    jsonPath: 'discoveryError',
+    defaultEnabled: false,
+    value: agent.discoveryError ? String(agent.discoveryError).trim() : '',
+  });
+
+  // Dynamic agent.properties.*
+  if (agent.properties && typeof agent.properties === 'object') {
+    for (const [k, v] of Object.entries(agent.properties)) {
+      if (!k || k.toLowerCase() === 'location') continue;
+      candidates.push({
+        key: `agent.properties.${k}`,
+        label: k,
+        scope: 'agent',
+        jsonPath: `properties.${k}`,
+        defaultEnabled: true,
+        value: v != null ? String(v).trim() : '',
+      });
+    }
+  }
+
+  // Any extra top-level primitive fields on agent
+  for (const [k, v] of Object.entries(agent as Record<string, any>)) {
+    if (KNOWN_AGENT_ROOT_KEYS.has(k) || v == null || typeof v === 'object') continue;
+    candidates.push({
+      key: `agent.${k}`,
+      label: `Server: ${k}`,
+      scope: 'agent',
+      jsonPath: k,
+      defaultEnabled: false,
+      value: String(v).trim(),
+    });
+  }
+
+  // 2. Instance fields (instances[])
+  candidates.push({
+    key: 'instance.name',
+    label: 'Instance',
+    scope: 'instance',
+    jsonPath: 'instances[].name',
+    defaultEnabled: true,
+    value: ctx.instanceName,
+  });
+
+  candidates.push({
+    key: 'instance.currentVersion',
+    label: 'Verze',
+    scope: 'instance',
+    jsonPath: 'instances[].currentVersion',
+    defaultEnabled: true,
+    value: String(inst.currentVersion || inst.version || '').trim(),
+  });
+
+  candidates.push({
+    key: 'instance.adminUrls',
+    label: 'Admin URL',
+    scope: 'instance',
+    jsonPath: 'instances[].adminUrls',
+    defaultEnabled: true,
+    value: ctx.adminUrl,
+  });
+
+  candidates.push({
+    key: 'instance.webUrls',
+    label: 'Web URL',
+    scope: 'instance',
+    jsonPath: 'instances[].webUrls',
+    defaultEnabled: true,
+    value: ctx.webUrls.join(', '),
+  });
+
+  const dbServer = inst.dbServerName || extractDbServerFromResourceKeys(inst.resourceKeys);
+  candidates.push({
+    key: 'instance.dbServerName',
+    label: 'DB Server',
+    scope: 'instance',
+    jsonPath: 'instances[].dbServerName',
+    defaultEnabled: true,
+    value: dbServer ? String(dbServer).trim() : '',
+  });
+
+  const dbName = inst.database || inst.meta?.database;
+  candidates.push({
+    key: 'instance.database',
+    label: 'Databáze',
+    scope: 'instance',
+    jsonPath: 'instances[].database',
+    defaultEnabled: true,
+    value: dbName ? String(dbName).trim() : '',
+  });
+
+  const rootPath = inst.instanceRoot || inst.path;
+  candidates.push({
+    key: 'instance.instanceRoot',
+    label: 'Cesta na serveru',
+    scope: 'instance',
+    jsonPath: 'instances[].instanceRoot',
+    defaultEnabled: true,
+    value: rootPath ? String(rootPath).trim() : '',
+  });
+
+  candidates.push({
+    key: 'instance.deployWindow',
+    label: 'Nasazovací okno',
+    scope: 'instance',
+    jsonPath: 'instances[].deployWindow',
+    defaultEnabled: true,
+    value: inst.deployWindow ? String(inst.deployWindow).trim() : '',
+  });
+
+  candidates.push({
+    key: 'instance.id',
+    label: 'ID instance',
+    scope: 'instance',
+    jsonPath: 'instances[].id',
+    defaultEnabled: false,
+    value: inst.id != null ? String(inst.id) : '',
+  });
+
+  candidates.push({
+    key: 'instance.productId',
+    label: 'Produkt',
+    scope: 'instance',
+    jsonPath: 'instances[].productId',
+    defaultEnabled: false,
+    value: inst.productId ? String(inst.productId).trim() : '',
+  });
+
+  candidates.push({
+    key: 'instance.currentVersionBuiltAt',
+    label: 'Sestaveno dne',
+    scope: 'instance',
+    jsonPath: 'instances[].currentVersionBuiltAt',
+    defaultEnabled: false,
+    value: inst.currentVersionBuiltAt ? String(inst.currentVersionBuiltAt).trim() : '',
+  });
+
+  candidates.push({
+    key: 'instance.converted',
+    label: 'Zkonvertováno (Converted)',
+    scope: 'instance',
+    jsonPath: 'instances[].converted',
+    defaultEnabled: false,
+    value: typeof inst.converted === 'boolean' ? (inst.converted ? 'Ano' : 'Ne') : '',
+  });
+
+  candidates.push({
+    key: 'instance.resourceKeys',
+    label: 'Klíče zdrojů (resourceKeys)',
+    scope: 'instance',
+    jsonPath: 'instances[].resourceKeys',
+    defaultEnabled: false,
+    value: Array.isArray(inst.resourceKeys) ? inst.resourceKeys.join(', ') : '',
+  });
+
+  candidates.push({
+    key: 'instance.meta.iis',
+    label: 'IIS Site',
+    scope: 'instance',
+    jsonPath: 'instances[].meta.iis',
+    defaultEnabled: false,
+    value: inst.meta?.iis ? String(inst.meta.iis).trim() : '',
+  });
+
+  candidates.push({
+    key: 'instance.meta.dialect',
+    label: 'SQL Dialekt',
+    scope: 'instance',
+    jsonPath: 'instances[].meta.dialect',
+    defaultEnabled: false,
+    value: inst.meta?.dialect ? String(inst.meta.dialect).trim() : '',
+  });
+
+  // Dynamic instance.meta.*
+  if (inst.meta && typeof inst.meta === 'object') {
+    for (const [k, v] of Object.entries(inst.meta)) {
+      if (!k || k === 'database' || k === 'iis' || k === 'dialect') continue;
+      candidates.push({
+        key: `instance.meta.${k}`,
+        label: `Meta: ${k}`,
+        scope: 'instance',
+        jsonPath: `instances[].meta.${k}`,
+        defaultEnabled: false,
+        value: v != null ? String(v).trim() : '',
+      });
+    }
+  }
+
+  // Dynamic instance.properties.*
+  if (inst.properties && typeof inst.properties === 'object') {
+    for (const [k, v] of Object.entries(inst.properties)) {
+      if (!k) continue;
+      candidates.push({
+        key: `instance.properties.${k}`,
+        label: k,
+        scope: 'instance',
+        jsonPath: `instances[].properties.${k}`,
+        defaultEnabled: true,
+        value: v != null ? String(v).trim() : '',
+      });
+    }
+  }
+
+  // Any extra top-level primitive fields on instance
+  for (const [k, v] of Object.entries(inst as Record<string, any>)) {
+    if (KNOWN_INSTANCE_KEYS.has(k) || v == null || typeof v === 'object') continue;
+    candidates.push({
+      key: `instance.${k}`,
+      label: k,
+      scope: 'instance',
+      jsonPath: `instances[].${k}`,
+      defaultEnabled: false,
+      value: String(v).trim(),
+    });
+  }
+
+  return candidates;
+}
+
 /**
  * Converts DeployAgent[] from /api/ui/agents into IADonkey LauncherItem[]
  * matching the structure and capabilities of parseMagicGateXml().
  */
-export function parseMagicGateDeployAgents(agents: DeployAgent[]): LauncherItem[] {
+export function parseMagicGateDeployAgents(
+  agents: DeployAgent[],
+  selectedInfoFields?: string[]
+): LauncherItem[] {
   if (!Array.isArray(agents)) return [];
+
+  const hasCustomSchema = Array.isArray(selectedInfoFields);
+  const selectedSet = hasCustomSchema ? new Set(selectedInfoFields) : null;
 
   const items: LauncherItem[] = [];
 
@@ -156,22 +790,29 @@ export function parseMagicGateDeployAgents(agents: DeployAgent[]): LauncherItem[
         .map((u) => (u || '').trim())
         .filter(isValidHttpUrl);
 
-      const webUrls = sortWebUrls(
-        (Array.isArray(inst.webUrls) ? inst.webUrls : [])
-          .map((u) => (u || '').trim())
-          .filter(isValidHttpUrl)
+      const adminIdentities = new Set(adminUrls.map(normalizeUrlIdentity));
+
+      // Filter out any webUrl that duplicates an adminUrl (even if http vs https or www vs non-www)
+      const filteredRawWebUrls = (Array.isArray(inst.webUrls) ? inst.webUrls : [])
+        .map((u) => (u || '').trim())
+        .filter(isValidHttpUrl)
+        .filter((u) => !adminIdentities.has(normalizeUrlIdentity(u)));
+
+      const webUrls = sortMagicGateWebUrls(filteredRawWebUrls, adminUrls, instanceName);
+
+      // Track non-www hostnames so if both atis.cz and www.atis.cz exist, www.atis.cz keeps "www." in its label
+      const nonWwwHosts = new Set(
+        webUrls
+          .map((u) => getHostnameLabel(u, true).toLowerCase())
+          .filter((h) => !h.startsWith('www.'))
       );
 
       const validApps: { name: string; url: string }[] = [];
 
-      // 1. Administration URLs
-      adminUrls.forEach((url, idx) => {
-        if (idx === 0) {
-          validApps.push({ name: 'Administrace', url });
-        } else {
-          validApps.push({ name: `Administrace (${getHostnameLabel(url)})`, url });
-        }
-      });
+      // 1. Primary Administration URL (becomes mainApp on the parent item; not duplicated in subitems)
+      if (adminUrls.length > 0) {
+        validApps.push({ name: 'Administrace', url: adminUrls[0] });
+      }
 
       // 2. Web / API / BO URLs
       const nonContentWebUrls = webUrls.filter(
@@ -179,12 +820,11 @@ export function parseMagicGateDeployAgents(agents: DeployAgent[]): LauncherItem[
       );
 
       webUrls.forEach((url) => {
-        // Avoid duplicate URL if identical to an adminUrl
-        if (adminUrls.some((au) => au.toLowerCase() === url.toLowerCase())) {
-          return;
-        }
-        const host = getHostnameLabel(url);
-        const hostLower = host.toLowerCase();
+        const rawHost = getHostnameLabel(url, true);
+        const strippedHost = getHostnameLabel(url, false);
+        const keepWwwInLabel = rawHost.toLowerCase().startsWith('www.') && nonWwwHosts.has(strippedHost.toLowerCase());
+        const host = keepWwwInLabel ? rawHost : strippedHost;
+        const hostLower = strippedHost.toLowerCase();
 
         let label = 'Web';
         if (hostLower.startsWith('api.') || url.toLowerCase().includes('/api')) {
@@ -209,7 +849,8 @@ export function parseMagicGateDeployAgents(agents: DeployAgent[]): LauncherItem[
       }
 
       const mainApp = validApps[0];
-      const otherApps = validApps.slice(1);
+      const mainIdentity = normalizeUrlIdentity(mainApp.url);
+      const otherApps = validApps.slice(1).filter((appItem) => normalizeUrlIdentity(appItem.url) !== mainIdentity);
 
       const options: LauncherItem[] = otherApps.map((appItem, idx) => {
         const safeKey = (appItem.name || `sub-${idx}`)
@@ -239,47 +880,52 @@ export function parseMagicGateDeployAgents(agents: DeployAgent[]): LauncherItem[
           ]
         : undefined;
 
+      const candidates = extractDeployInstanceFieldCandidates(agent, inst, {
+        serverName,
+        machineName,
+        instanceName,
+        adminUrl,
+        webUrls,
+      });
+
+      // Default display order matches previous behavior when custom schema is not set
+      const defaultOrderPriority: Record<string, number> = {
+        'agent.name': 1,
+        'agent.machineName': 2,
+        'instance.name': 3,
+        'instance.currentVersion': 4,
+        'instance.adminUrls': 5,
+        'instance.webUrls': 6,
+        'instance.dbServerName': 7,
+        'instance.database': 8,
+        'instance.instanceRoot': 9,
+        'agent.properties.location': 10,
+        'instance.deployWindow': 11,
+      };
+
+      const orderedCandidates = [...candidates].sort((a, b) => {
+        const pA = defaultOrderPriority[a.key] ?? 100;
+        const pB = defaultOrderPriority[b.key] ?? 100;
+        return pA - pB;
+      });
+
       const info: Record<string, any> = {};
-      if (serverName) info['Server'] = serverName;
-      if (machineName && machineName.toLowerCase() !== serverName.toLowerCase()) {
-        info['Stroj'] = machineName;
-      }
-      info['Instance'] = instanceName;
+      for (const field of orderedCandidates) {
+        if (!field.value) continue;
+        const shouldInclude = selectedSet ? selectedSet.has(field.key) : field.defaultEnabled;
+        if (!shouldInclude) continue;
 
-      const currentVer = inst.currentVersion || inst.version;
-      if (currentVer) info['Verze'] = currentVer;
-      if (adminUrl) info['Admin URL'] = adminUrl;
-      if (webUrls.length > 0) info['Web URL'] = webUrls.join(', ');
-
-      const dbServer = inst.dbServerName || extractDbServerFromResourceKeys(inst.resourceKeys);
-      if (dbServer) info['DB Server'] = dbServer;
-
-      const dbName = inst.database || inst.meta?.database;
-      if (dbName) info['Databáze'] = dbName;
-
-      const rootPath = inst.instanceRoot || inst.path;
-      if (rootPath) info['Cesta na serveru'] = rootPath;
-
-      const serverLocation = agent.properties?.location;
-      if (serverLocation) info['Umístění serveru'] = serverLocation;
-
-      if (inst.deployWindow) info['Nasazovací okno'] = inst.deployWindow;
-
-      // Include any additional agent properties
-      if (agent.properties && typeof agent.properties === 'object') {
-        for (const [k, v] of Object.entries(agent.properties)) {
-          if (v && k.toLowerCase() !== 'location' && info[k] === undefined) {
-            info[k] = v;
-          }
+        // In default mode, skip 'Stroj' if it's identical to 'Server'
+        if (
+          !hasCustomSchema &&
+          field.key === 'agent.machineName' &&
+          machineName.toLowerCase() === serverName.toLowerCase()
+        ) {
+          continue;
         }
-      }
 
-      // Include any additional instance properties
-      if (inst.properties && typeof inst.properties === 'object') {
-        for (const [k, v] of Object.entries(inst.properties)) {
-          if (v && info[k] === undefined) {
-            info[k] = v;
-          }
+        if (info[field.label] === undefined) {
+          info[field.label] = field.value;
         }
       }
 
@@ -681,7 +1327,8 @@ export async function fetchMagicGateDeployItems(
     }
 
     const agents = (await res.json()) as DeployAgent[];
-    const items = parseMagicGateDeployAgents(agents);
+    saveMagicGateDeployRawAgentsCache(agents);
+    const items = parseMagicGateDeployAgents(agents, settings?.apiInfoFields);
 
     // Save to local cache for offline resilience
     saveMagicGateDeployCache(items);
@@ -730,6 +1377,173 @@ export async function fetchMagicGateDeployItems(
 }
 
 /**
+ * Saves raw DeployAgent[] response to disk so schema discovery and instant field toggling work offline
+ */
+export function saveMagicGateDeployRawAgentsCache(agents: DeployAgent[]): void {
+  try {
+    if (!Array.isArray(agents)) return;
+    const tmpFile = `${DEPLOY_RAW_AGENTS_CACHE_FILE}.${process.pid}.tmp`;
+    fs.writeFileSync(tmpFile, JSON.stringify(agents, null, 2), 'utf-8');
+    fs.renameSync(tmpFile, DEPLOY_RAW_AGENTS_CACHE_FILE);
+  } catch (err) {
+    console.error('[MagicGateDeployApi] Failed to save raw agents cache:', err);
+  }
+}
+
+/**
+ * Loads raw DeployAgent[] response from disk cache
+ */
+export function loadMagicGateDeployRawAgentsCache(): DeployAgent[] {
+  try {
+    if (fs.existsSync(DEPLOY_RAW_AGENTS_CACHE_FILE)) {
+      const raw = fs.readFileSync(DEPLOY_RAW_AGENTS_CACHE_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed as DeployAgent[];
+      }
+    }
+  } catch (err) {
+    console.error('[MagicGateDeployApi] Failed to load raw agents cache:', err);
+  }
+  return [];
+}
+
+/**
+ * Builds the interactive schema of available Root (DeployAgent) and Instance (DeployInstance) fields
+ * with sample values discovered from the synced /api/ui/agents response (or fallback item cache).
+ */
+export function getMagicGateDeploySchema(): {
+  ok: boolean;
+  hasSyncedData: boolean;
+  hasRawCache: boolean;
+  totalInstances: number;
+  fields: MagicGateDeploySchemaField[];
+} {
+  const fieldMap = new Map<string, MagicGateDeploySchemaField>();
+
+  for (const baseField of BASE_DEPLOY_SCHEMA_FIELDS) {
+    fieldMap.set(baseField.key, {
+      ...baseField,
+      sampleValue: undefined,
+      presentCount: 0,
+    });
+  }
+
+  const rawAgents = loadMagicGateDeployRawAgentsCache();
+  let totalInstances = 0;
+
+  if (rawAgents.length > 0) {
+    for (const agent of rawAgents) {
+      if (!agent || agent.revoked) continue;
+      const serverName = (agent.name || agent.machineName || '').trim();
+      const machineName = (agent.machineName || '').trim();
+      if (
+        serverName.toLowerCase().includes('bench') ||
+        machineName.toLowerCase().includes('bench')
+      ) {
+        continue;
+      }
+
+      const instances = Array.isArray(agent.instances) ? agent.instances : [];
+      for (const inst of instances) {
+        if (!inst || !inst.name) continue;
+        const instanceName = inst.name.trim();
+        if (!instanceName || instanceName.toLowerCase().includes('bench')) continue;
+        if (inst.missingSince || inst.archivedAt) continue;
+
+        totalInstances++;
+
+        const adminUrls = (Array.isArray(inst.adminUrls) ? inst.adminUrls : [])
+          .map((u) => (u || '').trim())
+          .filter(isValidHttpUrl);
+        const adminIdentities = new Set(adminUrls.map(normalizeUrlIdentity));
+        const filteredRawWebUrls = (Array.isArray(inst.webUrls) ? inst.webUrls : [])
+          .map((u) => (u || '').trim())
+          .filter(isValidHttpUrl)
+          .filter((u) => !adminIdentities.has(normalizeUrlIdentity(u)));
+        const webUrls = sortMagicGateWebUrls(filteredRawWebUrls, adminUrls, instanceName);
+        const adminUrl = adminUrls[0] || webUrls[0] || '';
+
+        const candidates = extractDeployInstanceFieldCandidates(agent, inst, {
+          serverName,
+          machineName,
+          instanceName,
+          adminUrl,
+          webUrls,
+        });
+
+        for (const cand of candidates) {
+          let existing = fieldMap.get(cand.key);
+          if (!existing) {
+            existing = {
+              key: cand.key,
+              label: cand.label,
+              scope: cand.scope,
+              jsonPath: cand.jsonPath,
+              defaultEnabled: cand.defaultEnabled,
+              sampleValue: undefined,
+              presentCount: 0,
+            };
+            fieldMap.set(cand.key, existing);
+          }
+          if (cand.value) {
+            existing.presentCount = (existing.presentCount || 0) + 1;
+            if (!existing.sampleValue) {
+              existing.sampleValue = cand.value.length > 90 ? `${cand.value.slice(0, 87)}...` : cand.value;
+            }
+          }
+        }
+      }
+    }
+  } else {
+    // Fallback: if user synced before raw cache existed, populate samples from existing item cache
+    const cachedItems = loadMagicGateDeployCache();
+    totalInstances = cachedItems.length;
+    const labelToKey = new Map<string, string>();
+    for (const f of fieldMap.values()) {
+      labelToKey.set(f.label, f.key);
+    }
+    for (const item of cachedItems) {
+      if (!item.info || typeof item.info !== 'object') continue;
+      for (const [label, val] of Object.entries(item.info)) {
+        const strVal = val != null ? String(val).trim() : '';
+        if (!strVal) continue;
+        const knownKey = labelToKey.get(label);
+        if (knownKey) {
+          const entry = fieldMap.get(knownKey)!;
+          entry.presentCount = (entry.presentCount || 0) + 1;
+          if (!entry.sampleValue) {
+            entry.sampleValue = strVal.length > 90 ? `${strVal.slice(0, 87)}...` : strVal;
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    hasSyncedData: totalInstances > 0,
+    hasRawCache: rawAgents.length > 0,
+    totalInstances,
+    fields: Array.from(fieldMap.values()),
+  };
+}
+
+/**
+ * Re-applies the user's selected info schema onto the cached raw DeployAgent[] data
+ * and updates the persisted LauncherItem[] cache immediately without requiring a network roundtrip.
+ */
+export function reapplyMagicGateDeployInfoSchema(selectedInfoFields?: string[]): LauncherItem[] | null {
+  const rawAgents = loadMagicGateDeployRawAgentsCache();
+  if (rawAgents.length === 0) {
+    return null;
+  }
+  const items = parseMagicGateDeployAgents(rawAgents, selectedInfoFields);
+  saveMagicGateDeployCache(items);
+  return items;
+}
+
+/**
  * Saves fetched Deploy API items to disk cache
  */
 export function saveMagicGateDeployCache(items: LauncherItem[]): void {
@@ -745,13 +1559,45 @@ export function saveMagicGateDeployCache(items: LauncherItem[]): void {
 /**
  * Loads cached Deploy API items from disk
  */
-export function loadMagicGateDeployCache(): LauncherItem[] {
+export function loadMagicGateDeployCache(selectedInfoFields?: string[]): LauncherItem[] {
+  const rawAgents = loadMagicGateDeployRawAgentsCache();
+  if (rawAgents.length > 0) {
+    return parseMagicGateDeployAgents(rawAgents, selectedInfoFields);
+  }
   try {
     if (fs.existsSync(DEPLOY_CACHE_FILE)) {
       const raw = fs.readFileSync(DEPLOY_CACHE_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed;
+        return parsed.map((item: LauncherItem) => {
+          if (!Array.isArray(item.options) || item.options.length === 0) {
+            return item;
+          }
+          const adminUrl = item.info?.['Admin URL'] || item.location || '';
+          const adminIdentity = adminUrl ? normalizeUrlIdentity(String(adminUrl)) : '';
+          const filteredOpts = item.options.filter((opt) => {
+            if (!opt?.location) return true;
+            return !adminIdentity || normalizeUrlIdentity(String(opt.location)) !== adminIdentity;
+          });
+          const sortedUrls = sortMagicGateWebUrls(
+            filteredOpts.map((o) => String(o.location || '')).filter(Boolean),
+            adminUrl ? [String(adminUrl)] : [],
+            item.name || ''
+          );
+          const urlRank = new Map<string, number>();
+          sortedUrls.forEach((u, idx) => {
+            if (!urlRank.has(u)) urlRank.set(u, idx);
+          });
+          const sortedOpts = [...filteredOpts].sort((a, b) => {
+            const rA = urlRank.get(String(a.location || '')) ?? 9999;
+            const rB = urlRank.get(String(b.location || '')) ?? 9999;
+            return rA - rB;
+          });
+          return {
+            ...item,
+            options: sortedOpts.length > 0 ? sortedOpts : undefined,
+          };
+        });
       }
     }
   } catch (err) {

@@ -48,12 +48,17 @@ export class UpdateChecker {
         }
       }
     } catch {}
-    const updateUrl = config.updateUrl || 'https://raw.githubusercontent.com/magicware/IADonkey/main/version.json';
+    const baseUpdateUrl = config.updateUrl || 'https://raw.githubusercontent.com/magicware/IADonkey/main/version.json';
+    const separator = baseUpdateUrl.includes('?') ? '&' : '?';
+    const updateUrl = `${baseUpdateUrl}${separator}t=${Date.now()}`;
 
     try {
       const res = await fetch(updateUrl, {
+        cache: 'no-store',
         headers: {
           'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
           'User-Agent': `IADonkey-Launcher/${currentVersion}`,
         },
         signal: AbortSignal.timeout(15000),
@@ -64,7 +69,7 @@ export class UpdateChecker {
       }
 
       const data = await res.json();
-      const latestVersion = data.version || currentVersion;
+      const latestVersion = String(data.version || currentVersion).trim();
       const releaseNotes = data.notes || data.releaseNotes || '';
       // Prefer zipUrl for smooth in-app updates, fallback to downloadUrl
       const downloadUrl = data.zipUrl || data.downloadUrl || data.url || '';
@@ -81,8 +86,26 @@ export class UpdateChecker {
         };
       }
 
-      // Check if user declined this specific version within the last 24 hours
-      if (!isManual && config.lastDeclinedVersion === latestVersion && config.lastDeclinedTime) {
+      // Manual check always ignores and resets any previously declined version snooze
+      if (isManual) {
+        if (config.lastDeclinedVersion || config.lastDeclinedTime) {
+          this.store.saveConfig({
+            ...config,
+            lastDeclinedVersion: null,
+            lastDeclinedTime: null,
+          });
+        }
+        return {
+          hasUpdate: true,
+          currentVersion,
+          latestVersion,
+          releaseNotes,
+          downloadUrl,
+        };
+      }
+
+      // Check if user declined this specific version within the last 24 hours (only for automatic checks)
+      if (config.lastDeclinedVersion === latestVersion && config.lastDeclinedTime) {
         const msSinceDecline = Date.now() - config.lastDeclinedTime;
         const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
         if (msSinceDecline < TWENTY_FOUR_HOURS) {

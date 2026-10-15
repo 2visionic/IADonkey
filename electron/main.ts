@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, globalShortcut, ipcMain, dialog, shell, clipboard, protocol, desktopCapturer, screen, nativeImage, ClipboardItem } from 'electron';
+import { app, BrowserWindow, Menu, globalShortcut, ipcMain, dialog, shell, clipboard, protocol, desktopCapturer, screen, nativeImage, ClipboardItem, powerMonitor } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +16,8 @@ import {
   loginToMagicGateDeployInteractive,
   fetchMagicGateDeployItems,
   logoutFromMagicGateDeploy,
+  getMagicGateDeploySchema,
+  reapplyMagicGateDeployInfoSchema,
 } from './magicGateDeployApi';
 import { testGitHubConnection, startGitHubDeviceFlow, pollGitHubDeviceToken, getActiveGitHubToken } from './githubService';
 import { faviconService } from './faviconService';
@@ -1488,7 +1490,12 @@ function setupIpcHandlers() {
 
   // MagicPlan IPC Handlers
   ipcMain.handle('magicplan-get-data', async () => {
-    return magicPlanService?.getCachedData() || (await magicPlanService?.fetchAndDiff());
+    const cached = magicPlanService?.getCachedData();
+    if (cached) return cached;
+    if (magicPlanService?.isWindowOpen()) {
+      return await magicPlanService.fetchAndDiff();
+    }
+    return null;
   });
 
   ipcMain.handle('magicplan-refresh', async () => {
@@ -1498,6 +1505,15 @@ function setupIpcHandlers() {
       status: 'info',
     });
     return await magicPlanService?.manualRefresh();
+  });
+
+  ipcMain.handle('magicplan-fetch-persons', async (_event, urls?: string[]) => {
+    diagnosticsService.logAction({
+      type: 'sync',
+      title: 'MagicPlan: Načtení dostupných osob z URL plánu',
+      status: 'info',
+    });
+    return await magicPlanService?.fetchAvailablePersons(urls);
   });
 
   ipcMain.handle('magicplan-get-dev-logs', async () => {
@@ -1744,6 +1760,9 @@ function setupIpcHandlers() {
     }
 
     // If MagicGate or GitHub settings/extensions changed, trigger sync to update launcher items
+    const magicgateInfoSchemaChanged =
+      JSON.stringify(newConfig.magicgate?.apiInfoFields) !==
+      JSON.stringify(oldConfig.magicgate?.apiInfoFields);
     const magicgateChanged =
       newConfig.magicgate?.sourceMode !== oldConfig.magicgate?.sourceMode ||
       newConfig.magicgate?.xmlPath !== oldConfig.magicgate?.xmlPath ||
@@ -1760,7 +1779,24 @@ function setupIpcHandlers() {
       newConfig.github?.org !== oldConfig.github?.org ||
       newConfig.github?.apiUrl !== oldConfig.github?.apiUrl;
 
-    if (magicgateChanged || githubChanged) {
+    if (magicgateInfoSchemaChanged && !magicgateChanged && !githubChanged) {
+      const rebuiltMgItems = reapplyMagicGateDeployInfoSchema(newConfig.magicgate?.apiInfoFields);
+      if (rebuiltMgItems) {
+        const currentStored = store.getItems().filter((it) => it.sourceId !== 'magicgate-xml');
+        if (newConfig.extensions?.magicgate !== false && newConfig.magicgate?.sourceMode === 'api') {
+          store.saveItems([...currentStored, ...rebuiltMgItems]);
+        }
+        const allItems = getCombinedItems();
+        windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
+        windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
+      } else {
+        syncManager.syncAll().then(() => {
+          const allItems = getCombinedItems();
+          windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
+          windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
+        });
+      }
+    } else if (magicgateChanged || githubChanged) {
       syncManager.syncAll().then(() => {
         const allItems = getCombinedItems();
         const syncedConfig = store.getConfig();
@@ -2092,6 +2128,26 @@ function setupIpcHandlers() {
       }
     });
     return { ok: true };
+  });
+
+  ipcMain.handle('magicgate-deploy-get-schema', async (_event, params?: { forceRefresh?: boolean }) => {
+    let schema = getMagicGateDeploySchema();
+    if ((!schema.hasRawCache || params?.forceRefresh) && store.getConfig().magicgate?.apiBaseUrl) {
+      try {
+        const cfg = store.getConfig();
+        const fetchRes = await fetchMagicGateDeployItems(
+          {
+            ...cfg.magicgate,
+            sourceMode: 'api',
+          },
+          { allowSilentReauth: true }
+        );
+        if (fetchRes.ok) {
+          schema = getMagicGateDeploySchema();
+        }
+      } catch {}
+    }
+    return schema;
   });
 
   ipcMain.handle('magicgate-clone-start', async (event, params: {
@@ -2817,6 +2873,9 @@ function setupIpcHandlers() {
 
   ipcMain.handle('check-update', async () => {
     const res = await updateChecker.checkForUpdates(true);
+    const updatedCfg = store.getConfig();
+    windowManager.getMainWindow()?.webContents.send('config-updated', updatedCfg);
+    windowManager.getSettingsWindow()?.webContents.send('config-updated', updatedCfg);
     diagnosticsService.logAction({
       type: 'action',
       title: res.hasUpdate ? `Kontrola aktualizací: Nalezena nová verze v${res.latestVersion}` : 'Kontrola aktualizací: Aplikace je aktuální',
@@ -3560,6 +3619,17 @@ app.whenReady().then(async () => {
   });
 
   magicPlanService = new MagicPlanService(store);
+  windowManager.setOnMagicPlanWindowStateChanged((isOpen) => {
+    magicPlanService?.setWindowOpen(isOpen);
+  });
+  try {
+    powerMonitor.on('lock-screen', () => magicPlanService?.setScreenLocked(true));
+    powerMonitor.on('unlock-screen', () => magicPlanService?.setScreenLocked(false));
+    powerMonitor.on('suspend', () => magicPlanService?.setScreenLocked(true));
+    powerMonitor.on('resume', () => magicPlanService?.setScreenLocked(false));
+  } catch (err) {
+    console.warn('[Main] Failed to register powerMonitor listeners:', err);
+  }
   magicPlanService.start();
 
   feedbackNotificationService.init(store, windowManager);

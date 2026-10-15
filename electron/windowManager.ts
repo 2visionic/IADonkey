@@ -91,6 +91,12 @@ export class WindowManager {
   private shouldRestoreSpotlightOnCmsDownloadClose = true;
   private shouldResetSpotlightOnCloneClose = false;
   private shouldResetSpotlightOnCmsDownloadClose = false;
+  private onMagicPlanWindowStateChanged?: (isOpen: boolean) => void;
+
+  public setOnMagicPlanWindowStateChanged(cb: (isOpen: boolean) => void): void {
+    this.onMagicPlanWindowStateChanged = cb;
+  }
+
   private registerCrashHandlers(win: BrowserWindow, windowName: string): void {
     try {
       win.removeMenu();
@@ -1039,6 +1045,7 @@ export class WindowManager {
     if (this.magicPlanWindow && !this.magicPlanWindow.isDestroyed()) {
       this.magicPlanWindow.hide();
     }
+    this.onMagicPlanWindowStateChanged?.(false);
   }
 
   public async openMagicPlanWindow(filter?: string): Promise<BrowserWindow> {
@@ -1047,6 +1054,8 @@ export class WindowManager {
       window: 'magicplan',
       ...(safeFilter ? { filter: safeFilter } : {}),
     }).toString();
+
+    this.onMagicPlanWindowStateChanged?.(true);
 
     if (this.magicPlanWindow && !this.magicPlanWindow.isDestroyed()) {
       if (safeFilter) {
@@ -1108,11 +1117,13 @@ export class WindowManager {
       if (!this.isQuitting) {
         event.preventDefault();
         this.magicPlanWindow?.hide();
+        this.onMagicPlanWindowStateChanged?.(false);
       }
     });
 
     this.magicPlanWindow.on('closed', () => {
       this.magicPlanWindow = null;
+      this.onMagicPlanWindowStateChanged?.(false);
     });
 
     return new Promise<BrowserWindow>((resolve) => {

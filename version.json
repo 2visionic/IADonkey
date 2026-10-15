@@ -1,9 +1,6 @@
 {
-  "version": "2.1.15",
-  "releaseNotes": "• Action Log – MagicGate a obnova cookie: Samostatná evidence synchronizací MagicGate (Deploy API i XML), detekce expirované session cookie a záznam tiché obnovy přihlášení na pozadí přes Google SSO.\n• Action Log – Živé propisování a všechny moduly: Navýšení kapacity na 150 záznamů, okamžitá aktualizace v otevřeném okně Nastavení a kompletní pokrytí synchronizací na pozadí, QuickCap Editoru, EasyClipu, Git Clone, CMSinFS, MagicPlanu i aktualizací.\n• Crash Log – Ochrana všech oken: Automatický záchyt pádů zapojen na všech sekundárních a překryvných oknech aplikace.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.15/IADonkey-Setup-2.1.15.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.15/IADonkey-2.1.15.zip"
+  "version": "2.1.16",
+  "releaseNotes": "• MagicGate – Schéma informací z Deploy API: Modální okno v Nastavení pro click & check výběr polí ze serveru (root agent) i instance (instances[]) zobrazovaných na záložce Informace + označení lokálního XML jako Deprecated.\n• MagicGate – Chytré řazení domén bez duplicitní Admin URL: Odfiltrování Admin URL z podpoložek a logické řazení webových domén (www.<doména> -> doména 2. řádu -> napárované domény 3.+ řádu).\n• MagicPlan – Polling jen při otevřeném okně a spolehlivé notifikace: Dotazování plánu běží pouze při otevřeném okně MagicPlanu a odemčeném PC; ošetřeny hromadné notifikace po výpadku i při přidání nové osoby.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.16/IADonkey-Setup-2.1.16.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.16/IADonkey-2.1.16.zip"
 }
-
-
-

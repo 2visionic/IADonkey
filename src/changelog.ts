@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.15';
+export const CURRENT_APP_VERSION = '2.1.16';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,18 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.16',
+    date: '16. 10. 2026',
+    title: 'MagicGate schéma informací z Deploy API, chytré řazení domén a optimalizace dotazování i notifikací v MagicPlanu',
+    highlights: [
+      'MagicGate – Interaktivní schéma informací z Deploy API (Click & Check): V Nastavení -> MagicGate přibylo modální okno pro výběr polí ze serveru (root objekt agenta) i samotné instance (instances[]), která se mají zobrazovat na záložce Informace. Každé pole zobrazuje svou JSON cestu, reálnou ukázkovou hodnotu ze synchronizovaných dat i počet instancí, u kterých je vyplněno.',
+      'MagicGate – Chytré řazení domén a vynechání duplicitní Admin URL: Ze seznamu podpoložek instance v Deploy API je automaticky odfiltrována duplicitní URL Administrace. Webové domény se řadí logicky podle rodin domén s upřednostněním domény shodné s klíčovým slovem instance: nejprve www.<doména> a doména 2. řádu (<doména>.cz), následovaná napárovanými subdoménami 3. a vyššího řádu.',
+      'MagicGate – Označení lokálního XML (Applications.xml) jako Deprecated: Volba načítání z lokálního XML souboru je v Nastavení označena štítkem Deprecated a informačním upozorněním s přímým tlačítkem pro přechod na Vzdálené API (Deploy).',
+      'MagicPlan – Dotazování výhradně při otevřeném okně a odemčeném PC: Automatická obnova dat plánu běží pouze tehdy, když je okno MagicPlanu otevřené a počítač není uzamčený ani uspaný, čímž odpadá zbytečné zatěžování serveru na pozadí.',
+      'MagicPlan – Ochrana proti hromadným notifikacím po výpadku a při přidání nové osoby: Prvotní načtení nově přidané osoby do plánu již nevyvolává notifikace pro její stávající úkoly a dočasný výpadek čítače odpracovaných hodin (Logs.aspx) nezpůsobí po obnovení spojení vlnu falešných notifikací.',
+    ],
+  },
   {
     version: '2.1.15',
     date: '15. 10. 2026',

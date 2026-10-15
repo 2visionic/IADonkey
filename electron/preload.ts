@@ -57,6 +57,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('magicgate-deploy-test', params),
   logoutMagicGateDeployApi: (baseUrl?: string): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('magicgate-deploy-logout', { baseUrl }),
+  getMagicGateDeploySchema: (params?: { forceRefresh?: boolean }): Promise<{
+    ok: boolean;
+    hasSyncedData: boolean;
+    hasRawCache: boolean;
+    totalInstances: number;
+    fields: Array<{
+      key: string;
+      label: string;
+      scope: 'agent' | 'instance';
+      jsonPath: string;
+      defaultEnabled: boolean;
+      sampleValue?: string;
+      presentCount?: number;
+    }>;
+  }> => ipcRenderer.invoke('magicgate-deploy-get-schema', params),
   downloadInstanceCmsContent: (params: { instanceName?: string; adminUrl: string; targetDir?: string }): Promise<{ success: boolean; targetPath?: string; error?: string; fileCount?: number }> =>
     ipcRenderer.invoke('magicgate-download-cms-content', params),
   openCmsDownloadWindow: (params: { instanceName: string; adminUrl: string; targetDir: string }): Promise<void> =>
@@ -437,6 +452,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closeMagicPlanWindow: (): Promise<void> => ipcRenderer.invoke('close-magicplan-window'),
   getMagicPlanData: (): Promise<any> => ipcRenderer.invoke('magicplan-get-data'),
   refreshMagicPlan: (): Promise<any> => ipcRenderer.invoke('magicplan-refresh'),
+  fetchMagicPlanPersons: (urls?: string[]): Promise<any> => ipcRenderer.invoke('magicplan-fetch-persons', urls),
   getMagicPlanDevLogs: (): Promise<any> => ipcRenderer.invoke('magicplan-get-dev-logs'),
   clearMagicPlanData: (): Promise<any> => ipcRenderer.invoke('magicplan-clear-data'),
   onMagicPlanDataUpdated: (callback: (data: any) => void) => {
