@@ -117,6 +117,7 @@ export interface MagicGateDeploySchemaField {
   scope: 'agent' | 'instance';
   jsonPath: string;
   defaultEnabled: boolean;
+  required?: boolean;
   sampleValue?: string;
   presentCount?: number;
 }
@@ -135,6 +136,8 @@ export interface MagicGateSettings {
   apiLastError?: string;
   instanceSourceCodesPath?: string;
   apiInfoFields?: string[];
+  enableFtp?: boolean;
+  allowFtpWithoutSlash?: boolean;
 }
 
 export interface MlogSettings {
@@ -149,6 +152,7 @@ export interface ExtensionsConfig {
   github: boolean;
   vscode?: boolean;
   androidStudio?: boolean;
+  ssms?: boolean;
   donkeyTools?: boolean;
   magicplan?: boolean;
 }
@@ -328,6 +332,16 @@ export interface AndroidStudioSettings {
   path?: string;
 }
 
+export interface SsmsSettings {
+  path?: string;
+  allowWithoutSlash?: boolean;
+  localServer?: string;
+  authMode?: 'windows' | 'sql';
+  sqlUsername?: string;
+  sqlPassword?: string;
+  recentDatabases?: string[];
+}
+
 export type GitHubAuthMode = 'pat' | 'oauth';
 
 export interface GitHubOAuthUser {
@@ -379,6 +393,7 @@ export interface AppConfig {
   github?: GithubSettings;
   vscode?: VscodeSettings;
   androidStudio?: AndroidStudioSettings;
+  ssms?: SsmsSettings;
   extensions?: ExtensionsConfig;
   donkeyTools?: DonkeyToolsSettings;
   magicplan?: MagicPlanSettings;

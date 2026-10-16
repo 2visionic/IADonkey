@@ -31,6 +31,12 @@ import { MagicPlanService } from './magicPlanService';
 import { windowDragService } from './windowDragService';
 import { feedbackService } from './feedbackService';
 import { feedbackNotificationService } from './feedbackNotificationService';
+import {
+  detectDefaultSsmsPath,
+  fetchLocalDatabases,
+  getCachedLocalDatabases,
+  openQueryInSsms,
+} from './ssmsService';
 
 app.name = 'IADonkey';
 if (process.platform === 'win32') {
@@ -1762,7 +1768,9 @@ function setupIpcHandlers() {
     // If MagicGate or GitHub settings/extensions changed, trigger sync to update launcher items
     const magicgateInfoSchemaChanged =
       JSON.stringify(newConfig.magicgate?.apiInfoFields) !==
-      JSON.stringify(oldConfig.magicgate?.apiInfoFields);
+        JSON.stringify(oldConfig.magicgate?.apiInfoFields) ||
+      newConfig.extensions?.ssms !== oldConfig.extensions?.ssms ||
+      newConfig.magicgate?.enableFtp !== oldConfig.magicgate?.enableFtp;
     const magicgateChanged =
       newConfig.magicgate?.sourceMode !== oldConfig.magicgate?.sourceMode ||
       newConfig.magicgate?.xmlPath !== oldConfig.magicgate?.xmlPath ||
@@ -3044,6 +3052,96 @@ function setupIpcHandlers() {
   ipcMain.handle('is-android-project', (_event, folderPath: string) => {
     return isAndroidProjectFolder(folderPath);
   });
+
+  ipcMain.handle('select-ssms-path', async (_event, defaultPath?: string) => {
+    const win = windowManager.getSettingsWindow() || windowManager.getMainWindow();
+    const resolvedPath = resolveDefaultPath(defaultPath, false);
+    const result = await dialog.showOpenDialog(win || (undefined as any), {
+      title: 'Vyberte spustitelný soubor SQL Server Management Studio (Ssms.exe)',
+      defaultPath: resolvedPath,
+      properties: ['openFile'],
+      filters: [
+        { name: 'Spustitelný soubor SSMS (Ssms.exe)', extensions: ['exe'] },
+        { name: 'Všechny soubory', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+    return result.filePaths[0];
+  });
+
+  ipcMain.handle('detect-ssms-path', () => {
+    return detectDefaultSsmsPath();
+  });
+
+  ipcMain.handle('ssms-get-local-databases', async (_event, params?: { server?: string; forceRefresh?: boolean }) => {
+    const config = store.getConfig();
+    if (!config.extensions?.ssms || !config.ssms?.path?.trim()) {
+      return { ok: false, databases: [], error: 'SSMS není aktivní' };
+    }
+    const targetServer = (params?.server || config.ssms?.localServer || 'localhost').trim();
+    const force = Boolean(params?.forceRefresh);
+    if (!force) {
+      const cached = getCachedLocalDatabases(targetServer);
+      if (cached.isFresh) {
+        return { ok: true, databases: cached.databases };
+      }
+      if (cached.databases.length > 0) {
+        fetchLocalDatabases(targetServer, true).catch(() => {});
+        return { ok: true, databases: cached.databases };
+      }
+    }
+    return await fetchLocalDatabases(targetServer, force);
+  });
+
+  ipcMain.handle(
+    'ssms-open-query',
+    async (
+      _event,
+      params: {
+        server?: string;
+        dbServer?: string;
+        database: string;
+        dbHost?: string;
+        serverName?: string;
+        instanceName?: string;
+        isLocal?: boolean;
+      }
+    ) => {
+      const config = store.getConfig();
+      const effectiveServer = (params.dbServer || params.server || '').trim();
+      const result = await openQueryInSsms(
+        {
+          ...params,
+          dbServer: effectiveServer,
+        },
+        config
+      );
+      if (result.success && params.database) {
+        const dbKey = params.database.trim();
+        const prevRecent = Array.isArray(config.ssms?.recentDatabases)
+          ? config.ssms!.recentDatabases!
+          : [];
+        const updatedRecent = [
+          dbKey,
+          ...prevRecent.filter((d) => d.toLowerCase() !== dbKey.toLowerCase()),
+        ].slice(0, 15);
+        const updatedConfig: AppConfig = {
+          ...config,
+          ssms: {
+            ...config.ssms,
+            recentDatabases: updatedRecent,
+          },
+        };
+        store.saveConfig(updatedConfig);
+        const freshCfg = store.getConfig();
+        windowManager.getMainWindow()?.webContents.send('config-updated', freshCfg);
+        windowManager.getSettingsWindow()?.webContents.send('config-updated', freshCfg);
+      }
+      return result;
+    }
+  );
 
   ipcMain.handle('get-existing-cloned-repos', (_event, baseDir?: string) => {
     const config = store.getConfig();

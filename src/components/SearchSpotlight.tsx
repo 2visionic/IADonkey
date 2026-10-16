@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DISPLAY_APP_VERSION, IS_DEV } from '../changelog';
-import { LauncherItem, LauncherAction, SyncProgress, SnippetsConfig, ColorMasterSettings, QuickCapSettings, FastSnapSettings, ScreenRulerSettings, EasyClipSettings, EasyClipItem, ColorPalette, AppConfig, MagicPlanSettings, MagicPlanData, PlanTaskItem, LauncherWizard, WizardStep, WizardOption } from '../types';
+import { LauncherItem, LauncherAction, SyncProgress, SnippetsConfig, ColorMasterSettings, QuickCapSettings, FastSnapSettings, ScreenRulerSettings, EasyClipSettings, EasyClipItem, ColorPalette, AppConfig, MagicPlanSettings, MagicPlanData, PlanTaskItem, LauncherWizard, WizardStep, WizardOption, SsmsSettings } from '../types';
 import { MaterialIcon } from './MaterialIcon';
 import { evaluateExpression } from '../utils/calculator';
 import { detectUrl } from '../utils/urlHelper';
@@ -152,6 +152,11 @@ interface SearchSpotlightProps {
   instanceSourceCodesPath?: string;
   vscodeEnabled?: boolean;
   androidStudioEnabled?: boolean;
+  ssmsEnabled?: boolean;
+  ssmsConfig?: SsmsSettings;
+  magicgateEnabled?: boolean;
+  ftpEnabled?: boolean;
+  allowFtpWithoutSlash?: boolean;
   donkeyToolsEnabled?: boolean;
   colorMasterConfig?: ColorMasterSettings;
   quickCapConfig?: QuickCapSettings;
@@ -184,6 +189,11 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   instanceSourceCodesPath,
   vscodeEnabled = false,
   androidStudioEnabled = false,
+  ssmsEnabled = false,
+  ssmsConfig,
+  magicgateEnabled = false,
+  ftpEnabled = true,
+  allowFtpWithoutSlash = false,
   donkeyToolsEnabled = false,
   colorMasterConfig,
   quickCapConfig,
@@ -209,6 +219,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   const [infoPage, setInfoPage] = useState<number>(0);
   const [existingClonedRepos, setExistingClonedRepos] = useState<Set<string>>(new Set());
   const [instanceSubRepos, setInstanceSubRepos] = useState<Record<string, Array<{ name: string; path: string }>>>({});
+  const [localDatabases, setLocalDatabases] = useState<string[]>([]);
   const [copiedInfoKey, setCopiedInfoKey] = useState<string | null>(null);
   const [savedQueryBeforeSubitems, setSavedQueryBeforeSubitems] = useState<string>('');
   const [savedIndexBeforeSubitems, setSavedIndexBeforeSubitems] = useState<number>(0);
@@ -256,6 +267,27 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       setCurrentMagicPlanConfig(magicPlanConfig);
     }
   }, [magicPlanConfig]);
+
+  // Strict opt-in rule: SSMS actions & /db commands are ONLY active when SSMS extension is enabled AND Ssms.exe path is configured
+  const isSsmsActive = Boolean(ssmsEnabled && ssmsConfig?.path?.trim());
+
+  const refreshLocalDatabases = (force: boolean = false) => {
+    if (!isSsmsActive || !window.electronAPI?.getLocalDatabases) return;
+    const srv = ssmsConfig?.localServer?.trim() || 'localhost';
+    window.electronAPI.getLocalDatabases(srv, force).then((res) => {
+      if (res && Array.isArray(res.databases)) {
+        setLocalDatabases(res.databases);
+      }
+    }).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (isSsmsActive) {
+      refreshLocalDatabases(false);
+    } else {
+      setLocalDatabases([]);
+    }
+  }, [isSsmsActive, ssmsConfig?.localServer]);
 
   const isColorMasterActive = Boolean(donkeyToolsEnabled && colorMasterConfig?.enabled === true);
   const isQuickCapActive = Boolean(donkeyToolsEnabled && (quickCapConfig?.enabled === true || fastSnapConfig?.enabled === true));
@@ -1393,9 +1425,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   // Dynamically resolve actions for an item, inserting either 'Otevřít v Android Studiu' or 'Otevřít ve VS Code' (never both!)
   const getItemActions = (item?: LauncherItem | null): LauncherAction[] => {
     if (!item) return [];
-    if (isMagicGateItem(item) && !canCloneGit) {
-      return [];
-    }
     let baseActions = item.actions ? [...item.actions] : [];
 
     // Filter out redundant recursive clone actions (handled by checkbox in clone modal)
@@ -1553,27 +1582,94 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
     }
 
+    // Add SSMS Query & Copy FTP actions for MagicGate instances
+    if (isMagicGate && item.sourceId !== 'ssms-db' && item.sourceId !== 'magicgate-ftp') {
+      // 1. Otevřít dotaz v SSMS - ONLY when SSMS extension is enabled AND Ssms.exe is selected
+      if (isSsmsActive) {
+        const dbName = item.info?.['Databáze']?.trim();
+        const dbServer = (item.info?.['DB Host (adresa)'] || item.info?.['DB Server'] || '').trim();
+        if (dbName && !baseActions.some((a) => a.action === 'ssms-query')) {
+          baseActions.push({
+            name: `Otevřít dotaz v SSMS (${dbName})`,
+            action: 'ssms-query',
+            location: `${dbServer || 'localhost'}|${dbName}`,
+            icon: 'database',
+            settings: 'ssms',
+          });
+        }
+      }
+
+      // 2. Zkopírovat FTP adresu - ONLY when FTP section is enabled in MagicGate settings
+      if (ftpEnabled) {
+        const ftpAddr = item.info?.['FTP']?.trim();
+        if (ftpAddr && !baseActions.some((a) => a.action === 'copy' && a.location === ftpAddr)) {
+          baseActions.push({
+            name: `Zkopírovat FTP adresu (${ftpAddr})`,
+            action: 'copy',
+            location: ftpAddr,
+            icon: 'folder_shared',
+            settings: 'magicgate',
+          });
+        }
+      }
+    }
+
     return baseActions;
   };
 
-  const hasItemActions = (item?: LauncherItem | null) => {
-    if (isMagicGateItem(item) && !canCloneGit) return false;
-    return Boolean(getItemActions(item).length > 0);
+  const canAccessMagicGateExtras = Boolean(
+    canCloneGit || isSsmsActive || Boolean(instanceSourceCodesPath?.trim()) || magicgateEnabled
+  );
+
+  const hasItemActions = (item?: LauncherItem | null): boolean => {
+    if (!item) return false;
+    if (item.sourceId === 'ssms-db' || item.sourceId === 'magicgate-ftp') {
+      return Boolean(item.actions && item.actions.length > 0);
+    }
+    const isMg = isMagicGateItem(item);
+    if (isMg) {
+      if (!canAccessMagicGateExtras) return false;
+      if (isSsmsActive && item.info?.['Databáze']?.trim()) return true;
+      if (ftpEnabled && item.info?.['FTP']?.trim()) return true;
+      if (instanceSourceCodesPath?.trim()) return true;
+      if (vscodeEnabled && getLocalRepoPath(item)) return true;
+      if (
+        item.actions?.some(
+          (a) =>
+            a.action !== 'clonerecursive' &&
+            a.action !== 'mgclonerecursive' &&
+            (canCloneGit || (a.action !== 'clone' && a.action !== 'mgclone'))
+        )
+      ) {
+        return true;
+      }
+      return false;
+    }
+    if ((vscodeEnabled || androidStudioEnabled) && getLocalRepoPath(item)) {
+      return true;
+    }
+    if (!item.actions || item.actions.length === 0) return false;
+    return item.actions.some(
+      (a) =>
+        a.action !== 'clonerecursive' &&
+        a.action !== 'mgclonerecursive' &&
+        (canCloneGit || (a.action !== 'clone' && a.action !== 'mgclone'))
+    );
   };
 
   const hasItemInfo = (item?: LauncherItem | null) => {
-    if (isMagicGateItem(item) && !canCloneGit) return false;
+    if (isMagicGateItem(item) && !canAccessMagicGateExtras) return false;
     return Boolean(item?.info && typeof item.info === 'object' && Object.keys(item.info).length > 0);
   };
 
   const hasItemActionsOrInfo = (item?: LauncherItem | null) => {
-    if (isMagicGateItem(item) && !canCloneGit) return false;
+    if (isMagicGateItem(item) && !canAccessMagicGateExtras) return false;
     return hasItemActions(item) || hasItemInfo(item);
   };
 
   // Enter actions / info mode for an item
   const enterActions = (item: LauncherItem) => {
-    if (isMagicGateItem(item) && !canCloneGit) return;
+    if (isMagicGateItem(item) && !canAccessMagicGateExtras) return;
     if (!hasItemActionsOrInfo(item)) return;
     window.electronAPI?.logAction?.({
       type: 'action',
@@ -1623,6 +1719,208 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
   };
 
+  // Pre-normalize items once when `items` array changes so typing never runs `normalize('NFD')` thousands of times per keystroke
+  const indexedSearchData = useMemo(() => {
+    const byItem = new Map<
+      LauncherItem,
+      {
+        nameNorm: string;
+        nameWords: string[];
+        locNorm: string;
+        optionsNorm: string;
+        shortcutsNorm: string;
+        infoNorm: string;
+        infoCompactNorm: string;
+        isMg: boolean;
+        isGit: boolean;
+      }
+    >();
+
+    for (const item of items) {
+      const nameNorm = removeDiacritics(item.name || '').toLowerCase();
+      const nameWords = nameNorm.split(/[\s\-_\/]+/).filter(Boolean);
+      const locNorm = removeDiacritics(item.location || '').toLowerCase();
+      const optionsNorm = item.options?.length
+        ? item.options
+            .map(
+              (opt) =>
+                `${removeDiacritics(opt.name || '').toLowerCase()}\n${removeDiacritics(opt.location || '').toLowerCase()}`
+            )
+            .join('\n')
+        : '';
+      const shortcutsNorm = item.shortcuts?.length
+        ? item.shortcuts.map((sc) => removeDiacritics(sc || '').toLowerCase()).join('\n')
+        : '';
+      let infoNorm = '';
+      let infoCompactNorm = '';
+      if (item.info) {
+        const vals: string[] = [];
+        const compactVals: string[] = [];
+        for (const v of Object.values(item.info)) {
+          if (typeof v === 'string' && v) {
+            const n = removeDiacritics(v).toLowerCase();
+            vals.push(n);
+            compactVals.push(n.replace(/\s+/g, ''));
+          }
+        }
+        infoNorm = vals.join('\n');
+        infoCompactNorm = compactVals.join('\n');
+      }
+      const isMg = Boolean(
+        item.settings === 'magicgate' ||
+          item.sourceId === 'magicgate' ||
+          item.sourceId === 'magicgate-xml' ||
+          item.id?.startsWith('mg-') ||
+          item.actions?.some((a) => a.action === 'mgclone' || a.action === 'mgclonerecursive') ||
+          item.options?.some((opt) => opt.settings === 'magicgate' || opt.id?.startsWith('mg-'))
+      );
+      const isGit = Boolean(
+        item.settings === 'git' || item.sourceId === 'github' || item.sourceId === 'git'
+      );
+
+      byItem.set(item, {
+        nameNorm,
+        nameWords,
+        locNorm,
+        optionsNorm,
+        shortcutsNorm,
+        infoNorm,
+        infoCompactNorm,
+        isMg,
+        isGit,
+      });
+    }
+
+    return byItem;
+  }, [items]);
+
+  // Precompute DB candidates so `/db ` filtering and sorting does zero diacritics normalization on keystrokes
+  const precomputedDbCandidates = useMemo(() => {
+    if (!isSsmsActive) return [];
+    const localSrv = ssmsConfig?.localServer?.trim() || 'localhost';
+    const recentList = (ssmsConfig?.recentDatabases || []).map((r) => r.toLowerCase());
+
+    const findRecentRank = (srv: string, db: string) => {
+      const fullKey = `${srv.toLowerCase()}|${db.toLowerCase()}`;
+      const dbLower = db.toLowerCase();
+      const idxFull = recentList.indexOf(fullKey);
+      if (idxFull !== -1) return idxFull;
+      return recentList.findIndex((r) => r.endsWith(`|${dbLower}`) || r === dbLower);
+    };
+
+    const seenKeys = new Set<string>();
+    const candidates: Array<{
+      dbName: string;
+      dbNorm: string;
+      dbWords: string[];
+      dbServer: string;
+      displayServer: string;
+      srvNorm: string;
+      isLocal: boolean;
+      instanceName: string;
+      instNorm: string;
+      adminUrl?: string;
+      recentRank: number;
+    }> = [];
+
+    for (const localDb of localDatabases) {
+      const cleanDb = (localDb || '').trim();
+      if (!cleanDb) continue;
+      const key = `${localSrv.toLowerCase()}|${cleanDb.toLowerCase()}`;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      const dbNorm = removeDiacritics(cleanDb).toLowerCase();
+      candidates.push({
+        dbName: cleanDb,
+        dbNorm,
+        dbWords: dbNorm.split(/[\s\-_]+/).filter(Boolean),
+        dbServer: localSrv,
+        displayServer: localSrv,
+        srvNorm: removeDiacritics(localSrv).toLowerCase(),
+        isLocal: true,
+        instanceName: '',
+        instNorm: '',
+        recentRank: findRecentRank(localSrv, cleanDb),
+      });
+    }
+
+    for (const it of items) {
+      if (!isMagicGateItem(it)) continue;
+      const dbName = it.info?.['Databáze']?.trim();
+      if (!dbName) continue;
+      const dbServer = (it.info?.['DB Host (adresa)'] || it.info?.['DB Server'] || 'localhost').trim();
+      const displayServer = (it.info?.['DB Server'] || dbServer).trim();
+      const key = `${dbServer.toLowerCase()}|${dbName.toLowerCase()}`;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      const dbNorm = removeDiacritics(dbName).toLowerCase();
+      const instName = it.name || '';
+      candidates.push({
+        dbName,
+        dbNorm,
+        dbWords: dbNorm.split(/[\s\-_]+/).filter(Boolean),
+        dbServer,
+        displayServer,
+        srvNorm: removeDiacritics(displayServer).toLowerCase(),
+        isLocal: false,
+        instanceName: instName,
+        instNorm: removeDiacritics(instName).toLowerCase(),
+        adminUrl: it.info?.['Admin URL'] || it.location || undefined,
+        recentRank: findRecentRank(dbServer, dbName),
+      });
+    }
+
+    // Pre-sort in default (unfiltered) order: Recent -> Local -> Alphabetical
+    candidates.sort((a, b) => {
+      const aRec = a.recentRank >= 0;
+      const bRec = b.recentRank >= 0;
+      if (aRec && !bRec) return -1;
+      if (!aRec && bRec) return 1;
+      if (aRec && bRec && a.recentRank !== b.recentRank) return a.recentRank - b.recentRank;
+      if (a.isLocal && !b.isLocal) return -1;
+      if (!a.isLocal && b.isLocal) return 1;
+      return a.dbName.localeCompare(b.dbName);
+    });
+
+    return candidates;
+  }, [isSsmsActive, localDatabases, items, ssmsConfig?.localServer, ssmsConfig?.recentDatabases]);
+
+  // Precompute FTP candidates so `/ftp ` filtering and sorting does zero diacritics normalization on keystrokes
+  const precomputedFtpCandidates = useMemo(() => {
+    const list: Array<{
+      item: LauncherItem;
+      nameNorm: string;
+      ftpAddr: string;
+      ftpNorm: string;
+      srvName: string;
+      srvNorm: string;
+      dbName?: string;
+      dbServer: string;
+    }> = [];
+
+    for (const it of items) {
+      if (!isMagicGateItem(it)) continue;
+      const ftpAddr = (it.info?.['FTP'] || '').trim();
+      if (!ftpAddr) continue;
+      const srvName = (it.info?.['Server'] || '').trim();
+      const dbName = it.info?.['Databáze']?.trim();
+      const dbServer = (it.info?.['DB Host (adresa)'] || it.info?.['DB Server'] || 'localhost').trim();
+      list.push({
+        item: it,
+        nameNorm: removeDiacritics(it.name || '').toLowerCase(),
+        ftpAddr,
+        ftpNorm: removeDiacritics(ftpAddr).toLowerCase(),
+        srvName,
+        srvNorm: removeDiacritics(srvName).toLowerCase(),
+        dbName,
+        dbServer,
+      });
+    }
+
+    list.sort((a, b) => (a.item.name || '').localeCompare(b.item.name || ''));
+    return list;
+  }, [items]);
+
   // Filter and prioritize results (or display parentItem.options if in subitems mode)
   const results = useMemo(() => {
     const trimmed = query.trim();
@@ -1659,8 +1957,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       // Also find any custom items configured with name starting with ':'
       const customSnippets = items.filter((item) => {
         if (item.name?.startsWith(':')) {
-          const nameNorm = removeDiacritics(item.name).toLowerCase();
-          const locNorm = removeDiacritics(item.location).toLowerCase();
+          const meta = indexedSearchData.get(item);
+          const nameNorm = meta ? meta.nameNorm : removeDiacritics(item.name).toLowerCase();
+          const locNorm = meta ? meta.locNorm : removeDiacritics(item.location).toLowerCase();
           return nameNorm.includes(normQuery) || locNorm.includes(normQuery);
         }
         return false;
@@ -1668,8 +1967,197 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       return [...dynamicSnippets, ...customSnippets];
     }
 
-    // Special slash commands: DonkeyTools & MagicPlan
-    // Commands are ONLY shown when query starts with a slash and DonkeyTools or MagicPlan is enabled
+    // Special `/db ` and `/ftp ` interactive modes (triggered as soon as space is typed after command, or in Wox mode without slash)
+    const rawTrimmedStart = query.trimStart();
+    const allowDbNoSlash = Boolean(ssmsConfig?.allowWithoutSlash);
+    const allowFtpNoSlash = Boolean(allowFtpWithoutSlash);
+
+    const dbModeMatch = isSsmsActive
+      ? rawTrimmedStart.match(allowDbNoSlash ? /^\/?(?:db|sql|ssms)\s+(.*)$/i : /^\/(?:db|sql|ssms)\s+(.*)$/i)
+      : null;
+
+    if (dbModeMatch && isSsmsActive) {
+      const dbFilter = dbModeMatch[1].trim();
+      const normFilter = removeDiacritics(dbFilter).toLowerCase();
+      const localSrv = ssmsConfig?.localServer?.trim() || 'localhost';
+
+      const filtered = normFilter
+        ? precomputedDbCandidates.filter(
+            (c) =>
+              c.dbNorm.includes(normFilter) ||
+              c.instNorm.includes(normFilter) ||
+              c.srvNorm.includes(normFilter)
+          )
+        : precomputedDbCandidates;
+
+      if (normFilter) {
+        filtered.sort((a, b) => {
+          // 1. Exact match
+          const aExact = a.dbNorm === normFilter || a.instNorm === normFilter;
+          const bExact = b.dbNorm === normFilter || b.instNorm === normFilter;
+          if (aExact && !bExact) return -1;
+          if (!aExact && bExact) return 1;
+
+          // 2. DB name prefix match (critical for inline ghost-text autocomplete!)
+          const aDbStarts = a.dbNorm.startsWith(normFilter);
+          const bDbStarts = b.dbNorm.startsWith(normFilter);
+          if (aDbStarts && !bDbStarts) return -1;
+          if (!aDbStarts && bDbStarts) return 1;
+
+          // 3. Instance name prefix match
+          const aInstStarts = a.instNorm.startsWith(normFilter);
+          const bInstStarts = b.instNorm.startsWith(normFilter);
+          if (aInstStarts && !bInstStarts) return -1;
+          if (!aInstStarts && bInstStarts) return 1;
+
+          // 4. Word boundary match in DB name (e.g. MagicWare_ATour matches "atour")
+          const aWord = a.dbWords.some((w) => w.startsWith(normFilter));
+          const bWord = b.dbWords.some((w) => w.startsWith(normFilter));
+          if (aWord && !bWord) return -1;
+          if (!aWord && bWord) return 1;
+
+          // 5. Recent rank
+          const aRec = a.recentRank >= 0;
+          const bRec = b.recentRank >= 0;
+          if (aRec && !bRec) return -1;
+          if (!aRec && bRec) return 1;
+          if (aRec && bRec && a.recentRank !== b.recentRank) return a.recentRank - b.recentRank;
+
+          // 6. Local SQL before remote
+          if (a.isLocal && !b.isLocal) return -1;
+          if (!a.isLocal && b.isLocal) return 1;
+
+          return a.dbName.localeCompare(b.dbName);
+        });
+      }
+
+      return filtered.slice(0, 120).map((c): LauncherItem => {
+        const isRecent = c.recentRank >= 0;
+        const targetSpec = `${c.dbServer}|${c.dbName}`;
+        const shortSrv = c.displayServer.split(' - ')[0].trim();
+        return {
+          id: `ssms-db-${c.isLocal ? 'local' : 'mg'}-${c.dbServer}-${c.dbName}`,
+          name: c.dbName,
+          location: `${isRecent ? '★ Nedávné • ' : ''}${
+            c.isLocal
+              ? `Lokální SQL (${localSrv})`
+              : `MagicGate • ${c.displayServer}${c.instanceName ? ` • instance: ${c.instanceName}` : ''}`
+          }`,
+          action: 'ssms-query',
+          icon: 'database',
+          settings: 'ssms',
+          sourceId: 'ssms-db',
+          shortcuts: c.isLocal
+            ? ['Lokální SQL', localSrv]
+            : [c.instanceName || 'MagicGate', shortSrv],
+          info: {
+            'Databáze': c.dbName,
+            'DB Server': c.displayServer,
+            'Typ': c.isLocal ? 'Lokální SQL Server' : `Vzdálená DB (${c.instanceName || 'MagicGate'})`,
+            ...(c.adminUrl ? { 'Admin URL': c.adminUrl } : {}),
+          },
+          actions: [
+            {
+              name: `Otevřít dotaz v SSMS (${c.dbName})`,
+              action: 'ssms-query',
+              location: targetSpec,
+              icon: 'database',
+              settings: 'ssms',
+            },
+            {
+              name: 'Zkopírovat název databáze',
+              action: 'copy',
+              location: c.dbName,
+              icon: 'content_copy',
+            },
+            {
+              name: 'Zkopírovat adresu DB serveru',
+              action: 'copy',
+              location: c.dbServer,
+              icon: 'dns',
+            },
+            {
+              name: 'Obnovit lokální databáze (sys.databases)',
+              action: 'ssms-refresh-local',
+              location: localSrv,
+              icon: 'refresh',
+            },
+          ],
+        };
+      });
+    }
+
+    const ftpModeMatch = ftpEnabled
+      ? rawTrimmedStart.match(allowFtpNoSlash ? /^\/?ftp\s+(.*)$/i : /^\/ftp\s+(.*)$/i)
+      : null;
+    if (ftpModeMatch) {
+      const ftpFilter = ftpModeMatch[1].trim();
+      const normFilter = removeDiacritics(ftpFilter).toLowerCase();
+
+      const matchedFtp = normFilter
+        ? precomputedFtpCandidates.filter(
+            (c) =>
+              c.nameNorm.includes(normFilter) ||
+              c.ftpNorm.includes(normFilter) ||
+              c.srvNorm.includes(normFilter)
+          )
+        : precomputedFtpCandidates;
+
+      if (normFilter) {
+        matchedFtp.sort((a, b) => {
+          const aExact = a.nameNorm === normFilter;
+          const bExact = b.nameNorm === normFilter;
+          if (aExact && !bExact) return -1;
+          if (!aExact && bExact) return 1;
+          const aStarts = a.nameNorm.startsWith(normFilter);
+          const bStarts = b.nameNorm.startsWith(normFilter);
+          if (aStarts && !bStarts) return -1;
+          if (!aStarts && bStarts) return 1;
+          return (a.item.name || '').localeCompare(b.item.name || '');
+        });
+      }
+
+      return matchedFtp.slice(0, 120).map((c): LauncherItem => {
+        const { item: it, ftpAddr, srvName, dbName, dbServer } = c;
+        return {
+          id: `mg-ftp-${it.id || it.name}`,
+          name: it.name,
+          location: `Zkopírovat FTP: ${ftpAddr}${srvName ? ` • Server: ${srvName}` : ''}`,
+          action: 'copy',
+          icon: 'folder_shared',
+          settings: 'magicgate',
+          sourceId: 'magicgate-ftp',
+          shortcuts: [ftpAddr],
+          info: {
+            'FTP': ftpAddr,
+            ...(it.info || {}),
+          },
+          actions: [
+            {
+              name: `Zkopírovat FTP adresu (${ftpAddr})`,
+              action: 'copy',
+              location: ftpAddr,
+              icon: 'content_copy',
+              settings: 'magicgate',
+            },
+            ...(isSsmsActive && dbName
+              ? [
+                  {
+                    name: `Otevřít dotaz v SSMS (${dbName})`,
+                    action: 'ssms-query',
+                    location: `${dbServer}|${dbName}`,
+                    icon: 'database',
+                    settings: 'ssms' as const,
+                  },
+                ]
+              : []),
+          ],
+        };
+      });
+    }
+
+    // Special slash commands: DonkeyTools, MagicPlan, SSMS (/db) & MagicGate FTP (/ftp)
+    // Commands are ONLY shown when query starts with a slash
     if (trimmed.startsWith('/')) {
       const dtCommands = donkeyToolsEnabled
         ? getDonkeyToolsCommands(trimmed, {
@@ -1680,6 +2168,54 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             easyClipEnabled: isEasyClipActive,
           })
         : [];
+
+      const ssmsAndFtpCommands: LauncherItem[] = [];
+      const slashCmd = trimmed.slice(1).trim().toLowerCase();
+
+      // /db command - strictly offered ONLY when SSMS extension is enabled AND Ssms.exe is selected
+      if (isSsmsActive) {
+        const dbShortcuts = ['/db', '/sql', '/ssms'];
+        if (
+          slashCmd === '' ||
+          'db'.includes(slashCmd) ||
+          'sql'.includes(slashCmd) ||
+          'ssms'.includes(slashCmd) ||
+          'databaze'.includes(removeDiacritics(slashCmd)) ||
+          dbShortcuts.some((s) => s.replace(/^\//, '').includes(slashCmd))
+        ) {
+          ssmsAndFtpCommands.push({
+            id: 'ssms-db-command',
+            name: 'Databáze – Otevřít dotaz v SSMS',
+            location: 'Vypsat všechny lokální i vzdálené databáze a otevřít New Query v SSMS',
+            action: 'enter-db-mode',
+            icon: 'database',
+            priority: -1.18,
+            sourceId: 'ssms',
+            shortcuts: dbShortcuts,
+          });
+        }
+      }
+
+      // /ftp command - offered when FTP section is enabled in MagicGate settings
+      if (ftpEnabled && (magicgateEnabled || items.some((it) => isMagicGateItem(it) && it.info?.['FTP']))) {
+        const ftpShortcuts = ['/ftp'];
+        if (
+          slashCmd === '' ||
+          'ftp'.includes(slashCmd) ||
+          ftpShortcuts.some((s) => s.replace(/^\//, '').includes(slashCmd))
+        ) {
+          ssmsAndFtpCommands.push({
+            id: 'mg-ftp-command',
+            name: 'FTP adresy instancí (MagicGate)',
+            location: 'Vypsat instance a zkopírovat FTP adresu serveru do schránky',
+            action: 'enter-ftp-mode',
+            icon: 'folder_shared',
+            priority: -1.16,
+            sourceId: 'magicgate',
+            shortcuts: ftpShortcuts,
+          });
+        }
+      }
 
       const planCommands: LauncherItem[] = [];
       if (isMagicPlanActive) {
@@ -1700,7 +2236,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
 
       const feedbackCommands: LauncherItem[] = [];
-      const slashCmd = trimmed.slice(1).trim().toLowerCase();
       const fbUserShortcuts = ['/feedback', '/zpetnavazba', '/napady', '/chyba'];
       if (
         slashCmd === '' ||
@@ -1754,7 +2289,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         }
       }
 
-      const allSlash = [...dtCommands, ...planCommands, ...feedbackCommands];
+      const allSlash = [...ssmsAndFtpCommands, ...dtCommands, ...planCommands, ...feedbackCommands];
       if (allSlash.length > 0) {
         return allSlash;
       }
@@ -1765,9 +2300,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     const gitPrefixMatch = trimmed.match(/^git:\s*(.*)$/i);
     if (gitPrefixMatch) {
       const gitQuery = gitPrefixMatch[1].trim();
-      const gitItems = items.filter(
-        (item) => item.settings === 'git' || item.sourceId === 'github' || item.sourceId === 'git'
-      );
+      const gitItems = items.filter((item) => indexedSearchData.get(item)?.isGit);
 
       if (!gitQuery) {
         return [...gitItems].sort((a, b) => {
@@ -1780,24 +2313,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
       const normGitQuery = removeDiacritics(gitQuery).toLowerCase();
       const matchedGit = gitItems.filter((item) => {
-        const itemNameNorm = removeDiacritics(item.name || '').toLowerCase();
-        const itemLocNorm = removeDiacritics(item.location || '').toLowerCase();
-        const nameMatch = itemNameNorm.includes(normGitQuery);
-        const locMatch = itemLocNorm.includes(normGitQuery);
-        const optionsMatch = item.options?.some((opt) => {
-          const optNameNorm = removeDiacritics(opt.name || '').toLowerCase();
-          const optLocNorm = removeDiacritics(opt.location || '').toLowerCase();
-          return optNameNorm.includes(normGitQuery) || optLocNorm.includes(normGitQuery);
-        });
-        const infoMatch =
-          item.info &&
-          Object.values(item.info).some((v) => {
-            if (typeof v === 'string') {
-              return removeDiacritics(v).toLowerCase().includes(normGitQuery);
-            }
-            return false;
-          });
-        return nameMatch || locMatch || Boolean(optionsMatch) || Boolean(infoMatch);
+        const meta = indexedSearchData.get(item);
+        if (!meta) return false;
+        return (
+          meta.nameNorm.includes(normGitQuery) ||
+          meta.locNorm.includes(normGitQuery) ||
+          Boolean(meta.optionsNorm && meta.optionsNorm.includes(normGitQuery)) ||
+          Boolean(meta.infoNorm && meta.infoNorm.includes(normGitQuery))
+        );
       });
 
       matchedGit.sort((a, b) => {
@@ -1805,16 +2328,18 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         const pB = b.priority ?? 0;
         if (pA !== pB) return pA - pB;
 
-        const aNorm = removeDiacritics(a.name || '').toLowerCase();
-        const bNorm = removeDiacritics(b.name || '').toLowerCase();
+        const mA = indexedSearchData.get(a);
+        const mB = indexedSearchData.get(b);
+        const aNorm = mA ? mA.nameNorm : '';
+        const bNorm = mB ? mB.nameNorm : '';
 
         const aStarts = aNorm.startsWith(normGitQuery);
         const bStarts = bNorm.startsWith(normGitQuery);
         if (aStarts && !bStarts) return -1;
         if (!aStarts && bStarts) return 1;
 
-        const aWordStarts = aNorm.split(/[\s\-_\/]+/).some((w) => w.startsWith(normGitQuery));
-        const bWordStarts = bNorm.split(/[\s\-_\/]+/).some((w) => w.startsWith(normGitQuery));
+        const aWordStarts = mA ? mA.nameWords.some((w) => w.startsWith(normGitQuery)) : false;
+        const bWordStarts = mB ? mB.nameWords.some((w) => w.startsWith(normGitQuery)) : false;
         if (aWordStarts && !bWordStarts) return -1;
         if (!aWordStarts && bWordStarts) return 1;
 
@@ -1828,13 +2353,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     const mgPrefixMatch = trimmed.match(/^(?:magicgate|mg):\s*(.*)$/i);
     if (mgPrefixMatch) {
       const mgQuery = mgPrefixMatch[1].trim();
-      const mgItems = items.filter(
-        (item) =>
-          item.settings === 'magicgate' ||
-          item.sourceId === 'magicgate' ||
-          Boolean(item.id?.startsWith('mg-')) ||
-          Boolean(item.options?.some((opt) => opt.settings === 'magicgate' || opt.id?.startsWith('mg-')))
-      );
+      const mgItems = items.filter((item) => indexedSearchData.get(item)?.isMg);
 
       if (!mgQuery) {
         return [...mgItems].sort((a, b) => {
@@ -1847,27 +2366,15 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
       const normMgQuery = removeDiacritics(mgQuery).toLowerCase();
       const matchedMg = mgItems.filter((item) => {
-        const itemNameNorm = removeDiacritics(item.name || '').toLowerCase();
-        const itemLocNorm = removeDiacritics(item.location || '').toLowerCase();
-        const nameMatch = itemNameNorm.includes(normMgQuery);
-        const locMatch = itemLocNorm.includes(normMgQuery);
-        const shortcutsMatch = item.shortcuts?.some((sc) =>
-          removeDiacritics(sc).toLowerCase().includes(normMgQuery)
+        const meta = indexedSearchData.get(item);
+        if (!meta) return false;
+        return (
+          meta.nameNorm.includes(normMgQuery) ||
+          meta.locNorm.includes(normMgQuery) ||
+          Boolean(meta.shortcutsNorm && meta.shortcutsNorm.includes(normMgQuery)) ||
+          Boolean(meta.optionsNorm && meta.optionsNorm.includes(normMgQuery)) ||
+          Boolean(meta.infoNorm && meta.infoNorm.includes(normMgQuery))
         );
-        const optionsMatch = item.options?.some((opt) => {
-          const optNameNorm = removeDiacritics(opt.name || '').toLowerCase();
-          const optLocNorm = removeDiacritics(opt.location || '').toLowerCase();
-          return optNameNorm.includes(normMgQuery) || optLocNorm.includes(normMgQuery);
-        });
-        const infoMatch =
-          item.info &&
-          Object.values(item.info).some((v) => {
-            if (typeof v === 'string') {
-              return removeDiacritics(v).toLowerCase().includes(normMgQuery);
-            }
-            return false;
-          });
-        return nameMatch || locMatch || Boolean(shortcutsMatch) || Boolean(optionsMatch) || Boolean(infoMatch);
       });
 
       matchedMg.sort((a, b) => {
@@ -1875,16 +2382,18 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         const pB = b.priority ?? 0;
         if (pA !== pB) return pA - pB;
 
-        const aNorm = removeDiacritics(a.name || '').toLowerCase();
-        const bNorm = removeDiacritics(b.name || '').toLowerCase();
+        const mA = indexedSearchData.get(a);
+        const mB = indexedSearchData.get(b);
+        const aNorm = mA ? mA.nameNorm : '';
+        const bNorm = mB ? mB.nameNorm : '';
 
         const aStarts = aNorm.startsWith(normMgQuery);
         const bStarts = bNorm.startsWith(normMgQuery);
         if (aStarts && !bStarts) return -1;
         if (!aStarts && bStarts) return 1;
 
-        const aWordStarts = aNorm.split(/[\s\-_\/]+/).some((w) => w.startsWith(normMgQuery));
-        const bWordStarts = bNorm.split(/[\s\-_\/]+/).some((w) => w.startsWith(normMgQuery));
+        const aWordStarts = mA ? mA.nameWords.some((w) => w.startsWith(normMgQuery)) : false;
+        const bWordStarts = mB ? mB.nameWords.some((w) => w.startsWith(normMgQuery)) : false;
         if (aWordStarts && !bWordStarts) return -1;
         if (!aWordStarts && bWordStarts) return 1;
 
@@ -2110,16 +2619,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       if (tmQuery) {
         const norm = removeDiacritics(tmQuery).toLowerCase();
         const extraTm = items.filter((it) => {
-          const n = removeDiacritics(it.name || '').toLowerCase();
-          const l = removeDiacritics(it.location || '').toLowerCase();
-          const infoM =
-            it.info &&
-            Object.values(it.info).some(
-              (v) => typeof v === 'string' && removeDiacritics(v).toLowerCase().includes(norm)
-            );
+          const meta = indexedSearchData.get(it);
+          const n = meta ? meta.nameNorm : '';
+          const l = meta ? meta.locNorm : '';
+          const infoM = Boolean(meta?.infoNorm && meta.infoNorm.includes(norm));
           return (
-            (it.sourceId === 'mlog' || it.settings === 'mlog' || n.includes('mlog') || n.includes('taskmanager') || Boolean(infoM)) &&
-            (n.includes(norm) || l.includes(norm) || Boolean(infoM))
+            (it.sourceId === 'mlog' || it.settings === 'mlog' || n.includes('mlog') || n.includes('taskmanager') || infoM) &&
+            (n.includes(norm) || l.includes(norm) || infoM)
           );
         });
         tmList.push(...extraTm);
@@ -2140,17 +2646,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       // Also look for items that specifically reference this ticket in info
       const normTicket = removeDiacritics(trimmed.replace(/\s+/g, '')).toLowerCase();
       const referencingItems = items.filter((it) => {
-        if (it.info) {
-          const hasInfoTicket = Object.values(it.info).some((v) => {
-            if (typeof v === 'string') {
-              const cleaned = removeDiacritics(v.replace(/\s+/g, '')).toLowerCase();
-              return cleaned.includes(normTicket);
-            }
-            return false;
-          });
-          if (hasInfoTicket) return true;
-        }
-        return false;
+        const meta = indexedSearchData.get(it);
+        return Boolean(meta?.infoCompactNorm && meta.infoCompactNorm.includes(normTicket));
       });
       list.push(...referencingItems);
       return list;
@@ -2172,23 +2669,20 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       list.push(...matchingPlanTasks);
 
       // Also look for items that specifically reference this ticket or number in info or name
+      const tNum = `${tPref.toLowerCase()}${numId}`;
+      const rNum = `${rPref.toLowerCase()}${numId}`;
       const referencingItems = items.filter((it) => {
-        if (it.info) {
-          const hasInfoTicket = Object.values(it.info).some((v) => {
-            if (typeof v === 'string') {
-              const cleaned = removeDiacritics(v.replace(/\s+/g, '')).toLowerCase();
-              return (
-                cleaned.includes(`${tPref.toLowerCase()}${numId}`) ||
-                cleaned.includes(`${rPref.toLowerCase()}${numId}`) ||
-                cleaned.includes(numId)
-              );
-            }
-            return false;
-          });
-          if (hasInfoTicket) return true;
+        const meta = indexedSearchData.get(it);
+        if (!meta) return false;
+        if (
+          meta.infoCompactNorm &&
+          (meta.infoCompactNorm.includes(tNum) ||
+            meta.infoCompactNorm.includes(rNum) ||
+            meta.infoCompactNorm.includes(numId))
+        ) {
+          return true;
         }
-        const nameNorm = removeDiacritics(it.name || '').toLowerCase();
-        return nameNorm.includes(numId);
+        return meta.nameNorm.includes(numId);
       });
       list.push(...referencingItems);
       return list;
@@ -2223,17 +2717,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         if (item.name?.startsWith(':')) {
           return false;
         }
-        const itemNameNorm = removeDiacritics(item.name).toLowerCase();
-        const itemLocNorm = removeDiacritics(item.location).toLowerCase();
-
-        const nameMatch = itemNameNorm.includes(normQuery);
-        const locMatch = itemLocNorm.includes(normQuery);
-        const optionsMatch = item.options?.some((opt) => {
-          const optNameNorm = removeDiacritics(opt.name).toLowerCase();
-          const optLocNorm = removeDiacritics(opt.location).toLowerCase();
-          return optNameNorm.includes(normQuery) || optLocNorm.includes(normQuery);
-        });
-        return nameMatch || locMatch || Boolean(optionsMatch);
+        const meta = indexedSearchData.get(item);
+        if (!meta) return false;
+        return (
+          meta.nameNorm.includes(normQuery) ||
+          meta.locNorm.includes(normQuery) ||
+          Boolean(meta.optionsNorm && meta.optionsNorm.includes(normQuery))
+        );
       });
 
       // Sort according to priority ascending (smaller number = higher priority, default 0)
@@ -2242,8 +2732,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         const pB = b.priority ?? 0;
         if (pA !== pB) return pA - pB;
 
-        const aNorm = removeDiacritics(a.name).toLowerCase();
-        const bNorm = removeDiacritics(b.name).toLowerCase();
+        const mA = indexedSearchData.get(a);
+        const mB = indexedSearchData.get(b);
+        const aNorm = mA ? mA.nameNorm : '';
+        const bNorm = mB ? mB.nameNorm : '';
 
         // Sub-sort: exact start match comes first
         const aStarts = aNorm.startsWith(normQuery);
@@ -2252,8 +2744,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         if (!aStarts && bStarts) return 1;
 
         // Sub-sort: word boundary match (e.g. "Adobe XD" when searching "xd", "Příkazový řádek" when searching "rad")
-        const aWordStarts = aNorm.split(/[\s\-_\/]+/).some((w) => w.startsWith(normQuery));
-        const bWordStarts = bNorm.split(/[\s\-_\/]+/).some((w) => w.startsWith(normQuery));
+        const aWordStarts = mA ? mA.nameWords.some((w) => w.startsWith(normQuery)) : false;
+        const bWordStarts = mB ? mB.nameWords.some((w) => w.startsWith(normQuery)) : false;
         if (aWordStarts && !bWordStarts) return -1;
         if (!aWordStarts && bWordStarts) return 1;
 
@@ -2332,6 +2824,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   }, [
     query,
     items,
+    indexedSearchData,
+    precomputedDbCandidates,
+    precomputedFtpCandidates,
     parentItem,
     searchGoogle,
     defaultSearchEngine,
@@ -2351,10 +2846,19 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     isEasyClipActive,
     isMagicPlanActive,
     colorMasterConfig?.defaultFormat,
+    isSsmsActive,
+    ssmsConfig,
+    localDatabases,
+    magicgateEnabled,
+    ftpEnabled,
+    allowFtpWithoutSlash,
   ]);
+
+  const [renderLimit, setRenderLimit] = useState<number>(45);
 
   // Keep selected index within bounds or restore saved index when returning from subitems
   useEffect(() => {
+    setRenderLimit(45);
     if (restoringIndexRef.current !== null) {
       const savedIdx = restoringIndexRef.current;
       restoringIndexRef.current = null;
@@ -2372,12 +2876,23 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           }
           savedParentItemRef.current = null;
         }
-        setSelectedIndex(Math.max(0, Math.min(targetIndex, results.length - 1)));
+        const bounded = Math.max(0, Math.min(targetIndex, results.length - 1));
+        setSelectedIndex(bounded);
+        if (bounded >= 35) {
+          setRenderLimit(bounded + 20);
+        }
         return;
       }
     }
     setSelectedIndex(0);
   }, [results]);
+
+  // Expand renderLimit automatically when navigating down with keyboard
+  useEffect(() => {
+    if (selectedIndex >= renderLimit - 10 && renderLimit < results.length) {
+      setRenderLimit(Math.min(results.length, Math.max(renderLimit + 45, selectedIndex + 20)));
+    }
+  }, [selectedIndex, renderLimit, results.length]);
 
   // Scroll selected item or action into view and keep scrollbar moving
   useEffect(() => {
@@ -2477,6 +2992,46 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       status: 'info',
     });
 
+    if (item.action === 'enter-db-mode') {
+      refreshLocalDatabases(false);
+      setQuery('/db ');
+      setSelectedIndex(0);
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+      return;
+    }
+
+    if (item.action === 'enter-ftp-mode') {
+      setQuery('/ftp ');
+      setSelectedIndex(0);
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+      return;
+    }
+
+    if (item.action === 'ssms-query') {
+      const targetSpec =
+        item.actions?.find((a) => a.action === 'ssms-query')?.location || item.location || '';
+      const [srvPart, dbPart] = targetSpec.includes('|')
+        ? targetSpec.split('|')
+        : [ssmsConfig?.localServer || 'localhost', item.name];
+      const effectiveSrv = srvPart || 'localhost';
+      if (window.electronAPI?.openQueryInSsms && dbPart) {
+        await window.electronAPI.openQueryInSsms({
+          server: effectiveSrv,
+          dbServer: effectiveSrv,
+          database: dbPart,
+          serverName: item.info?.['Server'],
+          instanceName: item.info?.['Instance'] || (item.sourceId !== 'ssms-db' ? item.name : undefined),
+          isLocal: item.id?.startsWith('ssms-db-local-'),
+        });
+      }
+      handleClose();
+      return;
+    }
+
     if (item.wizard && Array.isArray(item.wizard.steps) && item.wizard.steps.length > 0) {
       startWizard(item);
       return;
@@ -2569,7 +3124,12 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
 
     if (item.action === 'copy' || item.action === 'paste') {
-      const toCopy = isCalculator ? item.name : (item.location || item.name);
+      const toCopy =
+        item.sourceId === 'magicgate-ftp' && item.info?.['FTP']
+          ? item.info['FTP']
+          : isCalculator
+          ? item.name
+          : (item.location || item.name);
       const isSnippet = item.sourceId === 'snippet';
       if (isSnippet) {
         resetSpotlightState();
@@ -2666,6 +3226,32 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       setQuery('');
       setSelectedIndex(0);
       handleClose();
+      return;
+    }
+
+    if (actionType === 'ssms-query') {
+      exitActions();
+      const [srvPart, dbPart] = effectiveLocation.includes('|')
+        ? effectiveLocation.split('|')
+        : [ssmsConfig?.localServer || 'localhost', effectiveLocation || parent.name];
+      const effectiveSrv = srvPart || 'localhost';
+      if (window.electronAPI?.openQueryInSsms && dbPart) {
+        await window.electronAPI.openQueryInSsms({
+          server: effectiveSrv,
+          dbServer: effectiveSrv,
+          database: dbPart,
+          serverName: parent.info?.['Server'],
+          instanceName: parent.info?.['Instance'] || (parent.sourceId !== 'ssms-db' ? parent.name : undefined),
+          isLocal: parent.id?.startsWith('ssms-db-local-'),
+        });
+      }
+      handleClose();
+      return;
+    }
+
+    if (actionType === 'ssms-refresh-local') {
+      exitActions();
+      refreshLocalDatabases(true);
       return;
     }
 
@@ -3198,6 +3784,41 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       return;
     }
 
+    // Tab or ArrowRight at end of input -> apply predictive ghost-text autocomplete (or expand /db and /ftp commands)
+    if (e.key === 'Tab') {
+      if (ghostAutocomplete) {
+        e.preventDefault();
+        setQuery(ghostAutocomplete.fullCompletion);
+        return;
+      }
+      const currentItem = results[selectedIndex];
+      if (currentItem?.action === 'enter-db-mode') {
+        e.preventDefault();
+        refreshLocalDatabases(false);
+        setQuery('/db ');
+        setSelectedIndex(0);
+        return;
+      }
+      if (currentItem?.action === 'enter-ftp-mode') {
+        e.preventDefault();
+        setQuery('/ftp ');
+        setSelectedIndex(0);
+        return;
+      }
+    }
+
+    if (
+      e.key === 'ArrowRight' &&
+      ghostAutocomplete &&
+      inputRef.current &&
+      inputRef.current.selectionStart === query.length &&
+      inputRef.current.selectionEnd === query.length
+    ) {
+      e.preventDefault();
+      setQuery(ghostAutocomplete.fullCompletion);
+      return;
+    }
+
     // If inside subitems and search query is empty, Backspace returns to previous main level
     if (e.key === 'Backspace' && query === '' && parentItem) {
       e.preventDefault();
@@ -3255,6 +3876,61 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
     }
   };
+
+  // Predictive inline ghost-text autocomplete for `/db <výraz>` and `/ftp <výraz>`
+  const ghostAutocomplete = useMemo((): { ghostSuffix: string; fullCompletion: string } | null => {
+    if (actionsParentItem || wizardItem || isPaletteMode || isEasyClipMode || parentItem) {
+      return null;
+    }
+    const allowDbNoSlash = Boolean(ssmsConfig?.allowWithoutSlash);
+    const allowFtpNoSlash = Boolean(allowFtpWithoutSlash);
+
+    const dbMatch = isSsmsActive
+      ? query.match(
+          allowDbNoSlash
+            ? /^(\s*\/?(?:db|sql|ssms)\s+)(.+)$/i
+            : /^(\s*\/(?:db|sql|ssms)\s+)(.+)$/i
+        )
+      : null;
+    const ftpMatch = !dbMatch && ftpEnabled
+      ? query.match(allowFtpNoSlash ? /^(\s*\/?ftp\s+)(.+)$/i : /^(\s*\/ftp\s+)(.+)$/i)
+      : null;
+
+    const activeMatch = dbMatch || ftpMatch;
+    if (!activeMatch) return null;
+
+    const prefix = activeMatch[1];
+    const typedArg = activeMatch[2];
+    if (!typedArg || /\s$/.test(typedArg)) return null;
+
+    const currentItem = results[selectedIndex] || results[0];
+    if (!currentItem || !currentItem.name) return null;
+
+    const candidate = currentItem.name;
+    if (
+      candidate.toLowerCase().startsWith(typedArg.toLowerCase()) &&
+      candidate.length > typedArg.length
+    ) {
+      return {
+        ghostSuffix: candidate.slice(typedArg.length),
+        fullCompletion: `${prefix}${candidate}`,
+      };
+    }
+    return null;
+  }, [
+    query,
+    results,
+    selectedIndex,
+    actionsParentItem,
+    wizardItem,
+    isPaletteMode,
+    isEasyClipMode,
+    parentItem,
+    isSsmsActive,
+    ssmsConfig?.allowWithoutSlash,
+    ftpEnabled,
+    allowFtpWithoutSlash,
+  ]);
 
   const handleKeyDownRef = useRef(handleKeyDown);
   handleKeyDownRef.current = handleKeyDown;
@@ -3365,8 +4041,19 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   };
 
   const trimmedQuery = query.trim();
+  const rawQueryStart = query.trimStart();
   const isGitPrefix = Boolean(trimmedQuery.match(/^git:/i));
   const isMagicGatePrefix = Boolean(trimmedQuery.match(/^(?:magicgate|mg):/i));
+  const isDbPrefix = Boolean(
+    isSsmsActive &&
+      rawQueryStart.match(
+        ssmsConfig?.allowWithoutSlash ? /^\/?(?:db|sql|ssms)\s+/i : /^\/(?:db|sql|ssms)\s+/i
+      )
+  );
+  const isFtpPrefix = Boolean(
+    ftpEnabled &&
+      rawQueryStart.match(allowFtpWithoutSlash ? /^\/?ftp\s+/i : /^\/ftp\s+/i)
+  );
   const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const tPrefEsc = escapeRegex((mlogTaskPrefix || 'T').trim());
   const rPrefEsc = escapeRegex((mlogRequestPrefix || 'R').trim());
@@ -3467,6 +4154,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 ? 'm3-actions-text'
                 : parentItem
                 ? 'm3-primary-text'
+                : isDbPrefix
+                ? 'text-teal-400'
+                : isFtpPrefix
+                ? 'text-amber-400'
                 : isMlogMode
                 ? 'text-indigo-400'
                 : isGitPrefix
@@ -3486,6 +4177,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               ? 'bolt'
               : parentItem
               ? 'subdirectory_arrow_right'
+              : isDbPrefix
+              ? 'database'
+              : isFtpPrefix
+              ? 'folder_shared'
               : isMlogMode
               ? 'support_agent'
               : isGitPrefix
@@ -3495,40 +4190,68 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               : 'search'}
           </span>
         </div>
-        <input
-          ref={inputRef}
-          type="text"
-          value={actionsParentItem ? '' : query}
-          readOnly={Boolean(actionsParentItem)}
-          onChange={(e) => {
-            if (!actionsParentItem) setQuery(e.target.value);
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            wizardItem
-              ? currentWizardStep?.placeholder || `${currentWizardStep?.title || 'Zadejte hodnotu'}...`
-              : isPaletteMode
-              ? isCreatingPalette
-                ? 'Název nové palety (Enter spustí lištu, Ctrl+Enter otevře detail)...'
-                : 'Hledat v barevných paletách...'
-              : isEasyClipMode
-              ? 'Hledat v historii schránky (EasyClip)...'
-              : actionsParentItem
-              ? `Akce položky: „${actionsParentItem.name}“`
-              : parentItem
-              ? `Hledat v podpoložkách „${parentItem.name}“...`
-              : isMlogMode
-              ? 'Otevřít v Taskmanageru...'
-              : isMagicGatePrefix
-              ? 'Hledat v MagicGate instancích...'
-              : isGitPrefix
-              ? 'Hledat v repozitářích...'
-              : 'Hledejte (min. 2 znaky), zadejte výpočet nebo URL...'
-          }
-          className="flex-1 bg-transparent text-[17px] text-[#f8fafc] placeholder:text-gray-500 placeholder:font-normal outline-none font-normal tracking-normal"
-          autoFocus
-          spellCheck={false}
-        />
+        <div className="relative flex-1 flex items-center min-w-0">
+          {ghostAutocomplete && !actionsParentItem && (
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 flex items-center pointer-events-none overflow-hidden whitespace-pre text-[17px] font-normal tracking-normal select-none"
+            >
+              <span className="text-transparent">{query}</span>
+              <span className="text-gray-500/75">{ghostAutocomplete.ghostSuffix}</span>
+            </div>
+          )}
+          <input
+            ref={inputRef}
+            type="text"
+            value={actionsParentItem ? '' : query}
+            readOnly={Boolean(actionsParentItem)}
+            onChange={(e) => {
+              if (!actionsParentItem) setQuery(e.target.value);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              wizardItem
+                ? currentWizardStep?.placeholder || `${currentWizardStep?.title || 'Zadejte hodnotu'}...`
+                : isPaletteMode
+                ? isCreatingPalette
+                  ? 'Název nové palety (Enter spustí lištu, Ctrl+Enter otevře detail)...'
+                  : 'Hledat v barevných paletách...'
+                : isEasyClipMode
+                ? 'Hledat v historii schránky (EasyClip)...'
+                : actionsParentItem
+                ? `Akce položky: „${actionsParentItem.name}“`
+                : parentItem
+                ? `Hledat v podpoložkách „${parentItem.name}“...`
+                : isDbPrefix
+                ? 'Hledat v lokálních a MagicGate databázích (Enter otevře dotaz v SSMS)...'
+                : isFtpPrefix
+                ? 'Hledat FTP adresu instance (Enter zkopíruje do schránky)...'
+                : isMlogMode
+                ? 'Otevřít v Taskmanageru...'
+                : isMagicGatePrefix
+                ? 'Hledat v MagicGate instancích...'
+                : isGitPrefix
+                ? 'Hledat v repozitářích...'
+                : 'Hledejte (min. 2 znaky), zadejte výpočet nebo URL...'
+            }
+            className="w-full bg-transparent text-[17px] text-[#f8fafc] placeholder:text-gray-500 placeholder:font-normal outline-none font-normal tracking-normal relative z-10"
+            autoFocus
+            spellCheck={false}
+          />
+        </div>
+        {ghostAutocomplete && !actionsParentItem && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery(ghostAutocomplete.fullCompletion);
+              inputRef.current?.focus();
+            }}
+            className="px-2 py-0.5 rounded-full bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 text-[10px] font-mono font-semibold shrink-0 transition cursor-pointer select-none"
+            title="Doplnit celý název (Tab)"
+          >
+            Tab ↹
+          </button>
+        )}
         {wizardItem ? (
           <div className="flex items-center gap-2">
             <button
@@ -4984,9 +5707,16 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
             <div
               ref={listRef}
+              onScroll={(e) => {
+                if (renderLimit >= results.length) return;
+                const el = e.currentTarget;
+                if (el.scrollTop + el.clientHeight >= el.scrollHeight - 160) {
+                  setRenderLimit((prev) => Math.min(results.length, prev + 45));
+                }
+              }}
               className="max-h-[420px] overflow-y-auto px-2 py-1.5 space-y-1.5 focus:outline-none relative"
             >
-              {results.map((item, idx) => {
+              {results.slice(0, Math.max(renderLimit, selectedIndex + 10)).map((item, idx) => {
                 const isSelected = idx === selectedIndex;
                 const hasOptions = Array.isArray(item.options) && item.options.length > 0;
                 const hasActions = hasItemActions(item);
@@ -5244,7 +5974,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                           return null;
                         })()}
                         {item.settings === 'magicgate' && (
-                          canCloneGit && hasActionsOrInfo ? (
+                          canAccessMagicGateExtras && hasActionsOrInfo ? (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -5289,6 +6019,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                           <span className="text-xs font-semibold text-purple-400 animate-in fade-in duration-100">
                             Spustit průvodce
                           </span>
+                        ) : item.action === 'ssms-query' ? (
+                          <span className="text-xs font-semibold text-teal-400 animate-in fade-in duration-100">
+                            Dotaz v SSMS
+                          </span>
+                        ) : item.action === 'enter-db-mode' || item.action === 'enter-ftp-mode' ? (
+                          <span className="text-xs font-semibold text-teal-400 animate-in fade-in duration-100">
+                            Vypsat položky
+                          </span>
                         ) : (item.action === 'copy' || item.action === 'paste') ? (
                           <span className="text-xs font-semibold text-emerald-400 animate-in fade-in duration-100">
                             Kopírovat
@@ -5315,6 +6053,20 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                     </kbd>
                     <span className="text-white">Spustit průvodce</span>
                   </span>
+                ) : results[selectedIndex]?.action === 'ssms-query' ? (
+                  <span className="text-xs font-semibold flex items-center gap-1.5">
+                    <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-teal-400 rounded-full font-mono text-[9px] leading-none select-none">
+                      Enter
+                    </kbd>
+                    <span className="text-white">Otevřít dotaz v SSMS</span>
+                  </span>
+                ) : results[selectedIndex]?.action === 'enter-db-mode' || results[selectedIndex]?.action === 'enter-ftp-mode' ? (
+                  <span className="text-xs font-semibold flex items-center gap-1.5">
+                    <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-teal-400 rounded-full font-mono text-[9px] leading-none select-none">
+                      Enter / Space
+                    </kbd>
+                    <span className="text-white">Vypsat seznam</span>
+                  </span>
                 ) : results[selectedIndex]?.action === 'copy' || results[selectedIndex]?.action === 'paste' ? (
                   <span className="text-xs font-semibold flex items-center gap-1.5">
                     <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-emerald-400 rounded-full font-mono text-[9px] leading-none select-none">
@@ -5328,6 +6080,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                       Enter
                     </kbd>
                     <span className="text-white">Otevřít</span>
+                  </span>
+                )}
+                {ghostAutocomplete && (
+                  <span className="text-xs font-semibold flex items-center gap-1.5">
+                    <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-teal-300 rounded-full font-mono text-[9px] leading-none select-none">
+                      Tab
+                    </kbd>
+                    <span className="text-white">Doplnit název</span>
                   </span>
                 )}
                 {hasItemActionsOrInfo(results[selectedIndex]) && (

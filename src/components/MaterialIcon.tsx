@@ -11,19 +11,52 @@ interface MaterialIconProps {
   colorClass?: string;
 }
 
+const originMemoryCache = new Map<string, string | null>();
+const faviconMemoryCache = new Map<string, string | null>();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('favicon-cached', (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    if (detail && detail.origin && detail.dataUrl) {
+      faviconMemoryCache.set(detail.origin, detail.dataUrl);
+    }
+  });
+}
+
 function getOrigin(url?: string | null): string | null {
   if (!url) return null;
+  const cached = originMemoryCache.get(url);
+  if (cached !== undefined) return cached;
   try {
     const trimmed = url.trim();
-    if (!/^https?:\/\//i.test(trimmed)) return null;
+    if (!/^https?:\/\//i.test(trimmed)) {
+      originMemoryCache.set(url, null);
+      return null;
+    }
     const parsed = new URL(trimmed);
+    originMemoryCache.set(url, parsed.origin);
     return parsed.origin;
   } catch {
+    originMemoryCache.set(url, null);
     return null;
   }
 }
 
-export const MaterialIcon: React.FC<MaterialIconProps> = ({
+function getCachedFavicon(origin: string | null): string | null {
+  if (!origin) return null;
+  const mem = faviconMemoryCache.get(origin);
+  if (mem !== undefined) return mem;
+  try {
+    const val = localStorage.getItem(`favicon:${origin}`);
+    faviconMemoryCache.set(origin, val);
+    return val;
+  } catch {
+    faviconMemoryCache.set(origin, null);
+    return null;
+  }
+}
+
+export const MaterialIcon: React.FC<MaterialIconProps> = React.memo(({
   icon,
   image,
   location,
@@ -35,20 +68,18 @@ export const MaterialIcon: React.FC<MaterialIconProps> = ({
   const [imgError, setImgError] = useState(false);
   const isFaviconPlaceholder = image === '{favicon}';
   const origin = isFaviconPlaceholder ? getOrigin(location) : null;
-  const [cachedFavicon, setCachedFavicon] = useState<string | null>(() => {
-    if (origin) {
-      return localStorage.getItem(`favicon:${origin}`);
-    }
-    return null;
-  });
+  const [cachedFavicon, setCachedFavicon] = useState<string | null>(() => getCachedFavicon(origin));
 
   useEffect(() => {
     setImgError(false);
   }, [image, location]);
 
   useEffect(() => {
-    if (!origin) return;
-    const current = localStorage.getItem(`favicon:${origin}`);
+    if (!origin) {
+      if (cachedFavicon !== null) setCachedFavicon(null);
+      return;
+    }
+    const current = getCachedFavicon(origin);
     if (current !== cachedFavicon) {
       setCachedFavicon(current);
     }
@@ -56,6 +87,7 @@ export const MaterialIcon: React.FC<MaterialIconProps> = ({
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail && detail.origin === origin) {
+        faviconMemoryCache.set(origin, detail.dataUrl);
         setCachedFavicon(detail.dataUrl);
         setImgError(false);
       }
@@ -63,7 +95,7 @@ export const MaterialIcon: React.FC<MaterialIconProps> = ({
 
     window.addEventListener('favicon-cached', handler);
     return () => window.removeEventListener('favicon-cached', handler);
-  }, [origin, cachedFavicon]);
+  }, [origin]);
 
   // Determine effective image src
   let effectiveSrc: string | null = null;
@@ -119,5 +151,5 @@ export const MaterialIcon: React.FC<MaterialIconProps> = ({
       {iconName}
     </span>
   );
-};
+});
 

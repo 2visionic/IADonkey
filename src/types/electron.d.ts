@@ -74,6 +74,25 @@ declare global {
       selectAndroidStudioPath: (defaultPath?: string) => Promise<string | null>;
       detectAndroidStudioPath: () => Promise<string | null>;
       isAndroidProject: (folderPath: string) => Promise<boolean>;
+      selectSsmsPath: (defaultPath?: string) => Promise<string | null>;
+      detectSsmsPath: () => Promise<string | null>;
+      getLocalDatabases: (
+        serverOrParams?: string | { server?: string; forceRefresh?: boolean },
+        forceRefresh?: boolean
+      ) => Promise<{
+        ok: boolean;
+        databases: string[];
+        error?: string;
+      }>;
+      openQueryInSsms: (params: {
+        server?: string;
+        dbServer?: string;
+        database: string;
+        dbHost?: string;
+        serverName?: string;
+        instanceName?: string;
+        isLocal?: boolean;
+      }) => Promise<{ success: boolean; error?: string; resolvedHost?: string }>;
       getExistingClonedRepos: (baseDir?: string) => Promise<
         | string[]
         | {

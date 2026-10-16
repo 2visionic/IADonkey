@@ -24,6 +24,8 @@ const DEFAULT_CONFIG: AppConfig = {
     password: '',
     sourceMode: 'xml',
     apiBaseUrl: '',
+    enableFtp: true,
+    allowFtpWithoutSlash: false,
   },
   mlog: {
     baseUrl: '',
@@ -45,6 +47,15 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   androidStudio: {
     path: '',
+  },
+  ssms: {
+    path: '',
+    allowWithoutSlash: false,
+    localServer: 'localhost',
+    authMode: 'windows',
+    sqlUsername: '',
+    sqlPassword: '',
+    recentDatabases: [],
   },
   donkeyTools: {
     colorMaster: {
@@ -76,6 +87,7 @@ const DEFAULT_CONFIG: AppConfig = {
     github: false,
     vscode: false,
     androidStudio: false,
+    ssms: false,
     donkeyTools: false,
     magicplan: false,
   },
@@ -150,6 +162,25 @@ export class AppStore {
               cfg.magicgate.apiAuthCookie = safeStorage.decryptString(encryptedBuf);
             } catch (decErr) {
               console.warn('[Store] Failed to decrypt MagicGate apiAuthCookie:', decErr);
+            }
+          }
+        }
+
+        if (parsed.ssms) {
+          cfg.ssms = {
+            ...DEFAULT_CONFIG.ssms,
+            ...parsed.ssms,
+          };
+          if (
+            cfg.ssms?.sqlPassword &&
+            cfg.ssms.sqlPassword.startsWith('enc:') &&
+            safeStorage?.isEncryptionAvailable?.()
+          ) {
+            try {
+              const encryptedBuf = Buffer.from(cfg.ssms.sqlPassword.slice(4), 'base64');
+              cfg.ssms.sqlPassword = safeStorage.decryptString(encryptedBuf);
+            } catch (decErr) {
+              console.warn('[Store] Failed to decrypt SSMS sqlPassword:', decErr);
             }
           }
         }
@@ -277,6 +308,7 @@ export class AppStore {
       const diskConfig: AppConfig = {
         ...this.config,
         magicgate: this.config.magicgate ? { ...this.config.magicgate } : this.config.magicgate,
+        ssms: this.config.ssms ? { ...this.config.ssms } : this.config.ssms,
       };
       if (
         diskConfig.magicgate?.apiAuthCookie &&
@@ -286,6 +318,16 @@ export class AppStore {
         try {
           const enc = safeStorage.encryptString(diskConfig.magicgate.apiAuthCookie).toString('base64');
           diskConfig.magicgate.apiAuthCookie = `enc:${enc}`;
+        } catch {}
+      }
+      if (
+        diskConfig.ssms?.sqlPassword &&
+        !diskConfig.ssms.sqlPassword.startsWith('enc:') &&
+        safeStorage?.isEncryptionAvailable?.()
+      ) {
+        try {
+          const enc = safeStorage.encryptString(diskConfig.ssms.sqlPassword).toString('base64');
+          diskConfig.ssms.sqlPassword = `enc:${enc}`;
         } catch {}
       }
       const tmpFile = `${CONFIG_FILE}.${process.pid}.tmp`;

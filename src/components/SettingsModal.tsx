@@ -224,7 +224,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   updateInfo,
   onSimulateUpdate,
 }) => {
-  const [activeTab, setActiveTab] = useState<'sources' | 'extensions' | 'magicgate' | 'mlog' | 'github' | 'vscode' | 'android-studio' | 'magicplan' | 'donkey-tools' | 'snippets' | 'general' | 'notifications' | 'system' | 'updates' | 'help' | 'develop'>(() => {
+  const [activeTab, setActiveTab] = useState<'sources' | 'extensions' | 'magicgate' | 'mlog' | 'github' | 'vscode' | 'android-studio' | 'ssms' | 'magicplan' | 'donkey-tools' | 'snippets' | 'general' | 'notifications' | 'system' | 'updates' | 'help' | 'develop'>(() => {
     try {
       const hash = window.location.hash;
       const search = window.location.search;
@@ -238,7 +238,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         tabParam = urlParams.get('tab');
       }
       if (tabParam) {
-        const validTabs = ['sources', 'extensions', 'magicgate', 'mlog', 'github', 'vscode', 'android-studio', 'magicplan', 'donkey-tools', 'snippets', 'general', 'notifications', 'system', 'updates', 'help', 'develop'];
+        const validTabs = ['sources', 'extensions', 'magicgate', 'mlog', 'github', 'vscode', 'android-studio', 'ssms', 'magicplan', 'donkey-tools', 'snippets', 'general', 'notifications', 'system', 'updates', 'help', 'develop'];
         if (validTabs.includes(tabParam)) {
           return tabParam as any;
         }
@@ -251,7 +251,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   useEffect(() => {
     const cleanup = window.electronAPI?.onSwitchSettingsTab?.((tab: string) => {
-      const validTabs = ['sources', 'extensions', 'magicgate', 'mlog', 'github', 'vscode', 'android-studio', 'magicplan', 'donkey-tools', 'snippets', 'general', 'notifications', 'system', 'updates', 'help', 'develop'];
+      const validTabs = ['sources', 'extensions', 'magicgate', 'mlog', 'github', 'vscode', 'android-studio', 'ssms', 'magicplan', 'donkey-tools', 'snippets', 'general', 'notifications', 'system', 'updates', 'help', 'develop'];
       if (validTabs.includes(tab)) {
         setActiveTab(tab as any);
       }
@@ -260,6 +260,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (typeof cleanup === 'function') cleanup();
     };
   }, []);
+  const [ssmsLocalTest, setSsmsLocalTest] = useState<{ loading: boolean; dbs: string[]; error?: string } | null>(null);
+  const [showSsmsPassword, setShowSsmsPassword] = useState(false);
   const [activeDonkeyTool, setActiveDonkeyTool] = useState<'colorMaster' | 'quickCap' | 'screenRuler' | 'easyClip'>('colorMaster');
   const [formData, setFormData] = useState<AppConfig>(config);
   const [editingSource, setEditingSource] = useState<DataSource | null>(null);
@@ -1517,6 +1519,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (formData.extensions?.github) count++;
     if (formData.extensions?.vscode) count++;
     if (formData.extensions?.androidStudio) count++;
+    if (formData.extensions?.ssms) count++;
     if (formData.extensions?.magicplan) count++;
     if (formData.extensions?.donkeyTools) count++;
     return count;
@@ -5291,7 +5294,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
 
           {/* Sub-items for enabled extensions: collapsed unless extensions or one of extension tabs is active */}
-          {['extensions', 'magicgate', 'mlog', 'magicplan', 'github', 'vscode', 'android-studio', 'donkey-tools'].includes(activeTab) && (
+          {['extensions', 'magicgate', 'mlog', 'magicplan', 'github', 'vscode', 'android-studio', 'ssms', 'donkey-tools'].includes(activeTab) && (
             <div className="space-y-0.5 animate-in fade-in duration-150">
               {/* MagicGate tab - visible only when extension is enabled */}
               {formData.extensions?.magicgate && (
@@ -5399,6 +5402,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-[16px] text-pink-400">android</span>
                     <span>Android Studio</span>
+                  </div>
+                </button>
+              )}
+
+              {/* SSMS tab - visible only when extension is enabled */}
+              {formData.extensions?.ssms && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('ssms')}
+                  className={`w-full flex items-center justify-between px-3 py-1.5 rounded-full text-[12px] font-medium transition cursor-pointer pl-6 ${
+                    activeTab === 'ssms'
+                      ? 'bg-teal-500/20 text-teal-200 font-semibold shadow-sm'
+                      : 'text-gray-400 hover:text-teal-200 hover:bg-white/[0.04]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-teal-400">database</span>
+                    <span>SSMS (SQL)</span>
                   </div>
                 </button>
               )}
@@ -5544,8 +5565,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#0e0f12]">
         {/* Right Pane Header */}
         <header className="px-6 py-4 bg-transparent shrink-0">
-          <div className="w-full max-w-4xl mx-auto flex items-center justify-between">
-            <div>
+          <div className="w-full max-w-4xl mx-auto flex items-center justify-between gap-4">
+            <div className="min-w-0">
               <h2 className="text-base font-semibold text-white tracking-tight">
                 {activeTab === 'sources' && 'Zdroje dat'}
                 {activeTab === 'extensions' && 'Rozšíření'}
@@ -5554,6 +5575,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {activeTab === 'github' && 'GitHub'}
                 {activeTab === 'vscode' && 'VS Code'}
                 {activeTab === 'android-studio' && 'Android Studio'}
+                {activeTab === 'ssms' && 'SQL Server Management Studio (SSMS)'}
                 {activeTab === 'magicplan' && 'MagicPlan'}
                 {activeTab === 'donkey-tools' && 'DonkeyTools'}
                 {activeTab === 'snippets' && 'Snippety'}
@@ -5571,6 +5593,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {activeTab === 'github' && 'Přístup k osobním i firemním repozitářům a rychlému klonování'}
                 {activeTab === 'vscode' && 'Konfigurace cesty k editoru VS Code pro otevírání repozitářů a projektů'}
                 {activeTab === 'android-studio' && 'Konfigurace cesty k Android Studiu pro otevírání mobilních a Kotlin/Java projektů'}
+                {activeTab === 'ssms' && 'Konfigurace aplikace Ssms.exe pro otevírání SQL dotazů v lokálních i vzdálených databázích (/db)'}
                 {activeTab === 'magicplan' && 'Sledování interního plánu práce, nastavení sloupce a časové osy'}
                 {activeTab === 'donkey-tools' && 'Správa vestavěných utilit, modulu ColorMaster a klávesových zkratek'}
                 {activeTab === 'snippets' && 'Předem definované textové zkratky a osobní údaje pro rychlé vložení'}
@@ -5581,12 +5604,93 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {activeTab === 'develop' && 'Ladicí nástroje, systémová konzole a auditní protokol prováděných akcí'}
               </p>
             </div>
-            {saveSuccess && (
-              <span className="text-[13px] text-emerald-300 flex items-center gap-1.5 font-medium animate-fade-in bg-emerald-500/15 px-3.5 py-1.5 rounded-full shadow-sm shrink-0">
-                <span className="material-symbols-outlined text-base">check_circle</span>
-                Změny uloženy
-              </span>
-            )}
+            <div className="flex items-center gap-3 shrink-0">
+              {saveSuccess && (
+                <span className="text-[13px] text-emerald-300 flex items-center gap-1.5 font-medium animate-fade-in bg-emerald-500/15 px-3.5 py-1.5 rounded-full shadow-sm shrink-0">
+                  <span className="material-symbols-outlined text-base">check_circle</span>
+                  Změny uloženy
+                </span>
+              )}
+              {(() => {
+                const extMetaMap: Record<
+                  string,
+                  {
+                    key:
+                      | 'magicgate'
+                      | 'mlog'
+                      | 'magicplan'
+                      | 'github'
+                      | 'vscode'
+                      | 'androidStudio'
+                      | 'ssms'
+                      | 'donkeyTools';
+                    checkedClass: string;
+                  }
+                > = {
+                  magicgate: { key: 'magicgate', checkedClass: 'peer-checked:bg-amber-500' },
+                  mlog: { key: 'mlog', checkedClass: 'peer-checked:bg-sky-500' },
+                  magicplan: { key: 'magicplan', checkedClass: 'peer-checked:bg-cyan-600' },
+                  github: { key: 'github', checkedClass: 'peer-checked:bg-emerald-500' },
+                  vscode: { key: 'vscode', checkedClass: 'peer-checked:bg-cyan-500' },
+                  'android-studio': { key: 'androidStudio', checkedClass: 'peer-checked:bg-pink-500' },
+                  ssms: { key: 'ssms', checkedClass: 'peer-checked:bg-teal-500' },
+                  'donkey-tools': { key: 'donkeyTools', checkedClass: 'peer-checked:bg-rose-600' },
+                };
+                const meta = extMetaMap[activeTab];
+                if (!meta) return null;
+                const isChecked = Boolean(formData.extensions?.[meta.key]);
+                return (
+                  <label
+                    className="relative inline-flex items-center cursor-pointer select-none shrink-0"
+                    title={
+                      isChecked
+                        ? 'Vypnout rozšíření a vrátit se do přehledu rozšíření'
+                        : 'Zapnout rozšíření'
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        const nextChecked = e.target.checked;
+                        const updated = {
+                          ...formData,
+                          extensions: {
+                            ...formData.extensions,
+                            magicgate: formData.extensions?.magicgate ?? false,
+                            mlog: formData.extensions?.mlog ?? false,
+                            github: formData.extensions?.github ?? false,
+                            vscode: formData.extensions?.vscode ?? false,
+                            androidStudio: formData.extensions?.androidStudio ?? false,
+                            ssms: formData.extensions?.ssms ?? false,
+                            donkeyTools: formData.extensions?.donkeyTools ?? false,
+                            magicplan: formData.extensions?.magicplan ?? false,
+                            [meta.key]: nextChecked,
+                          },
+                          ...(meta.key === 'magicplan'
+                            ? {
+                                magicplan: {
+                                  ...formData.magicplan,
+                                  enabled: nextChecked,
+                                },
+                              }
+                            : {}),
+                        };
+                        setFormData(updated);
+                        handleSave(updated);
+                        if (!nextChecked) {
+                          setActiveTab('extensions');
+                        }
+                      }}
+                    />
+                    <div
+                      className={`w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all ${meta.checkedClass}`}
+                    />
+                  </label>
+                );
+              })()}
+            </div>
           </div>
         </header>
 
@@ -6461,7 +6565,103 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   )}
                 </div>
 
-                {/* 7. DonkeyTools */}
+                {/* 7. SQL Server Management Studio (SSMS) */}
+                <div className="p-5 bg-white/[0.03] hover:bg-white/[0.05] rounded-2xl flex flex-col justify-between gap-4 transition-colors">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-10 h-10 rounded-full bg-teal-500/15 flex items-center justify-center shrink-0 text-teal-400">
+                        <span className="material-symbols-outlined text-2xl">database</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-bold text-white tracking-wide">SQL Server Management Studio (SSMS)</h3>
+                          {formData.extensions?.ssms ? (
+                            formData.ssms?.path?.trim() ? (
+                              <span className="text-[10px] uppercase bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full font-semibold">
+                                Nakonfigurováno
+                              </span>
+                            ) : (
+                              <span className="text-[10px] uppercase bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full font-semibold">
+                                Vyberte Ssms.exe
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-[10px] uppercase bg-white/5 text-gray-400 px-2.5 py-0.5 rounded-full font-semibold">
+                              Vypnuto
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                          Okamžité otevírání nového SQL dotazu (New Query) v lokálních i vzdálených databázích instancí MagicGate přes příkaz <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-teal-300 font-mono text-[11px]">/db</code> nebo přímo z nabídky akcí (<kbd className="bg-white/10 px-1.5 py-0.5 rounded-full font-mono text-[10px]">Shift+Enter</kbd>) u vybrané instance.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={formData.extensions?.ssms ?? false}
+                          onChange={async (e) => {
+                            const checked = e.target.checked;
+                            let detectedPath = formData.ssms?.path || '';
+                            if (checked && !detectedPath.trim() && window.electronAPI?.detectSsmsPath) {
+                              try {
+                                const autoPath = await window.electronAPI.detectSsmsPath();
+                                if (autoPath) detectedPath = autoPath;
+                              } catch {
+                                // ignore
+                              }
+                            }
+                            const updated = {
+                              ...formData,
+                              extensions: {
+                                ...formData.extensions,
+                                magicgate: formData.extensions?.magicgate ?? false,
+                                mlog: formData.extensions?.mlog ?? false,
+                                github: formData.extensions?.github ?? false,
+                                vscode: formData.extensions?.vscode ?? false,
+                                androidStudio: formData.extensions?.androidStudio ?? false,
+                                ssms: checked,
+                              },
+                              ssms: {
+                                path: detectedPath,
+                                allowWithoutSlash: formData.ssms?.allowWithoutSlash ?? false,
+                                localServer: formData.ssms?.localServer || 'localhost',
+                                authMode: formData.ssms?.authMode || 'windows',
+                                sqlUsername: formData.ssms?.sqlUsername || '',
+                                sqlPassword: formData.ssms?.sqlPassword || '',
+                                recentDatabases: formData.ssms?.recentDatabases || [],
+                              },
+                            };
+                            setFormData(updated);
+                            handleSave(updated);
+                          }}
+                        />
+                        <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-500" />
+                      </label>
+                    </div>
+                  </div>
+                  {formData.extensions?.ssms && (
+                    <div className="pt-3 border-t border-white/[0.04] flex items-center justify-between">
+                      <span className="text-xs text-gray-500">
+                        {formData.ssms?.path?.trim()
+                          ? 'Záložka je dostupná v levém menu • Příkaz /db a akce SSMS jsou aktivní'
+                          : 'Vyberte cestu k Ssms.exe v nastavení pro aktivaci příkazu /db a akcí'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('ssms')}
+                        className="px-4 py-2 rounded-full text-xs font-medium text-teal-300 bg-teal-500/15 hover:bg-teal-500/25 transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>Nastavení SSMS</span>
+                        <span className="material-symbols-outlined text-sm">navigate_next</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 8. DonkeyTools */}
                 <div className="p-5 bg-white/[0.03] hover:bg-white/[0.05] rounded-2xl flex flex-col justify-between gap-4 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3.5">
@@ -7144,6 +7344,154 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <span className="text-xs text-gray-400 mt-1.5 block">
                     Při spuštění akce na instanci se podsložka dané instance nejprve kompletně vyčistí (aby nezůstaly staré soubory) a poté se do ní rozbalí aktuální zdrojové kódy z instance.
                   </span>
+                </div>
+              </div>
+
+              {/* Kopírování FTP adresy (/ftp) */}
+              <div className="p-5 bg-white/[0.03] rounded-2xl space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h4 className="font-semibold text-white flex items-center gap-2 text-sm">
+                      <span className="material-symbols-outlined text-base text-amber-400">folder_shared</span>
+                      Kopírování FTP adresy (<code className="text-amber-300 font-mono text-xs">/ftp</code>)
+                    </h4>
+                    <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                      FTP adresy jednotlivých serverů a instancí se získávají přímo z <span className="text-amber-300 font-medium">MagicWare Deploy API</span>. Adresu zkopírujete příkazem <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-amber-300 font-mono text-[11px]">/ftp &lt;instance&gt;</code> nebo v akcích instance (<kbd className="bg-white/10 px-1.5 py-0.5 rounded-full font-mono text-[10px]">Shift+Enter</kbd>). Při vypnutí této sekce se příkaz <code className="font-mono text-gray-300">/ftp</code> ani akce kopírování FTP adresy v MagicGate nebudou nabízet.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer select-none shrink-0 ml-auto mt-0.5">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={formData.magicgate?.enableFtp !== false}
+                      onChange={(e) => {
+                        const updated = {
+                          ...formData,
+                          magicgate: {
+                            ...formData.magicgate,
+                            enableFtp: e.target.checked,
+                          },
+                        };
+                        setFormData(updated);
+                        handleSave(updated);
+                      }}
+                    />
+                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500" />
+                  </label>
+                </div>
+
+                {/* Switch for allowFtpWithoutSlash - only shown when FTP is enabled */}
+                {formData.magicgate?.enableFtp !== false && (
+                  <div className="p-3.5 bg-black/20 rounded-xl flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-[13px] font-medium text-white">
+                        Povolit vyvolání příkazu <code className="text-amber-300 font-mono text-xs">ftp</code> i bez příkazového znaku <code className="text-amber-300 font-mono text-xs">/</code> (režim Wox)
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                        Umožní psát do vyhledávače přímo <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-gray-200 font-mono text-[11px]">ftp &lt;instance&gt;</code> bez počátečního lomítka pro uživatele zvyklé na původní Wox.
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer select-none shrink-0 ml-auto">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={formData.magicgate?.allowFtpWithoutSlash ?? false}
+                        onChange={(e) => {
+                          const updated = {
+                            ...formData,
+                            magicgate: {
+                              ...formData.magicgate,
+                              allowFtpWithoutSlash: e.target.checked,
+                            },
+                          };
+                          setFormData(updated);
+                          handleSave(updated);
+                        }}
+                      />
+                      <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500" />
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* SQL dotazy (/db) */}
+              <div className="p-5 bg-white/[0.03] rounded-2xl space-y-4">
+                <div>
+                  <h4 className="font-semibold text-white flex items-center gap-2 text-sm">
+                    <span className="material-symbols-outlined text-base text-teal-400">database</span>
+                    SQL dotazy (<code className="text-teal-300 font-mono text-xs">/db</code>)
+                  </h4>
+                  <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                    Propojení instancí z <span className="text-amber-300 font-medium">MagicWare Deploy API</span> s aplikací <span className="text-teal-300 font-medium">SQL Server Management Studio (SSMS)</span> pro okamžité otevírání SQL dotazů nad databází vybrané instance.
+                  </p>
+                </div>
+
+                {/* Quick status & link to SSMS extension */}
+                <div className="p-3.5 bg-teal-950/20 rounded-xl flex items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <span className="material-symbols-outlined text-teal-400 text-xl mt-0.5">terminal</span>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[13px] font-medium text-white">Rozšíření SQL Server Management Studio (SSMS)</span>
+                        {formData.extensions?.ssms && formData.ssms?.path?.trim() ? (
+                          <span className="text-[10px] uppercase bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-semibold">
+                            Aktivní
+                          </span>
+                        ) : (
+                          <span className="text-[10px] uppercase bg-white/10 text-gray-400 px-2 py-0.5 rounded-full font-semibold">
+                            Nenastaveno
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                        Akce <strong>Otevřít dotaz v SSMS</strong> u instancí MagicGate a příkaz <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-teal-300 font-mono text-[11px]">/db</code> se ve vyhledávači nabízejí pouze tehdy, když je povoleno rozšíření <strong>SSMS</strong> a vybrána aplikace <code className="font-mono text-gray-300">Ssms.exe</code>.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!formData.extensions?.ssms) {
+                        let detectedPath = formData.ssms?.path || '';
+                        if (!detectedPath.trim() && window.electronAPI?.detectSsmsPath) {
+                          try {
+                            const autoPath = await window.electronAPI.detectSsmsPath();
+                            if (autoPath) detectedPath = autoPath;
+                          } catch {
+                            // ignore
+                          }
+                        }
+                        const updated = {
+                          ...formData,
+                          extensions: {
+                            ...formData.extensions,
+                            magicgate: formData.extensions?.magicgate ?? false,
+                            mlog: formData.extensions?.mlog ?? false,
+                            github: formData.extensions?.github ?? false,
+                            vscode: formData.extensions?.vscode ?? false,
+                            androidStudio: formData.extensions?.androidStudio ?? false,
+                            ssms: true,
+                          },
+                          ssms: {
+                            path: detectedPath,
+                            allowWithoutSlash: formData.ssms?.allowWithoutSlash ?? false,
+                            localServer: formData.ssms?.localServer || 'localhost',
+                            authMode: formData.ssms?.authMode || 'windows',
+                            sqlUsername: formData.ssms?.sqlUsername || '',
+                            sqlPassword: formData.ssms?.sqlPassword || '',
+                            recentDatabases: formData.ssms?.recentDatabases || [],
+                          },
+                        };
+                        setFormData(updated);
+                        handleSave(updated);
+                      }
+                      setActiveTab('ssms');
+                    }}
+                    className="px-4 py-2 rounded-full text-xs font-medium text-teal-300 bg-teal-500/15 hover:bg-teal-500/25 transition flex items-center gap-1.5 cursor-pointer shrink-0 ml-auto"
+                  >
+                    <span>{formData.extensions?.ssms ? 'Nastavení SSMS' : 'Povolit a nastavit SSMS'}</span>
+                    <span className="material-symbols-outlined text-sm">navigate_next</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -8105,6 +8453,378 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <div className="font-semibold text-white">Kdy se Android Studio nabízí:</div>
                     <p className="text-gray-300 leading-relaxed">
                       Aplikace se nabízí, pokud repozitář z GitHubu používá <strong>Kotlin</strong> nebo <strong>Java</strong>. Pro webové projekty a instance MagicGate se vždy nabízí VS Code (nabízí se buď VS Code, nebo Android Studio, nikdy obojí současně).
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: SSMS */}
+          {activeTab === 'ssms' && (
+            <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
+              <div>
+                <h3 className="font-semibold text-white flex items-center gap-2">
+                  <span className="material-symbols-outlined text-lg text-teal-400">database</span>
+                  SQL Server Management Studio (SSMS)
+                </h3>
+                <p className="text-[13px] text-gray-400 mt-1 leading-relaxed">
+                  Konfigurace aplikace <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-teal-300 font-mono text-xs">Ssms.exe</code> pro okamžité otevírání nového SQL dotazu (New Query) v lokálních i vzdálených databázích instancí MagicGate.
+                </p>
+              </div>
+
+              {/* 1. Cesta k Ssms.exe + Wox kompatibilita */}
+              <div className="p-5 bg-white/[0.03] rounded-2xl space-y-5">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label className="block text-[13px] font-medium text-gray-300">
+                      Cesta ke spustitelnému souboru SSMS (<code className="font-mono text-teal-300">Ssms.exe</code>)
+                    </label>
+                    {formData.ssms?.path?.trim() ? (
+                      <span className="text-[10px] uppercase bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full font-semibold">
+                        Aktivní – akce a příkaz /db jsou povoleny
+                      </span>
+                    ) : (
+                      <span className="text-[10px] uppercase bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full font-semibold">
+                        Nevybráno – akce a příkaz /db se nenabízejí
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={formData.ssms?.path || ''}
+                      onChange={(e) => {
+                        const updated = {
+                          ...formData,
+                          ssms: { ...formData.ssms, path: e.target.value },
+                        };
+                        setFormData(updated);
+                        handleSave(updated);
+                      }}
+                      className="h-[38px] flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-teal-500 outline-none font-mono"
+                      placeholder="Vyberte Ssms.exe (např. C:\Program Files\Microsoft SQL Server Management Studio 20\Common7\IDE\Ssms.exe)"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (window.electronAPI?.selectSsmsPath) {
+                          const selected = await window.electronAPI.selectSsmsPath(formData.ssms?.path);
+                          if (selected) {
+                            const updated = {
+                              ...formData,
+                              ssms: { ...formData.ssms, path: selected },
+                            };
+                            setFormData(updated);
+                            handleSave(updated);
+                          }
+                        }
+                      }}
+                      className="h-[38px] px-4 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-full text-[13px] font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                    >
+                      <span className="material-symbols-outlined text-base text-teal-400">folder_open</span>
+                      <span>Procházet...</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (window.electronAPI?.detectSsmsPath) {
+                          const detected = await window.electronAPI.detectSsmsPath();
+                          if (detected) {
+                            const updated = {
+                              ...formData,
+                              ssms: { ...formData.ssms, path: detected },
+                            };
+                            setFormData(updated);
+                            handleSave(updated);
+                          }
+                        }
+                      }}
+                      className="w-[38px] h-[38px] flex items-center justify-center bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 hover:text-white rounded-full transition cursor-pointer shrink-0"
+                      title="Automaticky detekovat (prohledat standardní instalační složky SSMS 21 / 20 / 19 / 18)"
+                    >
+                      <span className="material-symbols-outlined text-[18px] leading-none">auto_awesome</span>
+                    </button>
+                    {formData.ssms?.path && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = {
+                            ...formData,
+                            ssms: { ...formData.ssms, path: '' },
+                          };
+                          setFormData(updated);
+                          handleSave(updated);
+                        }}
+                        className="w-[38px] h-[38px] flex items-center justify-center text-rose-400 hover:text-rose-300 bg-rose-500/15 hover:bg-rose-500/25 rounded-full transition cursor-pointer shrink-0"
+                        title="Vymazat cestu (skryje příkaz /db i akce SSMS)"
+                      >
+                        <span className="material-symbols-outlined text-[18px] leading-none">delete</span>
+                      </button>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-400 mt-2 block leading-relaxed">
+                    Příkaz <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-teal-300 font-mono text-[11px]">/db</code> a akce <strong>Otevřít dotaz v SSMS</strong> u instancí MagicGate se ve vyhledávači nabízejí <strong>výhradně tehdy</strong>, když je toto rozšíření zapnuté a je vybrána platná cesta k aplikaci <code className="font-mono text-gray-300">Ssms.exe</code>.
+                  </span>
+                </div>
+
+                {/* Switch: Wox compatibility without slash */}
+                <div className="p-4 bg-black/25 rounded-xl flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-[13px] font-medium text-white flex items-center gap-2">
+                      <span>Povolit vyvolání příkazu i bez příkazového znaku <code className="text-teal-300 font-mono text-xs">/</code> (režim Wox)</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                      Pro uživatele zvyklé na původní Wox umožní psát do vyhledávače přímo <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-gray-200 font-mono text-[11px]">db &lt;výraz&gt;</code> bez úvodního lomítka. Standardní příkazy <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-teal-300 font-mono text-[11px]">/db</code> a <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-teal-300 font-mono text-[11px]">/db &lt;výraz&gt;</code> fungují vždy.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer select-none shrink-0 ml-auto">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={formData.ssms?.allowWithoutSlash ?? false}
+                      onChange={(e) => {
+                        const updated = {
+                          ...formData,
+                          ssms: {
+                            ...formData.ssms,
+                            path: formData.ssms?.path || '',
+                            allowWithoutSlash: e.target.checked,
+                          },
+                        };
+                        setFormData(updated);
+                        handleSave(updated);
+                      }}
+                    />
+                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-500" />
+                  </label>
+                </div>
+              </div>
+
+              {/* 2. Lokální SQL Server (localhost) */}
+              <div className="p-5 bg-white/[0.03] rounded-2xl space-y-4">
+                <div>
+                  <h4 className="font-semibold text-white text-sm flex items-center gap-2">
+                    <span className="material-symbols-outlined text-base text-teal-400">dns</span>
+                    Lokální SQL Server (výpis databází pro <code className="text-teal-300 font-mono text-xs">/db</code>)
+                  </h4>
+                  <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                    Při zadání příkazu <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-teal-300 font-mono text-[11px]">/db </code> načte IADonkey seznam všech vašich lokálních databází z tabulky <code className="font-mono text-gray-300">sys.databases</code> a zkombinuje je se vzdálenými databázemi z MagicGate.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-medium text-gray-300 mb-1.5">
+                    Adresa lokálního SQL Serveru
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={formData.ssms?.localServer ?? 'localhost'}
+                      onChange={(e) => {
+                        const updated = {
+                          ...formData,
+                          ssms: {
+                            ...formData.ssms,
+                            path: formData.ssms?.path || '',
+                            localServer: e.target.value,
+                          },
+                        };
+                        setFormData(updated);
+                        handleSave(updated);
+                      }}
+                      className="h-[38px] flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-teal-500 outline-none font-mono"
+                      placeholder="localhost (nebo např. .\SQLEXPRESS)"
+                    />
+                    <button
+                      type="button"
+                      disabled={ssmsLocalTest?.loading}
+                      onClick={async () => {
+                        if (!window.electronAPI?.getLocalDatabases) return;
+                        setSsmsLocalTest({ loading: true, dbs: [] });
+                        try {
+                          const srv = formData.ssms?.localServer?.trim() || 'localhost';
+                          const res = await window.electronAPI.getLocalDatabases(srv, true);
+                          setSsmsLocalTest({
+                            loading: false,
+                            dbs: res?.databases || [],
+                            error: res?.error,
+                          });
+                        } catch (err: any) {
+                          setSsmsLocalTest({
+                            loading: false,
+                            dbs: [],
+                            error: err?.message || 'Chyba při načítání lokálních databází.',
+                          });
+                        }
+                      }}
+                      className="h-[38px] px-4 bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 rounded-full text-[13px] font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
+                    >
+                      <span className={`material-symbols-outlined text-base ${ssmsLocalTest?.loading ? 'animate-spin' : ''}`}>
+                        {ssmsLocalTest?.loading ? 'progress_activity' : 'refresh'}
+                      </span>
+                      <span>Otestovat a načíst DB</span>
+                    </button>
+                  </div>
+                  {ssmsLocalTest && !ssmsLocalTest.loading && (
+                    <div className={`mt-3 p-3 rounded-xl text-xs ${ssmsLocalTest.error && ssmsLocalTest.dbs.length === 0 ? 'bg-rose-950/30 text-rose-300' : 'bg-teal-950/30 text-teal-200'}`}>
+                      {ssmsLocalTest.dbs.length > 0 ? (
+                        <div>
+                          <div className="font-semibold text-emerald-300 flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-sm">check_circle</span>
+                            Nalezeno {ssmsLocalTest.dbs.length} lokálních databází na serveru {formData.ssms?.localServer || 'localhost'}:
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                            {ssmsLocalTest.dbs.map((db) => (
+                              <span key={db} className="px-2 py-0.5 rounded-full bg-white/10 text-gray-200 font-mono text-[11px]">
+                                {db}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-sm">warning</span>
+                          <span>{ssmsLocalTest.error || 'Nebyly nalezeny žádné lokální databáze.'}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Autentizace ke vzdáleným SQL serverům (MagicGate) */}
+              <div className="p-5 bg-white/[0.03] rounded-2xl space-y-4">
+                <div>
+                  <h4 className="font-semibold text-white text-sm flex items-center gap-2">
+                    <span className="material-symbols-outlined text-base text-teal-400">key</span>
+                    Přihlašování ke vzdáleným databázím (MagicGate instance)
+                  </h4>
+                  <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                    Zvolte způsob autentizace při otevírání dotazu v SSMS na vzdálených databázových serverech (např. <code className="font-mono text-gray-300">cmisdbX.magicware-int.cz</code>). Lokální databáze na <code className="font-mono text-gray-300">{formData.ssms?.localServer || 'localhost'}</code> se otevírají vždy přes Windows Authentication (<code className="font-mono text-gray-300">-E</code>).
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = {
+                        ...formData,
+                        ssms: {
+                          ...formData.ssms,
+                          path: formData.ssms?.path || '',
+                          authMode: 'windows' as const,
+                        },
+                      };
+                      setFormData(updated);
+                      handleSave(updated);
+                    }}
+                    className={`p-3 rounded-xl text-left transition cursor-pointer flex items-center gap-3 ${
+                      (formData.ssms?.authMode || 'windows') === 'windows'
+                        ? 'bg-teal-500/20 text-white font-semibold'
+                        : 'bg-black/20 text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-xl text-teal-400">shield_person</span>
+                    <div>
+                      <div className="text-xs font-semibold text-white">Windows Authentication (-E)</div>
+                      <div className="text-[11px] text-gray-400 font-normal">Integrované doménové přihlášení</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = {
+                        ...formData,
+                        ssms: {
+                          ...formData.ssms,
+                          path: formData.ssms?.path || '',
+                          authMode: 'sql' as const,
+                        },
+                      };
+                      setFormData(updated);
+                      handleSave(updated);
+                    }}
+                    className={`p-3 rounded-xl text-left transition cursor-pointer flex items-center gap-3 ${
+                      formData.ssms?.authMode === 'sql'
+                        ? 'bg-teal-500/20 text-white font-semibold'
+                        : 'bg-black/20 text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-xl text-teal-400">password</span>
+                    <div>
+                      <div className="text-xs font-semibold text-white">SQL Server Authentication (-U)</div>
+                      <div className="text-[11px] text-gray-400 font-normal">Přihlášení jménem a heslem</div>
+                    </div>
+                  </button>
+                </div>
+
+                {formData.ssms?.authMode === 'sql' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 animate-fade-in">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-300 mb-1.5">SQL Uživatel (Login)</label>
+                      <input
+                        type="text"
+                        value={formData.ssms?.sqlUsername || ''}
+                        onChange={(e) => {
+                          const updated = {
+                            ...formData,
+                            ssms: {
+                              ...formData.ssms,
+                              path: formData.ssms?.path || '',
+                              sqlUsername: e.target.value,
+                            },
+                          };
+                          setFormData(updated);
+                          handleSave(updated);
+                        }}
+                        className="h-[38px] w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-teal-500 outline-none font-mono"
+                        placeholder="např. sa"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-300 mb-1.5">SQL Heslo (šifrováno přes DPAPI)</label>
+                      <div className="relative">
+                        <input
+                          type={showSsmsPassword ? 'text' : 'password'}
+                          value={formData.ssms?.sqlPassword || ''}
+                          onChange={(e) => {
+                            const updated = {
+                              ...formData,
+                              ssms: {
+                                ...formData.ssms,
+                                path: formData.ssms?.path || '',
+                                sqlPassword: e.target.value,
+                              },
+                            };
+                            setFormData(updated);
+                            handleSave(updated);
+                          }}
+                          className="h-[38px] w-full bg-black/30 border border-white/10 rounded-lg pl-3 pr-9 py-2 text-sm text-white focus:border-teal-500 outline-none font-mono"
+                          placeholder="Volitelné heslo..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSsmsPassword(!showSsmsPassword)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-base">
+                            {showSsmsPassword ? 'visibility_off' : 'visibility'}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-4 bg-teal-950/30 rounded-2xl text-xs text-teal-200/90 flex items-start gap-2.5">
+                  <span className="material-symbols-outlined text-base text-teal-400 shrink-0 mt-0.5">info</span>
+                  <div className="space-y-1">
+                    <div className="font-semibold text-white">Jak funguje prediktivní našeptávání <code className="font-mono text-teal-300">/db</code> ve vyhledávači:</div>
+                    <p className="text-gray-300 leading-relaxed">
+                      Jakmile ve vyhledávači napíšete <code className="bg-white/10 px-1.5 py-0.5 rounded-full font-mono text-white">/db </code> (s mezerou), okamžitě se vypíší všechny nalezené lokální i vzdálené databáze (na prvních místech naposledy použité). Při psaní názvu (např. <code className="bg-white/10 px-1.5 py-0.5 rounded-full font-mono text-white">/db ati</code>) se přímo v řádku zobrazí <strong>inline doplnění (ghost-text)</strong>, které můžete potvrdit klávesou <kbd className="px-1.5 py-0.5 bg-white/10 rounded-full text-[10px] font-mono text-white">Tab</kbd>, nebo stiskem <kbd className="px-1.5 py-0.5 bg-white/10 rounded-full text-[10px] font-mono text-white">Enter</kbd> rovnou otevřít nové okno dotazu v SSMS.
                     </p>
                   </div>
                 </div>
@@ -12082,6 +12802,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   )}
 
+                  {formData.extensions?.ssms && formData.ssms?.path?.trim() && (
+                    <div className="p-4 bg-white/[0.03] hover:bg-white/[0.05] rounded-2xl space-y-1.5 transition-colors">
+                      <div className="flex items-center gap-2 text-teal-400 font-semibold">
+                        <span className="material-symbols-outlined text-base">database</span>
+                        SQL Server Management Studio (SSMS) & FTP
+                      </div>
+                      <p className="text-gray-400 text-xs leading-relaxed">
+                        Zadejte příkaz <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-[11px]">/db </code> (nebo <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-[11px]">/db &lt;výraz&gt;</code>) pro okamžitý výpis a prediktivní vyhledávání lokálních i vzdálených databází a otevření nového SQL dotazu (New Query) v SSMS. U instancí MagicGate můžete dotaz v SSMS otevřít nebo zkopírovat FTP adresu také přes <kbd className="bg-white/10 px-2 py-0.5 rounded-full font-mono text-[11px] whitespace-nowrap">Shift+Enter</kbd> či příkazem <code className="bg-white/10 px-1.5 py-0.5 rounded-full text-[11px]">/ftp &lt;instance&gt;</code>.
+                      </p>
+                    </div>
+                  )}
+
                   {formData.extensions?.donkeyTools && formData.donkeyTools?.colorMaster?.enabled === true && (
                     <div className="p-4 bg-white/[0.03] hover:bg-white/[0.05] rounded-2xl space-y-1.5 transition-colors">
                       <div className="flex items-center gap-2 text-rose-400 font-semibold">
@@ -13135,7 +13867,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onClick={() => {
                     if (!deploySchemaData) return;
                     setDeploySchemaSelectedKeys(
-                      deploySchemaData.fields.filter((f) => f.defaultEnabled).map((f) => f.key)
+                      deploySchemaData.fields
+                        .filter((f) => f.defaultEnabled)
+                        .map((f) => f.key)
                     );
                   }}
                   className="h-[32px] px-3 bg-white/[0.06] hover:bg-white/[0.1] text-amber-300 rounded-full text-xs font-medium transition cursor-pointer flex items-center gap-1"
@@ -13156,8 +13890,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setDeploySchemaSelectedKeys([])}
+                  onClick={() => {
+                    if (!deploySchemaData) {
+                      setDeploySchemaSelectedKeys([]);
+                      return;
+                    }
+                    if (formData.extensions?.ssms) {
+                      // Preserve user's underlying state for the locked DB fields while clearing optional fields
+                      setDeploySchemaSelectedKeys((prev) =>
+                        prev.filter((k) =>
+                          ['agent.name', 'instance.dbServerName', 'instance.dbHost', 'instance.database'].includes(k)
+                        )
+                      );
+                    } else {
+                      setDeploySchemaSelectedKeys([]);
+                    }
+                  }}
                   className="h-[32px] px-3 bg-white/[0.06] hover:bg-white/[0.1] text-gray-300 rounded-full text-xs font-medium transition cursor-pointer"
+                  title={
+                    formData.extensions?.ssms
+                      ? 'Zrušit výběr volitelných polí (povinná DB pole pro SSMS zůstanou zaškrtnutá)'
+                      : 'Zrušit výběr všech polí'
+                  }
                 >
                   Zrušit výběr
                 </button>
@@ -13202,6 +13956,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   {(['agent', 'instance'] as const).map((scope) => {
                     const q = deploySchemaSearch.trim().toLowerCase();
+                    const isSsmsEnabled = Boolean(formData.extensions?.ssms);
                     const scopeFields = deploySchemaData.fields.filter((f) => {
                       if (f.scope !== scope) return false;
                       if (!q) return true;
@@ -13230,38 +13985,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </h4>
                           </div>
                           <span className="text-[11px] text-gray-400">
-                            {scopeFields.filter((f) => deploySchemaSelectedKeys.includes(f.key)).length} / {scopeFields.length} vybráno
+                            {
+                              scopeFields.filter(
+                                (f) =>
+                                  (isSsmsEnabled &&
+                                    (f.required ||
+                                      ['agent.name', 'instance.dbServerName', 'instance.dbHost', 'instance.database'].includes(f.key))) ||
+                                  deploySchemaSelectedKeys.includes(f.key)
+                              ).length
+                            }{' '}
+                            / {scopeFields.length} vybráno
                           </span>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                           {scopeFields.map((field) => {
-                            const isChecked = deploySchemaSelectedKeys.includes(field.key);
+                            const isRequired =
+                              isSsmsEnabled &&
+                              (Boolean(field.required) ||
+                                ['agent.name', 'instance.dbServerName', 'instance.dbHost', 'instance.database'].includes(field.key));
+                            const isChecked = isRequired || deploySchemaSelectedKeys.includes(field.key);
                             return (
                               <div
                                 key={field.key}
                                 onClick={() => {
+                                  if (isRequired) return;
                                   setDeploySchemaSelectedKeys((prev) =>
                                     prev.includes(field.key)
                                       ? prev.filter((k) => k !== field.key)
                                       : [...prev, field.key]
                                   );
                                 }}
-                                className={`p-3 rounded-xl transition cursor-pointer flex items-start gap-3 select-none ${
-                                  isChecked
-                                    ? 'bg-amber-500/15 hover:bg-amber-500/20'
-                                    : 'bg-white/[0.03] hover:bg-white/[0.06]'
+                                title={
+                                  isRequired
+                                    ? 'Toto pole je vyžadováno při zapnutém rozšíření SSMS a nelze jej odškrtnout'
+                                    : undefined
+                                }
+                                className={`p-3 rounded-xl transition flex items-start gap-3 select-none ${
+                                  isRequired
+                                    ? 'bg-amber-500/15 cursor-not-allowed'
+                                    : isChecked
+                                      ? 'bg-amber-500/15 hover:bg-amber-500/20 cursor-pointer'
+                                      : 'bg-white/[0.03] hover:bg-white/[0.06] cursor-pointer'
                                 }`}
                               >
                                 <div
                                   className={`w-5 h-5 rounded-md flex items-center justify-center mt-0.5 shrink-0 transition ${
                                     isChecked
-                                      ? 'bg-amber-500 text-black'
+                                      ? isRequired
+                                        ? 'bg-amber-500/80 text-black'
+                                        : 'bg-amber-500 text-black'
                                       : 'bg-white/10 text-transparent'
                                   }`}
                                 >
                                   <span className="material-symbols-outlined text-sm font-bold">
-                                    check
+                                    {isRequired ? 'lock' : 'check'}
                                   </span>
                                 </div>
 
@@ -13273,10 +14051,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     <code className="px-1.5 py-0.5 rounded bg-black/30 text-[10px] font-mono text-amber-300/90">
                                       {field.jsonPath}
                                     </code>
-                                    {field.defaultEnabled && (
-                                      <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-[10px] text-gray-300">
-                                        Výchozí
+                                    {isRequired ? (
+                                      <span className="px-1.5 py-0.5 rounded-full bg-teal-500/20 text-[10px] font-semibold text-teal-300 flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[11px]">lock</span>
+                                        Povinné pro DB
                                       </span>
+                                    ) : (
+                                      field.defaultEnabled && (
+                                        <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-[10px] text-gray-300">
+                                          Výchozí
+                                        </span>
+                                      )
                                     )}
                                   </div>
 
@@ -13315,8 +14100,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* Modal Footer */}
             <div className="px-6 py-4 bg-white/[0.02] flex items-center justify-between gap-4 shrink-0">
               <div className="text-xs text-gray-400">
-                Vybráno <strong className="text-amber-300">{deploySchemaSelectedKeys.length}</strong> z{' '}
-                {deploySchemaData?.fields.length ?? 0} dostupných polí
+                Vybráno{' '}
+                <strong className="text-amber-300">
+                  {deploySchemaData
+                    ? deploySchemaData.fields.filter(
+                        (f) =>
+                          (Boolean(formData.extensions?.ssms) &&
+                            (f.required ||
+                              ['agent.name', 'instance.dbServerName', 'instance.dbHost', 'instance.database'].includes(f.key))) ||
+                          deploySchemaSelectedKeys.includes(f.key)
+                      ).length
+                    : deploySchemaSelectedKeys.length}
+                </strong>{' '}
+                z {deploySchemaData?.fields.length ?? 0} dostupných polí
               </div>
 
               <div className="flex items-center gap-2">
@@ -13334,28 +14130,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       setShowDeploySchemaModal(false);
                       return;
                     }
+                    const userSelectedKeys = Array.from(new Set(deploySchemaSelectedKeys));
                     const defaultKeys = deploySchemaData.fields
                       .filter((f) => f.defaultEnabled)
                       .map((f) => f.key);
                     const isSameAsDefault =
-                      deploySchemaSelectedKeys.length === defaultKeys.length &&
-                      defaultKeys.every((k) => deploySchemaSelectedKeys.includes(k));
+                      userSelectedKeys.length === defaultKeys.length &&
+                      defaultKeys.every((k) => userSelectedKeys.includes(k));
 
                     const updated = {
                       ...formData,
                       magicgate: {
                         ...formData.magicgate,
-                        apiInfoFields: isSameAsDefault ? undefined : deploySchemaSelectedKeys,
+                        apiInfoFields: isSameAsDefault ? undefined : userSelectedKeys,
                       },
                     };
                     setFormData(updated);
                     handleSave(updated);
                     setShowDeploySchemaModal(false);
+                    const effectiveCount = deploySchemaData.fields.filter(
+                      (f) =>
+                        (Boolean(formData.extensions?.ssms) &&
+                          (f.required ||
+                            ['agent.name', 'instance.dbServerName', 'instance.dbHost', 'instance.database'].includes(f.key))) ||
+                        userSelectedKeys.includes(f.key)
+                    ).length;
                     setDeployStatusMsg({
                       ok: true,
                       text: isSameAsDefault
                         ? 'Zobrazení informací z API nastaveno na výchozí sadu.'
-                        : `Uloženo vlastní schéma informací (${deploySchemaSelectedKeys.length} polí) a aplikováno na instance.`,
+                        : `Uloženo vlastní schéma informací (${effectiveCount} polí) a aplikováno na instance.`,
                     });
                   }}
                   className="h-[36px] px-5 bg-amber-500 hover:bg-amber-400 text-black rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5"

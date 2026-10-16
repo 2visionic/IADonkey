@@ -46,6 +46,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectAndroidStudioPath: (defaultPath?: string): Promise<string | null> => ipcRenderer.invoke('select-android-studio-path', defaultPath),
   detectAndroidStudioPath: (): Promise<string | null> => ipcRenderer.invoke('detect-android-studio-path'),
   isAndroidProject: (folderPath: string): Promise<boolean> => ipcRenderer.invoke('is-android-project', folderPath),
+  selectSsmsPath: (defaultPath?: string): Promise<string | null> => ipcRenderer.invoke('select-ssms-path', defaultPath),
+  detectSsmsPath: (): Promise<string | null> => ipcRenderer.invoke('detect-ssms-path'),
+  getLocalDatabases: (
+    serverOrParams?: string | { server?: string; forceRefresh?: boolean },
+    forceRefresh?: boolean
+  ): Promise<{ ok: boolean; databases: string[]; error?: string }> => {
+    const payload =
+      typeof serverOrParams === 'string'
+        ? { server: serverOrParams, forceRefresh: Boolean(forceRefresh) }
+        : serverOrParams;
+    return ipcRenderer.invoke('ssms-get-local-databases', payload);
+  },
+  openQueryInSsms: (params: {
+    server?: string;
+    dbServer?: string;
+    database: string;
+    dbHost?: string;
+    serverName?: string;
+    instanceName?: string;
+    isLocal?: boolean;
+  }): Promise<{ success: boolean; error?: string; resolvedHost?: string }> =>
+    ipcRenderer.invoke('ssms-open-query', params),
   getExistingClonedRepos: (baseDir?: string): Promise<string[] | { repos: string[]; instanceSubRepos?: Record<string, Array<{ name: string; path: string }>> }> => ipcRenderer.invoke('get-existing-cloned-repos', baseDir),
   fetchInstanceRepos: (adminUrl: string): Promise<{ ok: boolean; repos: any[]; rawJson?: string; error?: string }> =>
     ipcRenderer.invoke('magicgate-get-repos', { adminUrl }),

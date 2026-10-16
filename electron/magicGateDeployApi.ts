@@ -3,6 +3,7 @@ import path from 'node:path';
 import { app, BrowserWindow, session } from 'electron';
 import type { LauncherItem, MagicGateDeploySchemaField, MagicGateSettings } from '../src/types';
 import { diagnosticsService } from './diagnosticsService';
+import { store } from './store';
 
 const USER_DATA_PATH = app?.getPath
   ? app.getPath('userData')
@@ -29,6 +30,7 @@ export interface DeployInstance {
   adminUrls?: string[];
   webUrls?: string[];
   dbServerName?: string | null;
+  dbHost?: string | null;
   database?: string | null;
   meta?: {
     database?: string;
@@ -350,6 +352,54 @@ function extractDbServerFromResourceKeys(resourceKeys?: string[]): string {
   return '';
 }
 
+export function resolveDeployAgentFtpUrl(agent: DeployAgent, inst?: DeployInstance): string {
+  const explicitInstFtp =
+    inst?.properties?.ftpUrl ||
+    inst?.properties?.FtpUrl ||
+    inst?.properties?.ftp ||
+    (inst?.meta as any)?.ftpUrl;
+  if (explicitInstFtp && String(explicitInstFtp).trim()) {
+    return String(explicitInstFtp).trim();
+  }
+
+  const explicitAgentFtp =
+    agent?.properties?.ftpUrl ||
+    agent?.properties?.FtpUrl ||
+    agent?.properties?.ftp;
+  if (explicitAgentFtp && String(explicitAgentFtp).trim()) {
+    return String(explicitAgentFtp).trim();
+  }
+
+  const rawName = (agent?.name || '').trim();
+  const machine = (agent?.machineName || '').trim().toUpperCase();
+  const location = (agent?.properties?.location || '').trim().toUpperCase();
+
+  // Extract short prefix before '(' e.g. "I(CMIS1247)" -> "I", "Medi(AOF1661)" -> "Medi"
+  const prefixMatch = rawName.match(/^([A-Za-z0-9_-]+)\s*\(/);
+  const shortPrefix = (prefixMatch ? prefixMatch[1] : rawName).trim().toLowerCase();
+
+  if (location === 'CMIS') {
+    if (shortPrefix === 'canaria' || machine === 'CMIS1241') return 'g.magicware-int.cz';
+    if (shortPrefix === 'aof0933' || machine === 'AOF0933') return 'saturapp.magicware-int.cz';
+    if (shortPrefix) return `${shortPrefix}.magicware-int.cz`;
+  }
+
+  if (location === 'ESOL') {
+    if (machine === 'MAGICWARE-MW1' || shortPrefix === 'esol1') return 'esol1.magicware.cz';
+    if (machine === 'MAGIC-VM-01' || shortPrefix === 'brenna') return 'esol2.magicware.cz';
+    if (machine === 'MAGICWARE-MW3' || shortPrefix === 'tip') return 'esol3.magicware.cz';
+    if (machine === 'MAGIC-VM-06' || shortPrefix === 'marcopolo') return 'esolend.magicware.cz';
+    if (shortPrefix) return `${shortPrefix}.magicware.cz`;
+  }
+
+  if (shortPrefix === 'bill' || machine === 'BILL') return 'Bill';
+  if (shortPrefix === 'globtour' || machine === 'ISTOUR') return 'istour.globtour.eu';
+  if (shortPrefix === 'vegatour' || machine === 'VEGASQL') return '95.80.217.166';
+  if (shortPrefix === 'liptour') return '46.229.233.29';
+
+  return '';
+}
+
 export interface DeployFieldCandidate {
   key: string;
   label: string;
@@ -359,10 +409,18 @@ export interface DeployFieldCandidate {
   value: string;
 }
 
+export const REQUIRED_DEPLOY_DB_SCHEMA_KEYS = [
+  'agent.name',
+  'instance.dbServerName',
+  'instance.dbHost',
+  'instance.database',
+] as const;
+
 const BASE_DEPLOY_SCHEMA_FIELDS: Omit<MagicGateDeploySchemaField, 'sampleValue' | 'presentCount'>[] = [
   // Root data (DeployAgent)
-  { key: 'agent.name', label: 'Server', scope: 'agent', jsonPath: 'name', defaultEnabled: true },
+  { key: 'agent.name', label: 'Server', scope: 'agent', jsonPath: 'name', defaultEnabled: true, required: true },
   { key: 'agent.machineName', label: 'Stroj', scope: 'agent', jsonPath: 'machineName', defaultEnabled: true },
+  { key: 'agent.ftpUrl', label: 'FTP', scope: 'agent', jsonPath: 'properties.ftpUrl', defaultEnabled: true },
   { key: 'agent.properties.location', label: 'Umístění serveru', scope: 'agent', jsonPath: 'properties.location', defaultEnabled: true },
   { key: 'agent.id', label: 'ID serveru (Agent ID)', scope: 'agent', jsonPath: 'id', defaultEnabled: false },
   { key: 'agent.agentVersion', label: 'Verze agenta', scope: 'agent', jsonPath: 'agentVersion', defaultEnabled: false },
@@ -377,8 +435,9 @@ const BASE_DEPLOY_SCHEMA_FIELDS: Omit<MagicGateDeploySchemaField, 'sampleValue' 
   { key: 'instance.currentVersion', label: 'Verze', scope: 'instance', jsonPath: 'instances[].currentVersion', defaultEnabled: true },
   { key: 'instance.adminUrls', label: 'Admin URL', scope: 'instance', jsonPath: 'instances[].adminUrls', defaultEnabled: true },
   { key: 'instance.webUrls', label: 'Web URL', scope: 'instance', jsonPath: 'instances[].webUrls', defaultEnabled: true },
-  { key: 'instance.dbServerName', label: 'DB Server', scope: 'instance', jsonPath: 'instances[].dbServerName', defaultEnabled: true },
-  { key: 'instance.database', label: 'Databáze', scope: 'instance', jsonPath: 'instances[].database', defaultEnabled: true },
+  { key: 'instance.dbServerName', label: 'DB Server', scope: 'instance', jsonPath: 'instances[].dbServerName', defaultEnabled: true, required: true },
+  { key: 'instance.dbHost', label: 'DB Host (adresa)', scope: 'instance', jsonPath: 'instances[].dbHost', defaultEnabled: false, required: true },
+  { key: 'instance.database', label: 'Databáze', scope: 'instance', jsonPath: 'instances[].database', defaultEnabled: true, required: true },
   { key: 'instance.instanceRoot', label: 'Cesta na serveru', scope: 'instance', jsonPath: 'instances[].instanceRoot', defaultEnabled: true },
   { key: 'instance.deployWindow', label: 'Nasazovací okno', scope: 'instance', jsonPath: 'instances[].deployWindow', defaultEnabled: true },
   { key: 'instance.id', label: 'ID instance', scope: 'instance', jsonPath: 'instances[].id', defaultEnabled: false },
@@ -421,6 +480,7 @@ const KNOWN_INSTANCE_KEYS = new Set([
   'adminUrls',
   'webUrls',
   'dbServerName',
+  'dbHost',
   'database',
   'meta',
   'resourceKeys',
@@ -459,6 +519,16 @@ function extractDeployInstanceFieldCandidates(
     jsonPath: 'machineName',
     defaultEnabled: true,
     value: ctx.machineName,
+  });
+
+  const resolvedFtp = resolveDeployAgentFtpUrl(agent, inst);
+  candidates.push({
+    key: 'agent.ftpUrl',
+    label: 'FTP',
+    scope: 'agent',
+    jsonPath: 'properties.ftpUrl',
+    defaultEnabled: true,
+    value: resolvedFtp,
   });
 
   candidates.push({
@@ -598,7 +668,7 @@ function extractDeployInstanceFieldCandidates(
     value: ctx.webUrls.join(', '),
   });
 
-  const dbServer = inst.dbServerName || extractDbServerFromResourceKeys(inst.resourceKeys);
+  const dbServer = inst.dbServerName || inst.dbHost || extractDbServerFromResourceKeys(inst.resourceKeys);
   candidates.push({
     key: 'instance.dbServerName',
     label: 'DB Server',
@@ -606,6 +676,15 @@ function extractDeployInstanceFieldCandidates(
     jsonPath: 'instances[].dbServerName',
     defaultEnabled: true,
     value: dbServer ? String(dbServer).trim() : '',
+  });
+
+  candidates.push({
+    key: 'instance.dbHost',
+    label: 'DB Host (adresa)',
+    scope: 'instance',
+    jsonPath: 'instances[].dbHost',
+    defaultEnabled: false,
+    value: inst.dbHost ? String(inst.dbHost).trim() : '',
   });
 
   const dbName = inst.database || inst.meta?.database;
@@ -897,10 +976,11 @@ export function parseMagicGateDeployAgents(
         'instance.adminUrls': 5,
         'instance.webUrls': 6,
         'instance.dbServerName': 7,
-        'instance.database': 8,
-        'instance.instanceRoot': 9,
-        'agent.properties.location': 10,
-        'instance.deployWindow': 11,
+        'instance.dbHost': 8,
+        'instance.database': 9,
+        'instance.instanceRoot': 10,
+        'agent.properties.location': 11,
+        'instance.deployWindow': 12,
       };
 
       const orderedCandidates = [...candidates].sort((a, b) => {
@@ -909,10 +989,20 @@ export function parseMagicGateDeployAgents(
         return pA - pB;
       });
 
+      const currentCfg = store.getConfig();
+      const isSsmsActive = Boolean(currentCfg?.extensions?.ssms);
+      const isFtpActive = currentCfg?.magicgate?.enableFtp !== false;
+      const essentialKeys = new Set<string>([
+        ...(isSsmsActive ? REQUIRED_DEPLOY_DB_SCHEMA_KEYS : []),
+        ...(isFtpActive ? ['agent.ftpUrl'] : []),
+      ]);
+
       const info: Record<string, any> = {};
       for (const field of orderedCandidates) {
         if (!field.value) continue;
-        const shouldInclude = selectedSet ? selectedSet.has(field.key) : field.defaultEnabled;
+        const shouldInclude = selectedSet
+          ? selectedSet.has(field.key) || essentialKeys.has(field.key)
+          : field.defaultEnabled || essentialKeys.has(field.key);
         if (!shouldInclude) continue;
 
         // In default mode, skip 'Stroj' if it's identical to 'Server'

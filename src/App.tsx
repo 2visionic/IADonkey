@@ -827,6 +827,11 @@ export const App: React.FC = () => {
           instanceSourceCodesPath={config?.magicgate?.instanceSourceCodesPath}
           vscodeEnabled={config.extensions?.vscode ?? false}
           androidStudioEnabled={config.extensions?.androidStudio ?? false}
+          ssmsEnabled={config.extensions?.ssms ?? false}
+          ssmsConfig={config?.ssms}
+          magicgateEnabled={config.extensions?.magicgate ?? false}
+          ftpEnabled={config?.magicgate?.enableFtp !== false}
+          allowFtpWithoutSlash={config?.magicgate?.allowFtpWithoutSlash ?? false}
           donkeyToolsEnabled={config.extensions?.donkeyTools ?? false}
           colorMasterConfig={config.donkeyTools?.colorMaster}
           quickCapConfig={config.donkeyTools?.quickCap || config.donkeyTools?.fastSnap}
