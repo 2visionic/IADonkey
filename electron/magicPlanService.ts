@@ -2124,14 +2124,13 @@ export class MagicPlanService {
       if (classNames.includes('dev-')) taskType = 'dev';
       else if (classNames.includes('service-')) taskType = 'service';
 
-      // Clean display title
-      let cleanTitle = customName;
-      if (!cleanTitle) {
-        const reqNameSpan = innerContent.match(/<span[^>]*class="requirement-name"[^>]*>\s*([^<]+)\s*<\/span>/i);
-        if (reqNameSpan) {
-          cleanTitle = decodeHtmlEntities(reqNameSpan[1]).trim();
-        }
-      }
+      // Clean display title: prefer span.requirement-name inside the div, fallback to data-task-custom-name
+      const reqNameSpan = innerContent.match(/<span[^>]*class="[^"]*\brequirement-name\b[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      const reqName = reqNameSpan
+        ? decodeHtmlEntities(reqNameSpan[1].replace(/<[^>]+>/g, '')).trim()
+        : '';
+
+      let cleanTitle = reqName || customName;
       if (!cleanTitle && rawTitle) {
         cleanTitle = rawTitle.replace(/\b[RT]\d+\b/g, '').replace(/\(([^)]+)\)\s*$/, '').trim();
       }
@@ -2173,7 +2172,7 @@ export class MagicPlanService {
         requirementId,
         taskIdentifier: taskIdentifier || undefined,
         title: cleanTitle || rawTitle || 'Bez názvu',
-        customName: customName || undefined,
+        customName: (reqName || customName) || undefined,
         project,
         userId: userId || columnUserId || '',
         userName,

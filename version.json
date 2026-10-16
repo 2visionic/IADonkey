@@ -1,6 +1,6 @@
 {
-  "version": "2.1.16",
-  "releaseNotes": "• MagicGate – Schéma informací z Deploy API: Modální okno v Nastavení pro click & check výběr polí ze serveru (root agent) i instance (instances[]) zobrazovaných na záložce Informace + označení lokálního XML jako Deprecated.\n• MagicGate – Chytré řazení domén bez duplicitní Admin URL: Odfiltrování Admin URL z podpoložek a logické řazení webových domén (www.<doména> -> doména 2. řádu -> napárované domény 3.+ řádu).\n• MagicPlan – Polling jen při otevřeném okně a spolehlivé notifikace: Dotazování plánu běží pouze při otevřeném okně MagicPlanu a odemčeném PC; ošetřeny hromadné notifikace po výpadku i při přidání nové osoby.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.16/IADonkey-Setup-2.1.16.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.16/IADonkey-2.1.16.zip"
+  "version": "2.1.17",
+  "releaseNotes": "• Klávesové zkratky – Spolehlivé zadávání kombinací Ctrl+Alt+<klávesa> (např. Ctrl+Alt+V): Ve všech 6 polích pro nahrávání zkratek v Nastavení se klávesy čtou podle fyzického kódu klávesy, takže na české klávesnici se stisk Ctrl+Alt+V zapíše správně jako Ctrl+Alt+V místo Ctrl+Alt+@.\n• MagicPlan – Priorita názvu požadavku/úkolu ze span.requirement-name: Při načítání úkolů má přednost název z elementu <span class=\"requirement-name\"> uvnitř bloku úkolu a atribut data-task-custom-name slouží jako fallback.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.17/IADonkey-Setup-2.1.17.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.17/IADonkey-2.1.17.zip"
 }

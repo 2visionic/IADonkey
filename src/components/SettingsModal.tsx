@@ -2433,6 +2433,81 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onTriggerSync();
   };
 
+  const normalizeHotkeyKeyFromEvent = (e: React.KeyboardEvent<HTMLInputElement>): string => {
+    const rawKey = e.key;
+    const code = e.code || '';
+
+    if (rawKey === 'Control') return 'Ctrl';
+    if (rawKey === 'Alt' || rawKey === 'AltGraph') return 'Alt';
+    if (rawKey === 'Shift') return 'Shift';
+    if (rawKey === 'Meta') return 'Super';
+    if (rawKey === ' ' || code === 'Space') return 'Space';
+    if (rawKey === 'ArrowUp') return 'Up';
+    if (rawKey === 'ArrowDown') return 'Down';
+    if (rawKey === 'ArrowLeft') return 'Left';
+    if (rawKey === 'ArrowRight') return 'Right';
+
+    // Standard ASCII letter a-z -> uppercase (preserves QWERTZ Y/Z when not transformed by AltGr)
+    if (/^[a-z]$/i.test(rawKey)) {
+      return rawKey.toUpperCase();
+    }
+
+    // Physical letter key KeyA..KeyZ when e.key was transformed by Ctrl+Alt (AltGr) into e.g. '@' (Ctrl+Alt+V), '&' (Ctrl+Alt+C), '#' (Ctrl+Alt+X), etc.
+    const keyCodeMatch = code.match(/^Key([A-Z])$/i);
+    if (keyCodeMatch) {
+      return keyCodeMatch[1].toUpperCase();
+    }
+
+    // Top-row number keys Digit0..Digit9 (on Czech layout e.key is '+', 'ě', 'š', 'č', 'ř', 'ž', 'ý', 'á', 'í', 'é')
+    const digitMatch = code.match(/^Digit([0-9])$/i);
+    if (digitMatch) {
+      return digitMatch[1];
+    }
+
+    // Numpad digits
+    const numpadMatch = code.match(/^Numpad([0-9])$/i);
+    if (numpadMatch) {
+      return `num${numpadMatch[1]}`;
+    }
+
+    return rawKey;
+  };
+
+  const updateHotkeyPressedSet = (
+    pressedSet: Set<string>,
+    e: React.KeyboardEvent<HTMLInputElement>
+  ): string[] => {
+    const keyName = normalizeHotkeyKeyFromEvent(e);
+    const modifierOrder = ['Ctrl', 'Alt', 'Shift', 'Super'];
+    const isModifier = modifierOrder.includes(keyName);
+
+    // Ensure at most one non-modifier key is recorded alongside modifiers
+    if (!isModifier) {
+      for (const existing of Array.from(pressedSet)) {
+        if (!modifierOrder.includes(existing)) {
+          pressedSet.delete(existing);
+        }
+      }
+    }
+
+    pressedSet.add(keyName);
+    if (e.altKey || e.key === 'AltGraph') pressedSet.add('Alt');
+    if (e.ctrlKey || e.key === 'AltGraph') pressedSet.add('Ctrl');
+    if (e.shiftKey) pressedSet.add('Shift');
+    if (e.metaKey) pressedSet.add('Super');
+
+    const currentKeys = Array.from(pressedSet);
+    currentKeys.sort((a, b) => {
+      const idxA = modifierOrder.indexOf(a);
+      const idxB = modifierOrder.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+    return currentKeys;
+  };
+
   const handleHotkeyFocus = () => {
     activeRecordingToolRef.current = 'main';
     setIsRecordingHotkey(true);
@@ -2488,37 +2563,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
 
-    // Normalize key
-    let keyName = e.key;
-    if (keyName === 'Control') keyName = 'Ctrl';
-    else if (keyName === 'Alt' || keyName === 'AltGraph') keyName = 'Alt';
-    else if (keyName === 'Shift') keyName = 'Shift';
-    else if (keyName === 'Meta') keyName = 'Super';
-    else if (keyName === ' ') keyName = 'Space';
-    else if (keyName === 'ArrowUp') keyName = 'Up';
-    else if (keyName === 'ArrowDown') keyName = 'Down';
-    else if (keyName === 'ArrowLeft') keyName = 'Left';
-    else if (keyName === 'ArrowRight') keyName = 'Right';
-    else if (/^[a-z]$/i.test(keyName)) keyName = keyName.toUpperCase();
-
-    pressedKeysRef.current.add(keyName);
-    if (e.altKey) pressedKeysRef.current.add('Alt');
-    if (e.ctrlKey) pressedKeysRef.current.add('Ctrl');
-    if (e.shiftKey) pressedKeysRef.current.add('Shift');
-    if (e.metaKey) pressedKeysRef.current.add('Super');
-
-    // Sort order: Modifiers first, then normal keys
-    const order = ['Ctrl', 'Alt', 'Shift', 'Super'];
-    const currentKeys = Array.from(pressedKeysRef.current);
-    currentKeys.sort((a, b) => {
-      const idxA = order.indexOf(a);
-      const idxB = order.indexOf(b);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
-      return a.localeCompare(b);
-    });
-
+    const currentKeys = updateHotkeyPressedSet(pressedKeysRef.current, e);
     maxComboRef.current = currentKeys;
     setRecordedModifiers(currentKeys);
     setHotkeyError(null);
@@ -2731,36 +2776,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
 
-    // Normalize key
-    let keyName = e.key;
-    if (keyName === 'Control') keyName = 'Ctrl';
-    else if (keyName === 'Alt' || keyName === 'AltGraph') keyName = 'Alt';
-    else if (keyName === 'Shift') keyName = 'Shift';
-    else if (keyName === 'Meta') keyName = 'Super';
-    else if (keyName === ' ') keyName = 'Space';
-    else if (keyName === 'ArrowUp') keyName = 'Up';
-    else if (keyName === 'ArrowDown') keyName = 'Down';
-    else if (keyName === 'ArrowLeft') keyName = 'Left';
-    else if (keyName === 'ArrowRight') keyName = 'Right';
-    else if (/^[a-z]$/i.test(keyName)) keyName = keyName.toUpperCase();
-
-    colorMasterPressedKeysRef.current.add(keyName);
-    if (e.altKey) colorMasterPressedKeysRef.current.add('Alt');
-    if (e.ctrlKey) colorMasterPressedKeysRef.current.add('Ctrl');
-    if (e.shiftKey) colorMasterPressedKeysRef.current.add('Shift');
-    if (e.metaKey) colorMasterPressedKeysRef.current.add('Super');
-
-    // Sort order: Modifiers first, then normal keys
-    const order = ['Ctrl', 'Alt', 'Shift', 'Super'];
-    const currentKeys = Array.from(colorMasterPressedKeysRef.current);
-    currentKeys.sort((a, b) => {
-      const idxA = order.indexOf(a);
-      const idxB = order.indexOf(b);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
-      return a.localeCompare(b);
-    });
+    const currentKeys = updateHotkeyPressedSet(colorMasterPressedKeysRef.current, e);
 
     colorMasterMaxComboRef.current = currentKeys;
     setColorMasterRecordedModifiers(currentKeys);
@@ -3069,34 +3085,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
 
-    let keyName = e.key;
-    if (keyName === 'Control') keyName = 'Ctrl';
-    else if (keyName === 'Alt' || keyName === 'AltGraph') keyName = 'Alt';
-    else if (keyName === 'Shift') keyName = 'Shift';
-    else if (keyName === 'Meta') keyName = 'Super';
-    else if (keyName === ' ') keyName = 'Space';
-    else if (keyName === 'ArrowUp') keyName = 'Up';
-    else if (keyName === 'ArrowDown') keyName = 'Down';
-    else if (keyName === 'ArrowLeft') keyName = 'Left';
-    else if (keyName === 'ArrowRight') keyName = 'Right';
-    else if (/^[a-z]$/i.test(keyName)) keyName = keyName.toUpperCase();
-
-    palettePressedKeysRef.current.add(keyName);
-    if (e.altKey) palettePressedKeysRef.current.add('Alt');
-    if (e.ctrlKey) palettePressedKeysRef.current.add('Ctrl');
-    if (e.shiftKey) palettePressedKeysRef.current.add('Shift');
-    if (e.metaKey) palettePressedKeysRef.current.add('Super');
-
-    const order = ['Ctrl', 'Alt', 'Shift', 'Super'];
-    const currentKeys = Array.from(palettePressedKeysRef.current);
-    currentKeys.sort((a, b) => {
-      const idxA = order.indexOf(a);
-      const idxB = order.indexOf(b);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
-      return a.localeCompare(b);
-    });
+    const currentKeys = updateHotkeyPressedSet(palettePressedKeysRef.current, e);
 
     paletteMaxComboRef.current = currentKeys;
     setPaletteRecordedModifiers(currentKeys);
@@ -3317,39 +3306,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
 
-    // Normalize key
-    let keyName = e.key;
-    if (keyName === 'Control') keyName = 'Ctrl';
-    else if (keyName === 'Alt' || keyName === 'AltGraph') keyName = 'Alt';
-    else if (keyName === 'Shift') keyName = 'Shift';
-    else if (keyName === 'Meta') keyName = 'Super';
-    else if (keyName === ' ') keyName = 'Space';
-    else if (keyName === 'ArrowUp') keyName = 'Up';
-    else if (keyName === 'ArrowDown') keyName = 'Down';
-    else if (keyName === 'ArrowLeft') keyName = 'Left';
-    else if (keyName === 'ArrowRight') keyName = 'Right';
-    else if (/^[a-z]$/i.test(keyName)) keyName = keyName.toUpperCase();
-
-    quickCapPressedKeysRef.current.add(keyName);
-    if (e.altKey) quickCapPressedKeysRef.current.add('Alt');
-    if (e.ctrlKey) quickCapPressedKeysRef.current.add('Ctrl');
-    if (e.shiftKey) quickCapPressedKeysRef.current.add('Shift');
-    if (e.metaKey) quickCapPressedKeysRef.current.add('Super');
-
-    // Sort order: Modifiers first, then normal keys
-    const order = ['Ctrl', 'Alt', 'Shift', 'Super'];
-    const currentKeys = Array.from(quickCapPressedKeysRef.current);
-    currentKeys.sort((a, b) => {
-      const idxA = order.indexOf(a);
-      const idxB = order.indexOf(b);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
-      return a.localeCompare(b);
-    });
+    const currentKeys = updateHotkeyPressedSet(quickCapPressedKeysRef.current, e);
 
     quickCapMaxComboRef.current = currentKeys;
-    const mods = currentKeys.filter((k) => order.includes(k));
+    const mods = currentKeys.filter((k) => ['Ctrl', 'Alt', 'Shift', 'Super'].includes(k));
     setQuickCapRecordedModifiers(mods);
   };
 
@@ -3582,41 +3542,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
 
-    // Normalize key
-    let keyName = e.key;
-    if (keyName === 'Control') keyName = 'Ctrl';
-    else if (keyName === 'Alt' || keyName === 'AltGraph') keyName = 'Alt';
-    else if (keyName === 'Shift') keyName = 'Shift';
-    else if (keyName === 'Meta') keyName = 'Super';
-    else if (keyName === ' ') keyName = 'Space';
-    else if (keyName === 'ArrowUp') keyName = 'Up';
-    else if (keyName === 'ArrowDown') keyName = 'Down';
-    else if (keyName === 'ArrowLeft') keyName = 'Left';
-    else if (keyName === 'ArrowRight') keyName = 'Right';
-    else if (/^[a-z]$/i.test(keyName)) keyName = keyName.toUpperCase();
+    const currentKeys = updateHotkeyPressedSet(screenRulerPressedKeysRef.current, e);
 
-    screenRulerPressedKeysRef.current.add(keyName);
-    if (e.altKey) screenRulerPressedKeysRef.current.add('Alt');
-    if (e.ctrlKey) screenRulerPressedKeysRef.current.add('Ctrl');
-    if (e.shiftKey) screenRulerPressedKeysRef.current.add('Shift');
-    if (e.metaKey) screenRulerPressedKeysRef.current.add('Super');
-
-    // Sort order: Modifiers first, then normal keys
-    const order = ['Ctrl', 'Alt', 'Shift', 'Super'];
-    const currentKeys = Array.from(screenRulerPressedKeysRef.current);
-    currentKeys.sort((a, b) => {
-      const idxA = order.indexOf(a);
-      const idxB = order.indexOf(b);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
-      return a.localeCompare(b);
-    });
-
-    if (currentKeys.length > screenRulerMaxComboRef.current.length) {
-      screenRulerMaxComboRef.current = [...currentKeys];
-    }
-
+    screenRulerMaxComboRef.current = currentKeys;
     setScreenRulerRecordedModifiers(currentKeys);
     setScreenRulerHotkeyError(null);
   };
@@ -3864,41 +3792,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
 
-    // Normalize key
-    let keyName = e.key;
-    if (keyName === 'Control') keyName = 'Ctrl';
-    else if (keyName === 'Alt' || keyName === 'AltGraph') keyName = 'Alt';
-    else if (keyName === 'Shift') keyName = 'Shift';
-    else if (keyName === 'Meta') keyName = 'Super';
-    else if (keyName === ' ') keyName = 'Space';
-    else if (keyName === 'ArrowUp') keyName = 'Up';
-    else if (keyName === 'ArrowDown') keyName = 'Down';
-    else if (keyName === 'ArrowLeft') keyName = 'Left';
-    else if (keyName === 'ArrowRight') keyName = 'Right';
-    else if (/^[a-z]$/i.test(keyName)) keyName = keyName.toUpperCase();
+    const currentKeys = updateHotkeyPressedSet(easyClipPressedKeysRef.current, e);
 
-    easyClipPressedKeysRef.current.add(keyName);
-    if (e.altKey) easyClipPressedKeysRef.current.add('Alt');
-    if (e.ctrlKey) easyClipPressedKeysRef.current.add('Ctrl');
-    if (e.shiftKey) easyClipPressedKeysRef.current.add('Shift');
-    if (e.metaKey) easyClipPressedKeysRef.current.add('Super');
-
-    // Sort order: Modifiers first, then normal keys
-    const order = ['Ctrl', 'Alt', 'Shift', 'Super'];
-    const currentKeys = Array.from(easyClipPressedKeysRef.current);
-    currentKeys.sort((a, b) => {
-      const idxA = order.indexOf(a);
-      const idxB = order.indexOf(b);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
-      return a.localeCompare(b);
-    });
-
-    if (currentKeys.length > easyClipMaxComboRef.current.length) {
-      easyClipMaxComboRef.current = [...currentKeys];
-    }
-
+    easyClipMaxComboRef.current = currentKeys;
     setEasyClipRecordedModifiers(currentKeys);
     setEasyClipHotkeyError(null);
   };

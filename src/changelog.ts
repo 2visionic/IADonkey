@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.16';
+export const CURRENT_APP_VERSION = '2.1.17';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,15 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.17',
+    date: '16. 10. 2026',
+    title: 'Oprava zadávání klávesových zkratek s Ctrl+Alt a upřednostnění názvu úkolu ze span.requirement-name v MagicPlanu',
+    highlights: [
+      'Klávesové zkratky – Spolehlivé zadávání kombinací Ctrl+Alt+<klávesa> (např. Ctrl+Alt+V): Ve všech 6 polích pro nahrávání zkratek v Nastavení (Hlavní launcher, ColorMaster kapátko, PaletteMaster, QuickCap, ScreenRuler i EasyClip) se klávesy čtou podle fyzického kódu klávesy namísto znaku z rozložení klávesnice, takže na české klávesnici se stisk Ctrl+Alt+V zapíše správně jako Ctrl+Alt+V místo Ctrl+Alt+@.',
+      'MagicPlan – Priorita názvu požadavku/úkolu ze span.requirement-name: Při načítání úkolů v MagicPlanu má nyní přednost název z elementu <span class="requirement-name"> uvnitř bloku úkolu a atribut data-task-custom-name slouží jako záložní (fallback) hodnota.',
+    ],
+  },
   {
     version: '2.1.16',
     date: '16. 10. 2026',

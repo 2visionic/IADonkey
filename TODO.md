@@ -48,3 +48,4 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 *(Momentálně žádné dokončené úkoly nečekají na revizi.)*
 
+

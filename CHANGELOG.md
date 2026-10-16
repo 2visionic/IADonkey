@@ -4,6 +4,11 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.17] - 16. 10. 2026
+### Oprava zadávání klávesových zkratek s Ctrl+Alt a upřednostnění názvu úkolu ze span.requirement-name v MagicPlanu
+- **Klávesové zkratky – Spolehlivé zadávání kombinací `Ctrl+Alt+<klávesa>` (např. `Ctrl+Alt+V`)**: Ve všech 6 polích pro nahrávání zkratek v Nastavení (Hlavní launcher, ColorMaster kapátko, PaletteMaster, QuickCap, ScreenRuler i EasyClip) se klávesy čtou podle fyzického kódu klávesy namísto znaku z rozložení klávesnice, takže na české klávesnici se stisk `Ctrl+Alt+V` zapíše správně jako `Ctrl+Alt+V` místo `Ctrl+Alt+@`.
+- **MagicPlan – Priorita názvu požadavku/úkolu ze `span.requirement-name`**: Při načítání úkolů v MagicPlanu má nyní přednost název z elementu `<span class="requirement-name">` uvnitř bloku úkolu a atribut `data-task-custom-name` slouží jako záložní (fallback) hodnota.
+
 ## [2.1.16] - 16. 10. 2026
 ### MagicGate schéma informací z Deploy API, chytré řazení domén a optimalizace dotazování i notifikací v MagicPlanu
 - **MagicGate – Interaktivní schéma informací z Deploy API (Click & Check)**: V Nastavení -> MagicGate přibylo modální okno pro výběr polí ze serveru (root objekt agenta) i samotné instance (`instances[]`), která se mají zobrazovat na záložce **Informace**. Každé pole zobrazuje svou JSON cestu, reálnou ukázkovou hodnotu ze synchronizovaných dat i počet instancí, u kterých je vyplněno.
