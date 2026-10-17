@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.17';
+export const CURRENT_APP_VERSION = '2.1.18';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,18 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.18',
+    date: '17. 10. 2026',
+    title: 'Rozšíření SSMS (/db), kopírování FTP adres (/ftp) v MagicGate, plynulé řazení rozpracovaných úkolů v MagicPlanu a zrychlení Spotlightu',
+    highlights: [
+      'SQL Server Management Studio (SSMS) – Rychlé otevírání SQL dotazů (/db a akce u instancí): V Nastavení -> Rozšíření přibyl modul SSMS s automatickou detekcí Ssms.exe, přímým připojením k produkční/testovací databázi instance z MagicGate (s překladem interního DNS hostu) i podporou lokálního SQL serveru a načtení seznamu databází z sys.databases.',
+      'MagicGate – Kopírování FTP adres (/ftp) a přepínače modulů v hlavičce rozšíření: V nastavení MagicGate lze samostatně zapnout či vypnout sekci Kopírování FTP adresy (včetně podpory vyvolání bez lomítka /). V detailu všech rozšíření navíc přibyl v hlavičce přepínač pro rychlé zapnutí nebo vypnutí modulu s automatickým návratem do přehledu rozšíření.',
+      'MagicGate – Automatické vynucení databázových polí při zapnutém SSMS: Při aktivním modulu SSMS jsou v modálu zobrazených informací u instancí povinně zaškrtnuta pole potřebná pro připojení k databázi (Server, Databáze, Prostředí). Po vypnutí SSMS se automaticky obnoví původní uživatelské nastavení polí.',
+      'MagicPlan – Řazení rozpracovaných úkolů podle logu z předchozích dnů: Nehotové úkoly s vykázaným časem z předchozích dnů se v časové ose řadí za hotové požadavky v délce odpracovaného času (včetně případného overburnu), zatímco zbývající plánovaný čas nebo rezervovaný overburn se zobrazuje v aktuálním dni. Při přetečení do aktuálního dne se obě části plynule propojí bez vzniku duplikátů.',
+      'Spotlight – Výrazné zrychlení odezvy při psaní: Odstraněno synchronní blokování při psaní ve vyhledávacím poli Spotlightu a prediktivním dopovídání příkazů /db a /ftp.',
+    ],
+  },
   {
     version: '2.1.17',
     date: '16. 10. 2026',

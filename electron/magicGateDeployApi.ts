@@ -3,7 +3,6 @@ import path from 'node:path';
 import { app, BrowserWindow, session } from 'electron';
 import type { LauncherItem, MagicGateDeploySchemaField, MagicGateSettings } from '../src/types';
 import { diagnosticsService } from './diagnosticsService';
-import { store } from './store';
 
 const USER_DATA_PATH = app?.getPath
   ? app.getPath('userData')
@@ -989,9 +988,16 @@ export function parseMagicGateDeployAgents(
         return pA - pB;
       });
 
-      const currentCfg = store.getConfig();
-      const isSsmsActive = Boolean(currentCfg?.extensions?.ssms);
-      const isFtpActive = currentCfg?.magicgate?.enableFtp !== false;
+      let isSsmsActive = false;
+      let isFtpActive = true;
+      try {
+        const cfgPath = path.join(USER_DATA_PATH, 'config.json');
+        if (fs.existsSync(cfgPath)) {
+          const parsedCfg = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+          isSsmsActive = Boolean(parsedCfg?.extensions?.ssms);
+          isFtpActive = parsedCfg?.magicgate?.enableFtp !== false;
+        }
+      } catch {}
       const essentialKeys = new Set<string>([
         ...(isSsmsActive ? REQUIRED_DEPLOY_DB_SCHEMA_KEYS : []),
         ...(isFtpActive ? ['agent.ftpUrl'] : []),

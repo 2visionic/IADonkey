@@ -4,6 +4,14 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.18] - 17. 10. 2026
+### Rozšíření SSMS (/db), kopírování FTP adres (/ftp) v MagicGate, plynulé řazení rozpracovaných úkolů v MagicPlanu a zrychlení Spotlightu
+- **SQL Server Management Studio (SSMS) – Rychlé otevírání SQL dotazů (`/db` a akce u instancí)**: V Nastavení -> Rozšíření přibyl modul SSMS s automatickou detekcí `Ssms.exe`, přímým připojením k produkční/testovací databázi instance z MagicGate (s překladem interního DNS hostu) i podporou lokálního SQL serveru a načtení seznamu databází z `sys.databases`.
+- **MagicGate – Kopírování FTP adres (`/ftp`) a přepínače modulů v hlavičce rozšíření**: V nastavení MagicGate lze samostatně zapnout či vypnout sekci Kopírování FTP adresy (včetně podpory vyvolání bez lomítka `/`). V detailu všech rozšíření navíc přibyl v hlavičce přepínač pro rychlé zapnutí nebo vypnutí modulu s automatickým návratem do přehledu rozšíření.
+- **MagicGate – Automatické vynucení databázových polí při zapnutém SSMS**: Při aktivním modulu SSMS jsou v modálu zobrazených informací u instancí povinně zaškrtnuta pole potřebná pro připojení k databázi (Server, Databáze, Prostředí). Po vypnutí SSMS se automaticky obnoví původní uživatelské nastavení polí.
+- **MagicPlan – Řazení rozpracovaných úkolů podle logu z předchozích dnů**: Nehotové úkoly s vykázaným časem z předchozích dnů se v časové ose řadí za hotové požadavky v délce odpracovaného času (včetně případného overburnu), zatímco zbývající plánovaný čas nebo rezervovaný overburn se zobrazuje v aktuálním dni. Při přetečení do aktuálního dne se obě části plynule propojí bez vzniku duplikátů.
+- **Spotlight – Výrazné zrychlení odezvy při psaní**: Odstraněno synchronní blokování při psaní ve vyhledávacím poli Spotlightu a prediktivním dopovídání příkazů `/db` a `/ftp`.
+
 ## [2.1.17] - 16. 10. 2026
 ### Oprava zadávání klávesových zkratek s Ctrl+Alt a upřednostnění názvu úkolu ze span.requirement-name v MagicPlanu
 - **Klávesové zkratky – Spolehlivé zadávání kombinací `Ctrl+Alt+<klávesa>` (např. `Ctrl+Alt+V`)**: Ve všech 6 polích pro nahrávání zkratek v Nastavení (Hlavní launcher, ColorMaster kapátko, PaletteMaster, QuickCap, ScreenRuler i EasyClip) se klávesy čtou podle fyzického kódu klávesy namísto znaku z rozložení klávesnice, takže na české klávesnici se stisk `Ctrl+Alt+V` zapíše správně jako `Ctrl+Alt+V` místo `Ctrl+Alt+@`.

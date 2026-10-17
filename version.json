@@ -1,6 +1,6 @@
 {
-  "version": "2.1.17",
-  "releaseNotes": "• Klávesové zkratky – Spolehlivé zadávání kombinací Ctrl+Alt+<klávesa> (např. Ctrl+Alt+V): Ve všech 6 polích pro nahrávání zkratek v Nastavení se klávesy čtou podle fyzického kódu klávesy, takže na české klávesnici se stisk Ctrl+Alt+V zapíše správně jako Ctrl+Alt+V místo Ctrl+Alt+@.\n• MagicPlan – Priorita názvu požadavku/úkolu ze span.requirement-name: Při načítání úkolů má přednost název z elementu <span class=\"requirement-name\"> uvnitř bloku úkolu a atribut data-task-custom-name slouží jako fallback.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.17/IADonkey-Setup-2.1.17.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.17/IADonkey-2.1.17.zip"
+  "version": "2.1.18",
+  "releaseNotes": "• SQL Server Management Studio (SSMS): Nové rozšíření pro rychlé otevírání SQL dotazů (/db a akce u instancí MagicGate) s podporou produkčních/testovacích serverů i lokálního SQL serveru.\n• MagicGate – Kopírování FTP adres (/ftp) a přepínače v hlavičce rozšíření: Samostatně vypínatelná sekce FTP v MagicGate, přepínač zapnutí/vypnutí modulu v hlavičce všech rozšíření a automatické vynucení DB polí při aktivním SSMS se zachováním uživatelského nastavení.\n• MagicPlan – Rozpracované úkoly z předchozích dnů: Řazení odpracované části nehotových úkolů za hotové požadavky (včetně overburnu) a zobrazení zbývajícího plánu v aktuálním dni s plynulým propojením při přetečení.\n• Spotlight – Výrazné zrychlení odezvy při psaní.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.18/IADonkey-Setup-2.1.18.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.18/IADonkey-2.1.18.zip"
 }
