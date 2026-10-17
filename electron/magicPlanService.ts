@@ -397,6 +397,7 @@ export class MagicPlanService {
         totalHours: t.totalHours,
         estimatedHours: t.estimatedHours,
         worklogHours: t.worklogHours,
+        worklogByDate: t.worklogByDate,
         project: t.project,
         taskType: t.taskType,
         dates: t.dates,
@@ -957,6 +958,9 @@ export class MagicPlanService {
                 for (const currTask of allMyTasks) {
                   if (getTaskBusinessKey(currTask) === prevKey && currTask.userName === prevTask.userName) {
                     currTask.worklogHours = prevTask.worklogHours;
+                    if (prevTask.worklogByDate) {
+                      currTask.worklogByDate = { ...prevTask.worklogByDate };
+                    }
                     if (currTask.isCompleted || currTask.isSolved) {
                       if (!currTask.estimatedHours) currTask.estimatedHours = currTask.totalHours;
                       currTask.totalHours = prevTask.totalHours;
@@ -1398,6 +1402,7 @@ export class MagicPlanService {
       isService: boolean;
       isDev: boolean;
       totalRawHours: number;
+      hoursByDate: Record<string, number>;
     }>>();
 
     for (const dayRes of dailyResults) {
@@ -1426,6 +1431,7 @@ export class MagicPlanService {
             isService: boolean;
             isDev: boolean;
             totalRawHours: number;
+            hoursByDate: Record<string, number>;
           } | undefined;
 
           for (const cand of userTasksMap.values()) {
@@ -1459,6 +1465,7 @@ export class MagicPlanService {
             }
           }
 
+          const itemDate = item.date || dayRes.date;
           if (!existing) {
             const primaryKey = normDigitsTask
               ? `task-${normDigitsTask}`
@@ -1471,9 +1478,13 @@ export class MagicPlanService {
               isService: item.isService,
               isDev: item.isDev,
               totalRawHours: item.hours,
+              hoursByDate: itemDate ? { [itemDate]: Math.round(item.hours * 100) / 100 } : {},
             });
           } else {
             existing.totalRawHours += item.hours;
+            if (itemDate) {
+              existing.hoursByDate[itemDate] = Math.round(((existing.hoursByDate[itemDate] || 0) + item.hours) * 100) / 100;
+            }
             if (!existing.reqId && item.reqId) existing.reqId = item.reqId;
             if (!existing.taskId && item.taskId) existing.taskId = item.taskId;
             if (!existing.title && item.title) existing.title = item.title;
@@ -1594,9 +1605,11 @@ export class MagicPlanService {
               }
               existingTask.totalHours = roundedHours;
               existingTask.worklogHours = realRawWorklog;
+              existingTask.worklogByDate = { ...wTask.hoursByDate };
             } else {
               // U nevyřešeného požadavku počítáme reálný sloučený worklog bez zaokrouhlování
               existingTask.worklogHours = realRawWorklog;
+              existingTask.worklogByDate = { ...wTask.hoursByDate };
             }
             if (wTask.isService) existingTask.taskType = 'service';
             else if (wTask.isDev) existingTask.taskType = 'dev';
@@ -1627,6 +1640,7 @@ export class MagicPlanService {
             userName: matchedPerson?.name || wUser,
             totalHours: roundedHours,
             worklogHours: realRawWorklog,
+            worklogByDate: { ...wTask.hoursByDate },
             isPinned: false,
             isSolved: true,
             isCompleted: true,
@@ -2272,6 +2286,9 @@ export class MagicPlanService {
         }
         if (t.worklogHours && (!existing.worklogHours || t.worklogHours > existing.worklogHours)) {
           existing.worklogHours = t.worklogHours;
+        }
+        if (t.worklogByDate) {
+          existing.worklogByDate = { ...(existing.worklogByDate || {}), ...t.worklogByDate };
         }
         if (typeof t.topPx === 'number') {
           if (typeof existing.topPx !== 'number' || t.topPx < existing.topPx) {

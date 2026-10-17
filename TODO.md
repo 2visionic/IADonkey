@@ -37,5 +37,3 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 ---
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
-
-- [x] **Integrace funkcí z interního Woxu: Kopírování FTP (`/ftp`) a otevírání SQL dotazů v SSMS (`/db` & `Query in SSMS`)** *(Hotovo – větev `feat/ssms-and-ftp`: přidáno rozšíření SQL Server Management Studio (SSMS) v Nastavení -> Rozšíření s výběrem a automatickou detekcí `Ssms.exe`, nastavením lokálního SQL serveru a testem `sys.databases`, volitelnou SQL autentizací přes DPAPI a Wox přepínačem pro vyvolání `db` / `ftp` i bez lomítka `/`; přísné opt-in pravidlo zobrazující příkaz `/db` a akci „Otevřít dotaz v SSMS“ u MagicGate instancí výhradně při nastaveném `Ssms.exe`; prediktivní vyhledávání `/db ` a `/ftp ` s inline ghost-text dopovídáním přes `Tab` / `→` a automatickým odvozením FTP adres a přeložitelných DNS databázových hostů z MagicWare Deploy API)*

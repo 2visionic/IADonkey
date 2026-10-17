@@ -1707,7 +1707,10 @@ const calculateScheduleForTasks = (
   userTasks: PlanTaskItem[],
   days: PlanDayInfo[],
   todayIdx: number,
-  totalDayHours: number
+  totalDayHours: number,
+  worklogTimelineEntries?: WorklogTimelineEntry[],
+  targetUser?: string,
+  availablePersons: PlanPersonInfo[] = []
 ) => {
   const SLOTS_PER_HOUR = 2;
   const totalDaySlots = totalDayHours * SLOTS_PER_HOUR;
@@ -1732,6 +1735,7 @@ const calculateScheduleForTasks = (
         task: {
           ...t,
           dates: t.dates ? [...t.dates] : [],
+          worklogByDate: t.worklogByDate ? { ...t.worklogByDate } : undefined,
         },
         order: taskOrderCounter++,
       });
@@ -1746,6 +1750,9 @@ const calculateScheduleForTasks = (
       }
       if (t.worklogHours && (!et.worklogHours || t.worklogHours > et.worklogHours)) {
         et.worklogHours = t.worklogHours;
+      }
+      if (t.worklogByDate) {
+        et.worklogByDate = { ...(et.worklogByDate || {}), ...t.worklogByDate };
       }
       if (typeof t.topPx === 'number') {
         if (typeof et.topPx !== 'number' || t.topPx < et.topPx) {
@@ -1779,12 +1786,12 @@ const calculateScheduleForTasks = (
     .filter((t) => t.isCompleted || t.isSolved)
     .sort(comparePlanOrder);
 
-  const activeDevTasks = deduplicatedTasks.filter(
-    (t) => !t.isCompleted && !t.isSolved && !isServiceTaskItem(t)
-  );
-  const activeServiceTasks = deduplicatedTasks.filter(
-    (t) => !t.isCompleted && !t.isSolved && isServiceTaskItem(t)
-  );
+  const activeAllTasks = deduplicatedTasks
+    .filter((t) => !t.isCompleted && !t.isSolved)
+    .sort(comparePlanOrder);
+
+  const activeDevTasks = activeAllTasks.filter((t) => !isServiceTaskItem(t));
+  const activeServiceTasks = activeAllTasks.filter((t) => isServiceTaskItem(t));
 
   // 2. Třídění aktivních úkolů podle priorit:
   // 1) Kritické požadavky
@@ -1852,6 +1859,71 @@ const calculateScheduleForTasks = (
     }
   }
 
+  // Pomocná funkce pro zjištění odpracovaného času z předchozích dnů (d < todayIdx) a dneška (d >= todayIdx)
+  const pastDatesSet = new Set(
+    todayIdx > 0 ? days.slice(0, todayIdx).map((d) => d.date) : []
+  );
+  const todayDateStr = todayIdx >= 0 && todayIdx < days.length ? days[todayIdx]?.date : undefined;
+
+  const getTaskWorklogSplit = (t: PlanTaskItem): { pastWl: number; todayWl: number } => {
+    const totalWl = Math.round((t.worklogHours || 0) * 100) / 100;
+    if (totalWl <= 0 || todayIdx <= 0) {
+      return { pastWl: 0, todayWl: totalWl };
+    }
+
+    // 1. Primární zdroj: worklogByDate na úkolu
+    if (t.worklogByDate && Object.keys(t.worklogByDate).length > 0) {
+      let pastSum = 0;
+      for (const [dStr, h] of Object.entries(t.worklogByDate)) {
+        if (pastDatesSet.has(dStr) || (todayDateStr && dStr < todayDateStr)) {
+          pastSum += h || 0;
+        }
+      }
+      const pastWl = Math.min(totalWl, Math.round(pastSum * 100) / 100);
+      const todayWl = Math.max(0, Math.round((totalWl - pastWl) * 100) / 100);
+      return { pastWl, todayWl };
+    }
+
+    // 2. Fallback: worklogTimelineEntries z cache
+    if (worklogTimelineEntries && worklogTimelineEntries.length > 0) {
+      const rawTaskIdent = t.taskIdentifier || (typeof t.taskId === 'string' && t.taskId.toUpperCase().startsWith('T') ? t.taskId : '');
+      const hasTaskTCode = Boolean(rawTaskIdent && rawTaskIdent.toUpperCase().startsWith('T'));
+      const tTargetDigits = rawTaskIdent ? rawTaskIdent.replace(/\D/g, '') : '';
+      const reqTargetDigits = t.requirementId ? t.requirementId.replace(/\D/g, '') : '';
+
+      const matchedLogs = worklogTimelineEntries.filter((w) => {
+        if (targetUser && w.userName && !isTaskForUser(w.userName, targetUser, availablePersons)) {
+          return false;
+        }
+        const wTaskDigits = (w.taskId || w.parentTaskId || '').replace(/\D/g, '');
+        const wReqDigits = (w.reqId || '').replace(/\D/g, '');
+        if (hasTaskTCode && tTargetDigits) {
+          return wTaskDigits === tTargetDigits;
+        }
+        if (reqTargetDigits && !hasTaskTCode) {
+          return wReqDigits === reqTargetDigits;
+        }
+        if (t.taskId && (w.taskId === t.taskId || w.parentTaskId === t.taskId)) return true;
+        return false;
+      });
+
+      if (matchedLogs.length > 0) {
+        let pastSum = 0;
+        for (const w of matchedLogs) {
+          if (pastDatesSet.has(w.date) || (todayDateStr && w.date < todayDateStr)) {
+            pastSum += w.hours || 0;
+          }
+        }
+        const pastWl = Math.min(totalWl, Math.round(pastSum * 100) / 100);
+        const todayWl = Math.max(0, Math.round((totalWl - pastWl) * 100) / 100);
+        return { pastWl, todayWl };
+      }
+    }
+
+    // 3. Fallback pokud nejsou k dispozici denní rozpady
+    return { pastWl: totalWl, todayWl: 0 };
+  };
+
   // 2. Hotové / zpracované požadavky a aktivní úkoly:
   // Příprava front pro plánování s odděleným přesahem (overburn extension bar)
   interface TaskQueueItem {
@@ -1866,34 +1938,22 @@ const calculateScheduleForTasks = (
     part: number;
   }
 
-  const createTaskQueueItem = (t: PlanTaskItem): TaskQueueItem => {
-    const isDone = Boolean(t.isCompleted || t.isSolved);
+  const createCompletedTaskQueueItem = (t: PlanTaskItem): TaskQueueItem => {
     const est = t.estimatedHours && t.estimatedHours > 0 ? t.estimatedHours : (t.totalHours > 0 ? t.totalHours : 1);
     let plannedH = est;
     let overburnH = 0;
     let rawOverH = 0;
     let fillPct = 100;
     let overburnPercent = 0;
-    let overburnProgressPercent = 0;
 
-    if (isDone) {
-      const actual = (t.worklogHours && t.worklogHours > 0) ? t.worklogHours : (t.totalHours || plannedH);
-      if (est && est > 0 && actual > est) {
-        plannedH = est;
-        const roundedActual = Math.max(est, Math.ceil(actual * 2) / 2);
-        overburnH = Math.max(0, roundedActual - est);
-        rawOverH = Math.round((actual - est) * 100) / 100;
-        overburnPercent = Math.round((actual / est) * 100);
-        fillPct = overburnH > 0 ? Math.min(100, Math.max(5, Math.round((rawOverH / overburnH) * 100))) : 100;
-      }
-    } else {
-      const worklog = t.worklogHours || 0;
-      if (worklog > 0 && plannedH > 0 && worklog > plannedH) {
-        rawOverH = Math.round((worklog - plannedH) * 100) / 100;
-        overburnH = Math.ceil(rawOverH * 2) / 2;
-        overburnProgressPercent = Math.round((worklog / plannedH) * 100);
-        fillPct = overburnH > 0 ? Math.min(100, Math.max(5, Math.round((rawOverH / overburnH) * 100))) : 100;
-      }
+    const actual = (t.worklogHours && t.worklogHours > 0) ? t.worklogHours : (t.totalHours || plannedH);
+    if (est && est > 0 && actual > est) {
+      plannedH = est;
+      const roundedActual = Math.max(est, Math.ceil(actual * 2) / 2);
+      overburnH = Math.max(0, roundedActual - est);
+      rawOverH = Math.round((actual - est) * 100) / 100;
+      overburnPercent = Math.round((actual / est) * 100);
+      fillPct = overburnH > 0 ? Math.min(100, Math.max(5, Math.round((rawOverH / overburnH) * 100))) : 100;
     }
 
     return {
@@ -1904,6 +1964,102 @@ const calculateScheduleForTasks = (
       overburnFillPercent: fillPct,
       allocatedOverburnHours: overburnH,
       overburnPercent,
+      overburnProgressPercent: 0,
+      part: 1,
+    };
+  };
+
+  // Vytvoření položky pro odpracovanou část nehotového úkolu v předchozích dnech (d < todayIdx)
+  const createPastLoggedQueueItem = (t: PlanTaskItem): TaskQueueItem | null => {
+    const est = t.estimatedHours && t.estimatedHours > 0 ? t.estimatedHours : (t.totalHours > 0 ? t.totalHours : 1);
+    const totalWl = Math.round((t.worklogHours || 0) * 100) / 100;
+    const { pastWl } = getTaskWorklogSplit(t);
+
+    // Nejvíce zaokrouhlený čas na celé půlhodiny směrem dolů z předchozích dnů (např. 1.7h -> 1.5h, 2.0h -> 2.0h, 3.3h -> 3.0h)
+    const pastSlotHours = todayIdx > 0 ? Math.floor((pastWl + 1e-9) * 2) / 2 : 0;
+    if (pastSlotHours <= 0) return null;
+
+    const pastPlannedH = Math.min(est, pastSlotHours);
+    const pastOverburnH = Math.max(0, Math.round((pastSlotHours - est) * 100) / 100);
+    const overburnProgressPercent = totalWl > est && est > 0 ? Math.round((totalWl / est) * 100) : 0;
+
+    return {
+      task: t,
+      remainingPlannedHours: pastPlannedH,
+      remainingOverburnHours: pastOverburnH,
+      rawOverburnHours: pastOverburnH,
+      overburnFillPercent: 100,
+      allocatedOverburnHours: pastOverburnH,
+      overburnPercent: 0,
+      overburnProgressPercent,
+      part: 1,
+    };
+  };
+
+  // Vytvoření aktivní položky pro dnešek a následující dny (d >= todayIdx)
+  // Pokud část z předchozích dnů přetekla do dneška (placedPastH < pastSlotHours), automaticky se spojí se zbývajícím časem do jednoho bloku bez duplikátů.
+  const createActiveQueueItemAfterPast = (t: PlanTaskItem, placedPastH: number): TaskQueueItem => {
+    const est = t.estimatedHours && t.estimatedHours > 0 ? t.estimatedHours : (t.totalHours > 0 ? t.totalHours : 1);
+    const totalWl = Math.round((t.worklogHours || 0) * 100) / 100;
+    const totalRawOverH = totalWl > est ? Math.round((totalWl - est) * 100) / 100 : 0;
+    const overburnProgressPercent = totalWl > est && est > 0 ? Math.round((totalWl / est) * 100) : 0;
+
+    const placedPastPlannedH = Math.min(est, placedPastH);
+    const placedPastOverburnH = Math.max(0, Math.round((placedPastH - est) * 100) / 100);
+    const remPlannedH = Math.max(0, Math.round((est - placedPastPlannedH) * 100) / 100);
+    const remWl = Math.max(0, Math.round((totalWl - placedPastH) * 100) / 100);
+
+    if (placedPastH > 0) {
+      let remOverburnH = 0;
+      let activeFillPct = 100;
+
+      if (remPlannedH > 0) {
+        if (remWl > remPlannedH) {
+          const activeRawOverH = Math.round((remWl - remPlannedH) * 100) / 100;
+          remOverburnH = Math.ceil(activeRawOverH * 2) / 2;
+          activeFillPct = remOverburnH > 0
+            ? Math.min(100, Math.max(5, Math.round((activeRawOverH / remOverburnH) * 100)))
+            : 100;
+        }
+      } else {
+        // Plánovaný čas úkolu byl již vyčerpán v předchozích dnech, ale úkol stále není hotový:
+        // V aktuálním dnu (nebo dalším dnu/týdnu dle pořadí) vyrezervujeme alespoň 0.5h pro nabíhající overburn
+        const activeRawOverH = remWl;
+        remOverburnH = Math.max(0.5, Math.ceil(activeRawOverH * 2) / 2);
+        activeFillPct = activeRawOverH > 0
+          ? Math.min(100, Math.max(5, Math.round((activeRawOverH / remOverburnH) * 100)))
+          : 0;
+      }
+
+      return {
+        task: t,
+        remainingPlannedHours: remPlannedH,
+        remainingOverburnHours: remOverburnH,
+        rawOverburnHours: totalRawOverH,
+        overburnFillPercent: activeFillPct,
+        allocatedOverburnHours: placedPastOverburnH + remOverburnH,
+        overburnPercent: 0,
+        overburnProgressPercent,
+        part: 2,
+      };
+    }
+
+    // V předchozích dnech nebylo umístěno nic (buď neměl pastSlotHours, nebo kompletně přetekl do dneška) -> jeden spojený blok
+    let overburnH = 0;
+    let fillPct = 100;
+    if (totalWl > 0 && est > 0 && totalWl > est) {
+      overburnH = Math.ceil(totalRawOverH * 2) / 2;
+      fillPct = overburnH > 0 ? Math.min(100, Math.max(5, Math.round((totalRawOverH / overburnH) * 100))) : 100;
+    }
+
+    return {
+      task: t,
+      remainingPlannedHours: est,
+      remainingOverburnHours: overburnH,
+      rawOverburnHours: totalRawOverH,
+      overburnFillPercent: fillPct,
+      allocatedOverburnHours: overburnH,
+      overburnPercent: 0,
       overburnProgressPercent,
       part: 1,
     };
@@ -1914,7 +2070,8 @@ const calculateScheduleForTasks = (
     d: number,
     slotInDay: number,
     maxSlot: number,
-    isService: boolean
+    isService: boolean,
+    prefix: string = ''
   ): { slotsAdded: number } => {
     const isDone = Boolean(q.task.isCompleted || q.task.isSolved);
     const totalNeeded = q.remainingPlannedHours + q.remainingOverburnHours;
@@ -1935,7 +2092,7 @@ const calculateScheduleForTasks = (
 
     if (spanCols > 0) {
       blocks.push({
-        id: `${isDone ? 'comp-' : ''}${isService ? 'srv-' : 'dev-'}${q.task.taskId}-d${d}-p${q.part}`,
+        id: `${prefix}${isDone ? 'comp-' : ''}${isService ? 'srv-' : 'dev-'}${q.task.taskId}-d${d}-s${slotInDay}-p${q.part}`,
         task: q.task,
         isService,
         isNotAvailable: false,
@@ -1971,170 +2128,220 @@ const calculateScheduleForTasks = (
     return { slotsAdded: 0 };
   };
 
-  const baseNaBlocks = [...blocks];
-  let currentCompTasks = [...compTasks];
-  let currentDevTasks = [...sortedDevTasks];
-  let currentServiceTasks = [...sortedServiceTasks];
+  // 1A. Hotové úkoly skládáme za sebou od začátku týdne (d=0) dle relevance z plánu.
+  const compQueue: TaskQueueItem[] = compTasks.map(createCompletedTaskQueueItem);
 
-  let compQueue: TaskQueueItem[] = [];
-  let subsequentQueue: TaskQueueItem[] = [];
+  for (let d = 0; d < 5; d++) {
+    const naSlots = blocks
+      .filter((b) => b.dayIndex === d && b.isNotAvailable)
+      .reduce((s, b) => s + b.spanCols, 0);
+    let slotInDay = naSlots;
 
-  for (let pass = 0; pass < 2; pass++) {
-    blocks.length = 0;
-    blocks.push(...baseNaBlocks.map((b) => ({ ...b })));
+    for (const q of compQueue) {
+      if (slotInDay >= totalDaySlots) break;
+      if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
 
-    // 1. Hotové úkoly: skládáme za sebou od začátku týdne (d=0) dle relevance z plánu.
-    compQueue = currentCompTasks.map(createTaskQueueItem);
+      const isSrv = isServiceTaskItem(q.task);
+      const { slotsAdded } = placeQueueItem(q, d, slotInDay, totalDaySlots, isSrv, 'done-');
+      slotInDay += slotsAdded;
+    }
+  }
 
-    for (let d = 0; d < 5; d++) {
-      const naSlots = blocks
-        .filter((b) => b.dayIndex === d && b.isNotAvailable)
-        .reduce((s, b) => s + b.spanCols, 0);
-      let slotInDay = naSlots;
+  // 1B. Hned za hotové úkoly v předchozích dnech (d < todayIdx) skládáme odpracované části nehotových úkolů.
+  // Pokud přetečou do aktuálního dne (d === todayIdx), nevkládáme je zvlášť, ale propojíme je s aktivní částí úkolu.
+  const pastLoggedQueue: TaskQueueItem[] = [];
+  for (const t of activeAllTasks) {
+    const pastItem = createPastLoggedQueueItem(t);
+    if (pastItem) {
+      pastLoggedQueue.push(pastItem);
+    }
+  }
 
-      for (const q of compQueue) {
-        if (slotInDay >= totalDaySlots) break;
-        if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+  const placedPastHoursByTaskId = new Map<string, number>();
+  let boundaryPastTaskId: string | null = null;
+  const maxPastDay = todayIdx > 0 ? Math.min(5, todayIdx) : 0;
 
-        const isSrv = isServiceTaskItem(q.task);
-        const { slotsAdded } = placeQueueItem(q, d, slotInDay, totalDaySlots, isSrv);
+  for (let d = 0; d < maxPastDay; d++) {
+    const usedInDay = blocks
+      .filter((b) => b.dayIndex === d)
+      .reduce((s, b) => s + b.spanCols, 0);
+    let slotInDay = usedInDay;
+
+    for (const q of pastLoggedQueue) {
+      if (slotInDay >= totalDaySlots) break;
+      if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+
+      const isSrv = isServiceTaskItem(q.task);
+      const { slotsAdded } = placeQueueItem(q, d, slotInDay, totalDaySlots, isSrv, 'pastwl-');
+      if (slotsAdded > 0) {
+        const addedH = slotsAdded / SLOTS_PER_HOUR;
+        placedPastHoursByTaskId.set(
+          q.task.taskId,
+          Math.round(((placedPastHoursByTaskId.get(q.task.taskId) || 0) + addedH) * 100) / 100
+        );
         slotInDay += slotsAdded;
+        if (d === todayIdx - 1 && slotInDay === totalDaySlots) {
+          boundaryPastTaskId = q.task.taskId;
+        }
       }
     }
+  }
 
-    // Příprava front aktivních úkolů (řazených: kritické -> rozpracované s worklogem -> nerozpracované)
-    const devQueue: TaskQueueItem[] = currentDevTasks.map(createTaskQueueItem);
-    const serviceQueue: TaskQueueItem[] = currentServiceTasks.map(createTaskQueueItem);
+  const activeItemByTaskId = new Map<string, TaskQueueItem>();
+  for (const t of activeAllTasks) {
+    const placedPastH = placedPastHoursByTaskId.get(t.taskId) || 0;
+    activeItemByTaskId.set(t.taskId, createActiveQueueItemAfterPast(t, placedPastH));
+  }
 
-    // 2. Aktuální den (todayIdx)
-    if (todayIdx >= 0 && todayIdx < 5) {
-      const usedInToday = blocks
-        .filter((b) => b.dayIndex === todayIdx)
-        .reduce((s, b) => s + b.spanCols, 0);
+  // Příprava front aktivních úkolů (řazených: kritické -> rozpracované s worklogem -> nerozpracované)
+  const devQueue: TaskQueueItem[] = sortedDevTasks
+    .map((t) => activeItemByTaskId.get(t.taskId))
+    .filter((q): q is TaskQueueItem => Boolean(q));
+  const serviceQueue: TaskQueueItem[] = sortedServiceTasks
+    .map((t) => activeItemByTaskId.get(t.taskId))
+    .filter((q): q is TaskQueueItem => Boolean(q));
 
-      const availableTotalSlots = Math.max(0, totalDaySlots - usedInToday);
-      const availableTotalHours = availableTotalSlots / SLOTS_PER_HOUR;
+  // 2. Aktuální den (todayIdx)
+  if (todayIdx >= 0 && todayIdx < 5) {
+    let usedInToday = blocks
+      .filter((b) => b.dayIndex === todayIdx)
+      .reduce((s, b) => s + b.spanCols, 0);
 
-      const totalDevNeeded = devQueue.reduce((s, q) => s + q.remainingPlannedHours + q.remainingOverburnHours, 0);
-      const totalServiceNeeded = serviceQueue.reduce((s, q) => s + q.remainingPlannedHours + q.remainingOverburnHours, 0);
+    let boundaryServiceHoursUsed = 0;
 
-      // Pravidlo: 3h servisu na konci dne, 5h devs.
-      let targetServiceHours = 0;
-      let targetDevHours = 0;
-
-      if (availableTotalHours > 0) {
-        const baseDevCap = Math.max(0, availableTotalHours - 3);
-        const plannedDev = Math.min(baseDevCap, totalDevNeeded);
-        const unusedDev = Math.max(0, baseDevCap - plannedDev);
-
-        const maxServicePossible = Math.min(availableTotalHours - plannedDev, 3 + unusedDev);
-        targetServiceHours = Math.min(maxServicePossible, totalServiceNeeded);
-
-        const unusedService = Math.max(0, 3 - targetServiceHours);
-        const maxDevPossible = Math.min(availableTotalHours - targetServiceHours, 5 + unusedService);
-        targetDevHours = Math.min(maxDevPossible, totalDevNeeded);
-      }
-
-      const targetServiceSlots = Math.round(targetServiceHours * SLOTS_PER_HOUR);
-      const targetDevSlots = Math.round(targetDevHours * SLOTS_PER_HOUR);
-
-      const isContiguous = (usedInToday + targetDevSlots + targetServiceSlots) < totalDaySlots;
-
-      let devStartSlot = usedInToday;
-      let srvStartSlot = isContiguous
-        ? usedInToday + targetDevSlots
-        : totalDaySlots - targetServiceSlots;
-
-      // Vložení vývojových úkolů do dneška (kritické -> rozpracované -> nerozpracované)
-      const devMaxSlot = isContiguous ? srvStartSlot : totalDaySlots - targetServiceSlots;
-      for (const q of devQueue) {
-        if (devStartSlot >= devMaxSlot) break;
-        if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
-
-        const { slotsAdded } = placeQueueItem(q, todayIdx, devStartSlot, devMaxSlot, false);
-        devStartSlot += slotsAdded;
-      }
-
-      // Vložení servisních úkolů do dneška (kritické -> rozpracované -> nerozpracované)
-      if (targetServiceSlots > 0) {
-        let curSrvSlot = srvStartSlot;
-        for (const q of serviceQueue) {
-          if (curSrvSlot >= totalDaySlots) break;
-          if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
-
-          const { slotsAdded } = placeQueueItem(q, todayIdx, curSrvSlot, totalDaySlots, true);
-          curSrvSlot += slotsAdded;
+    // Pokud na konci včerejška (todayIdx - 1) skončil rozpracovaný úkol z pastLoggedQueue a dnešek začíná volným slotem,
+    // navážeme jím hned na začátku dneška, aby se bloky plynule propojily a nevznikly duplikáty.
+    if (boundaryPastTaskId && usedInToday === 0) {
+      const devBoundaryIdx = devQueue.findIndex((q) => q.task.taskId === boundaryPastTaskId);
+      if (devBoundaryIdx > 0) {
+        const [bItem] = devQueue.splice(devBoundaryIdx, 1);
+        devQueue.unshift(bItem);
+      } else if (devBoundaryIdx === -1) {
+        const srvBoundaryIdx = serviceQueue.findIndex((q) => q.task.taskId === boundaryPastTaskId);
+        if (srvBoundaryIdx !== -1) {
+          const srvItem = serviceQueue[srvBoundaryIdx];
+          const { slotsAdded } = placeQueueItem(srvItem, todayIdx, usedInToday, totalDaySlots, true, 'act-');
+          usedInToday += slotsAdded;
+          boundaryServiceHoursUsed = slotsAdded / SLOTS_PER_HOUR;
         }
       }
     }
 
-    // 3. Následující dny (d > todayIdx, případně d < todayIdx pokud by v nich zbyl prostor):
-    subsequentQueue = [
-      ...devQueue.filter((q) => q.task.isCritical && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
-      ...serviceQueue.filter((q) => q.task.isCritical && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
-      ...devQueue.filter((q) => !q.task.isCritical && isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
-      ...serviceQueue.filter((q) => !q.task.isCritical && isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
-      ...devQueue.filter((q) => !q.task.isCritical && !isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
-      ...serviceQueue.filter((q) => !q.task.isCritical && !isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
-    ];
+    const availableTotalSlots = Math.max(0, totalDaySlots - usedInToday);
+    const availableTotalHours = availableTotalSlots / SLOTS_PER_HOUR;
 
-    const firstSubsequentDay = todayIdx !== -1 ? todayIdx + 1 : 0;
-    for (let d = firstSubsequentDay; d < 5; d++) {
-      const usedInDay = blocks
-        .filter((b) => b.dayIndex === d)
-        .reduce((s, b) => s + b.spanCols, 0);
-      let slotInDay = usedInDay;
+    const totalDevNeeded = devQueue.reduce((s, q) => s + q.remainingPlannedHours + q.remainingOverburnHours, 0);
+    const totalServiceNeeded = serviceQueue.reduce((s, q) => s + q.remainingPlannedHours + q.remainingOverburnHours, 0);
+    const remainingServiceQuota = Math.max(0, 3 - boundaryServiceHoursUsed);
 
-      for (const q of subsequentQueue) {
-        if (slotInDay >= totalDaySlots) break;
+    // Pravidlo: 3h servisu na konci dne, 5h devs.
+    let targetServiceHours = 0;
+    let targetDevHours = 0;
+
+    if (availableTotalHours > 0) {
+      const baseDevCap = Math.max(0, availableTotalHours - remainingServiceQuota);
+      const plannedDev = Math.min(baseDevCap, totalDevNeeded);
+      const unusedDev = Math.max(0, baseDevCap - plannedDev);
+
+      const maxServicePossible = Math.min(availableTotalHours - plannedDev, remainingServiceQuota + unusedDev);
+      targetServiceHours = Math.min(maxServicePossible, totalServiceNeeded);
+
+      const unusedService = Math.max(0, remainingServiceQuota - targetServiceHours);
+      const maxDevPossible = Math.min(
+        availableTotalHours - targetServiceHours,
+        Math.max(0, 5 - boundaryServiceHoursUsed) + unusedService
+      );
+      targetDevHours = Math.min(maxDevPossible, totalDevNeeded);
+    }
+
+    const targetServiceSlots = Math.round(targetServiceHours * SLOTS_PER_HOUR);
+    const targetDevSlots = Math.round(targetDevHours * SLOTS_PER_HOUR);
+
+    const isContiguous = (usedInToday + targetDevSlots + targetServiceSlots) < totalDaySlots;
+
+    let devStartSlot = usedInToday;
+    let srvStartSlot = isContiguous
+      ? usedInToday + targetDevSlots
+      : totalDaySlots - targetServiceSlots;
+
+    // Vložení vývojových úkolů do dneška (kritické -> rozpracované -> nerozpracované)
+    const devMaxSlot = isContiguous ? srvStartSlot : totalDaySlots - targetServiceSlots;
+    for (const q of devQueue) {
+      if (devStartSlot >= devMaxSlot) break;
+      if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+
+      const { slotsAdded } = placeQueueItem(q, todayIdx, devStartSlot, devMaxSlot, false, 'act-');
+      devStartSlot += slotsAdded;
+    }
+
+    // Vložení servisních úkolů do dneška (kritické -> rozpracované -> nerozpracované)
+    if (targetServiceSlots > 0) {
+      let curSrvSlot = srvStartSlot;
+      for (const q of serviceQueue) {
+        if (curSrvSlot >= totalDaySlots) break;
         if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
 
-        const isSrv = isServiceTaskItem(q.task);
-        const { slotsAdded } = placeQueueItem(q, d, slotInDay, totalDaySlots, isSrv);
-        slotInDay += slotsAdded;
+        const { slotsAdded } = placeQueueItem(q, todayIdx, curSrvSlot, totalDaySlots, true, 'act-');
+        curSrvSlot += slotsAdded;
       }
     }
-
-    // Pokud zalogovaný požadavek v tomto týdnu již v plánu není (nevešel se ani na 0.5h, celý přetekl):
-    // Převedeme jej nakonec vyřešených požadavků s reálným logem a overburnem, v dalším týdnu jej nezobrazíme.
-    if (pass === 0) {
-      const evictedLoggedTasks = subsequentQueue.filter((q) => {
-        const wl = q.task.worklogHours || 0;
-        if (wl <= 0) return false;
-        const scheduledInWeek = blocks
-          .filter((b) => b.task.taskId === q.task.taskId && !b.isNotAvailable)
-          .reduce((s, b) => s + b.chunkHours, 0);
-        return scheduledInWeek < 0.5;
-      });
-
-      if (evictedLoggedTasks.length > 0) {
-        const evictedIds = new Set(evictedLoggedTasks.map((q) => q.task.taskId));
-        const newCompTasksToAdd: PlanTaskItem[] = evictedLoggedTasks.map((q) => {
-          const est = q.task.estimatedHours && q.task.estimatedHours > 0
-            ? q.task.estimatedHours
-            : (q.task.totalHours > 0 ? q.task.totalHours : 1);
-          const wl = q.task.worklogHours || 0;
-          return {
-            ...q.task,
-            isCompleted: false, // Vizuálně u něj nesmí být splněno, ale jako by byl rozpracovaný
-            isSolved: false,
-            estimatedHours: est,
-            worklogHours: wl,
-            totalHours: est,
-          };
-        });
-
-        currentCompTasks = [...currentCompTasks, ...newCompTasksToAdd];
-        currentDevTasks = currentDevTasks.filter((t) => !evictedIds.has(t.taskId));
-        currentServiceTasks = currentServiceTasks.filter((t) => !evictedIds.has(t.taskId));
-        continue;
-      }
-    }
-
-    break;
   }
 
-  // Overflow tasks (zbylé úkoly, které se nevešly do týdne – přenáší se pouze zbylý plán, nikoli přesah z aktuálního týdne)
+  // 3. Následující dny (d > todayIdx):
+  const subsequentQueue: TaskQueueItem[] = [
+    ...devQueue.filter((q) => q.task.isCritical && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+    ...serviceQueue.filter((q) => q.task.isCritical && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+    ...devQueue.filter((q) => !q.task.isCritical && isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+    ...serviceQueue.filter((q) => !q.task.isCritical && isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+    ...devQueue.filter((q) => !q.task.isCritical && !isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+    ...serviceQueue.filter((q) => !q.task.isCritical && !isRozpracovany(q.task) && (q.remainingPlannedHours > 0 || q.remainingOverburnHours > 0)),
+  ];
+
+  const firstSubsequentDay = todayIdx !== -1 ? todayIdx + 1 : 0;
+  for (let d = firstSubsequentDay; d < 5; d++) {
+    const usedInDay = blocks
+      .filter((b) => b.dayIndex === d)
+      .reduce((s, b) => s + b.spanCols, 0);
+    let slotInDay = usedInDay;
+
+    for (const q of subsequentQueue) {
+      if (slotInDay >= totalDaySlots) break;
+      if (q.remainingPlannedHours <= 0 && q.remainingOverburnHours <= 0) continue;
+
+      const isSrv = isServiceTaskItem(q.task);
+      const { slotsAdded } = placeQueueItem(q, d, slotInDay, totalDaySlots, isSrv, 'sub-');
+      slotInDay += slotsAdded;
+    }
+  }
+
+  // Pokud na sobě ve stejném dni bezprostředně navazují dva bloky téhož úkolu, sloučíme je v rámci daného dne
+  blocks.sort((a, b) => a.startCol - b.startCol);
+  const mergedDayBlocks: TimelineScheduledBlock[] = [];
+  for (const b of blocks) {
+    const prev = mergedDayBlocks[mergedDayBlocks.length - 1];
+    if (
+      prev &&
+      prev.dayIndex === b.dayIndex &&
+      prev.task.taskId === b.task.taskId &&
+      prev.isService === b.isService &&
+      !prev.isNotAvailable &&
+      !b.isNotAvailable &&
+      Boolean(prev.isCompleted) === Boolean(b.isCompleted) &&
+      prev.startCol + prev.spanCols === b.startCol
+    ) {
+      prev.spanCols += b.spanCols;
+      prev.chunkHours += b.chunkHours;
+      prev.plannedChunkHours = (prev.plannedChunkHours || 0) + (b.plannedChunkHours || 0);
+      prev.overburnChunkHours = (prev.overburnChunkHours || 0) + (b.overburnChunkHours || 0);
+      prev.hasOverburnChunk = Boolean(prev.overburnChunkHours && prev.overburnChunkHours > 0);
+    } else {
+      mergedDayBlocks.push(b);
+    }
+  }
+  blocks.length = 0;
+  blocks.push(...mergedDayBlocks);
+
+  // Overflow tasks (zbylé úkoly, které se nevešly do týdne)
   const overflowTasks: {
     task: PlanTaskItem;
     remainingHours: number;
@@ -2156,30 +2363,23 @@ const calculateScheduleForTasks = (
     }
   }
   for (const q of subsequentQueue) {
-    const rem = q.remainingPlannedHours;
+    // Přetéká zbylý plán, případně rezervovaných 0.5h u přepáleného nehotového úkolu
+    const rem = q.remainingPlannedHours > 0 ? q.remainingPlannedHours : q.remainingOverburnHours;
     if (rem > 0) {
-      overflowTasks.push({
-        task: q.task,
-        remainingHours: rem,
-      });
+      const existingOverflow = overflowTasks.find((o) => o.task.taskId === q.task.taskId);
+      if (existingOverflow) {
+        existingOverflow.remainingHours = Math.round((existingOverflow.remainingHours + rem) * 100) / 100;
+      } else {
+        overflowTasks.push({
+          task: q.task,
+          remainingHours: rem,
+        });
+      }
     }
   }
 
-  // Určení celkového počtu částí (totalParts) a isSplit pro každý úkol
+  // Seskupení denních bloků podle úkolu, přečíslování partIndex/totalParts a výpočet odpracovaných hodin a overburnu pro každý blok
   const taskPartsCount = new Map<string, number>();
-  for (const b of blocks) {
-    taskPartsCount.set(b.task.taskId, (taskPartsCount.get(b.task.taskId) || 0) + 1);
-  }
-  for (const b of blocks) {
-    const partsTotal = taskPartsCount.get(b.task.taskId) || 1;
-    const hasOverflow = overflowTasks.some((o) => o.task.taskId === b.task.taskId);
-    if (partsTotal > 1 || hasOverflow) {
-      b.isSplit = true;
-      b.totalParts = partsTotal + (hasOverflow ? 1 : 0);
-    }
-  }
-
-  // Výpočet odpracovaných hodin a procent pro jednotlivé bloky nehotových úkolů s worklogem
   const taskDailyBlocksMap = new Map<string, TimelineScheduledBlock[]>();
   for (const b of blocks) {
     if (!b.isNotAvailable) {
@@ -2189,13 +2389,25 @@ const calculateScheduleForTasks = (
     }
   }
 
-  for (const [, tBlocks] of taskDailyBlocksMap.entries()) {
+  for (const [taskId, tBlocks] of taskDailyBlocksMap.entries()) {
     const task = tBlocks[0]?.task;
     if (!task) continue;
 
+    const sorted = [...tBlocks].sort((a, b) => a.startCol - b.startCol);
+    const hasOverflow = overflowTasks.some((o) => o.task.taskId === taskId);
+    const partsTotal = sorted.length;
+    const totalPartsWithOverflow = partsTotal + (hasOverflow ? 1 : 0);
+    const isSplit = totalPartsWithOverflow > 1;
+
+    taskPartsCount.set(taskId, partsTotal);
+    sorted.forEach((b, idx) => {
+      b.partIndex = idx + 1;
+      b.totalParts = totalPartsWithOverflow;
+      b.isSplit = isSplit;
+      b.isOverflowPart = idx > 0;
+    });
+
     const isDone = Boolean(task.isCompleted || task.isSolved);
-    const sorted = [...tBlocks].sort((a, b) => a.partIndex - b.partIndex || a.startCol - b.startCol);
-    const hasOverflow = overflowTasks.some((o) => o.task.taskId === task.taskId);
     const scheduledPlanInWeek = sorted.reduce((sum, b) => sum + (b.plannedChunkHours ?? b.chunkHours), 0);
 
     if (isDone) {
@@ -2205,8 +2417,22 @@ const calculateScheduleForTasks = (
       const actualHours = (task.worklogHours && task.worklogHours > 0) ? task.worklogHours : (task.totalHours || 0);
       if (est > 0 && actualHours > est) {
         const taskOverPct = Math.round((actualHours / est) * 100);
+        let accumulatedHours = 0;
         for (const b of sorted) {
+          const hoursBefore = accumulatedHours;
+          accumulatedHours += b.chunkHours;
+          const availableWorklog = Math.max(0, actualHours - hoursBefore);
+          const worklogInThisBlock = Math.min(b.chunkHours, availableWorklog);
+          const plannedInBlock = b.plannedChunkHours ?? b.chunkHours;
+          const overburnInBlock = b.overburnChunkHours || 0;
+          const overburnWorked = Math.max(0, Math.round((worklogInThisBlock - plannedInBlock) * 100) / 100);
+
           b.overburnPercent = taskOverPct;
+          if (overburnInBlock > 0) {
+            b.overburnFillPercent = overburnWorked > 0
+              ? Math.min(100, Math.max(5, Math.round((overburnWorked / overburnInBlock) * 100)))
+              : 100;
+          }
         }
       }
     } else {
@@ -2217,20 +2443,31 @@ const calculateScheduleForTasks = (
       const taskOverProgPct = isOver ? Math.round((worklogHours / effectivePlanHours) * 100) : 0;
       const rawOverH = isOver ? Math.round((worklogHours - effectivePlanHours) * 100) / 100 : 0;
 
-      if (worklogHours > 0) {
+      if (worklogHours > 0 || sorted.some((b) => (b.overburnChunkHours || 0) > 0)) {
         let accumulatedHours = 0;
         for (const b of sorted) {
           const hoursBefore = accumulatedHours;
           accumulatedHours += b.chunkHours;
           const availableWorklog = Math.max(0, worklogHours - hoursBefore);
           const worklogInThisBlock = Math.min(b.chunkHours, availableWorklog);
+          const plannedInBlock = b.plannedChunkHours ?? b.chunkHours;
+          const overburnInBlock = b.overburnChunkHours || 0;
+          const plannedWorked = Math.min(plannedInBlock, worklogInThisBlock);
+          const overburnWorked = Math.max(0, Math.round((worklogInThisBlock - plannedInBlock) * 100) / 100);
+
           b.worklogChunkHours = Math.round(worklogInThisBlock * 100) / 100;
-          b.worklogPercent = b.chunkHours > 0
-            ? Math.min(100, worklogInThisBlock > 0 ? Math.max(1, Math.round((worklogInThisBlock / b.chunkHours) * 100)) : 0)
-            : 0;
-          if (isOver) {
+          b.worklogPercent = plannedInBlock > 0
+            ? Math.min(100, plannedWorked > 0 ? Math.max(1, Math.round((plannedWorked / plannedInBlock) * 100)) : 0)
+            : (worklogInThisBlock > 0 ? 100 : 0);
+
+          if (overburnInBlock > 0) {
+            b.overburnFillPercent = overburnWorked > 0
+              ? Math.min(100, Math.max(5, Math.round((overburnWorked / overburnInBlock) * 100)))
+              : 0;
+          }
+          if (isOver || overburnInBlock > 0) {
             b.isOverburnedInProgress = true;
-            b.overburnProgressPercent = taskOverProgPct;
+            b.overburnProgressPercent = taskOverProgPct || (effectivePlanHours > 0 ? Math.round((worklogHours / effectivePlanHours) * 100) : 100);
             b.rawOverburnHours = rawOverH;
           }
         }
@@ -2345,8 +2582,22 @@ const calculateScheduleForTasks = (
       const actualHours = (task.worklogHours && task.worklogHours > 0) ? task.worklogHours : (task.totalHours || 0);
       if (est > 0 && actualHours > est) {
         const taskOverPct = Math.round((actualHours / est) * 100);
+        let accumulatedHours = 0;
         for (const tb of sorted) {
+          const hoursBefore = accumulatedHours;
+          accumulatedHours += tb.chunkHours;
+          const availableWorklog = Math.max(0, actualHours - hoursBefore);
+          const worklogInThisBlock = Math.min(tb.chunkHours, availableWorklog);
+          const plannedInBlock = tb.plannedChunkHours ?? tb.chunkHours;
+          const overburnInBlock = tb.overburnChunkHours || 0;
+          const overburnWorked = Math.max(0, Math.round((worklogInThisBlock - plannedInBlock) * 100) / 100);
+
           tb.overburnPercent = taskOverPct;
+          if (overburnInBlock > 0) {
+            tb.overburnFillPercent = overburnWorked > 0
+              ? Math.min(100, Math.max(5, Math.round((overburnWorked / overburnInBlock) * 100)))
+              : 100;
+          }
         }
       }
     } else {
@@ -2357,20 +2608,31 @@ const calculateScheduleForTasks = (
       const taskOverProgPct = isOver ? Math.round((worklogHours / effectivePlanHours) * 100) : 0;
       const rawOverH = isOver ? Math.round((worklogHours - effectivePlanHours) * 100) / 100 : 0;
 
-      if (worklogHours > 0) {
+      if (worklogHours > 0 || sorted.some((tb) => (tb.overburnChunkHours || 0) > 0)) {
         let accumulatedHours = 0;
         for (const tb of sorted) {
           const hoursBefore = accumulatedHours;
           accumulatedHours += tb.chunkHours;
           const availableWorklog = Math.max(0, worklogHours - hoursBefore);
           const worklogInThisBlock = Math.min(tb.chunkHours, availableWorklog);
+          const plannedInBlock = tb.plannedChunkHours ?? tb.chunkHours;
+          const overburnInBlock = tb.overburnChunkHours || 0;
+          const plannedWorked = Math.min(plannedInBlock, worklogInThisBlock);
+          const overburnWorked = Math.max(0, Math.round((worklogInThisBlock - plannedInBlock) * 100) / 100);
+
           tb.worklogChunkHours = Math.round(worklogInThisBlock * 100) / 100;
-          tb.worklogPercent = tb.chunkHours > 0
-            ? Math.min(100, worklogInThisBlock > 0 ? Math.max(1, Math.round((worklogInThisBlock / tb.chunkHours) * 100)) : 0)
-            : 0;
-          if (isOver) {
+          tb.worklogPercent = plannedInBlock > 0
+            ? Math.min(100, plannedWorked > 0 ? Math.max(1, Math.round((plannedWorked / plannedInBlock) * 100)) : 0)
+            : (worklogInThisBlock > 0 ? 100 : 0);
+
+          if (overburnInBlock > 0) {
+            tb.overburnFillPercent = overburnWorked > 0
+              ? Math.min(100, Math.max(5, Math.round((overburnWorked / overburnInBlock) * 100)))
+              : 0;
+          }
+          if (isOver || overburnInBlock > 0) {
             tb.isOverburnedInProgress = true;
-            tb.overburnProgressPercent = taskOverProgPct;
+            tb.overburnProgressPercent = taskOverProgPct || (effectivePlanHours > 0 ? Math.round((worklogHours / effectivePlanHours) * 100) : 100);
             tb.rawOverburnHours = rawOverH;
           }
         }
@@ -2857,10 +3119,27 @@ const TimelineGridView: React.FC<TimelineGridViewProps> = ({
       return {
         userName: user,
         initials: getUserInitials(user, availablePersons),
-        ...calculateScheduleForTasks(userTasks, days, todayIdx, totalDayHours),
+        ...calculateScheduleForTasks(
+          userTasks,
+          days,
+          todayIdx,
+          totalDayHours,
+          worklogTimelineEntries,
+          user,
+          availablePersons
+        ),
       };
     });
-  }, [hasMultipleUsers, activeUsers, tasks, days, todayIdx, totalDayHours, availablePersons]);
+  }, [
+    hasMultipleUsers,
+    activeUsers,
+    tasks,
+    days,
+    todayIdx,
+    totalDayHours,
+    availablePersons,
+    worklogTimelineEntries,
+  ]);
 
   const relevantSchedulesForStats = useMemo(() => {
     if (showOnlyMyTasks && currentUser) {

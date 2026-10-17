@@ -200,6 +200,7 @@ export interface PlanTaskItem {
   totalHours: number;
   estimatedHours?: number;
   worklogHours?: number;
+  worklogByDate?: Record<string, number>;
   isPinned: boolean;
   isSolved?: boolean;
   taskType: 'dev' | 'service' | 'other';
