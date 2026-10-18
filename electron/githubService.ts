@@ -332,47 +332,276 @@ export async function fetchGitHubRepos(settings?: GithubSettings): Promise<Launc
   const allRawRepos = Array.from(reposMap.values());
 
   // Map to LauncherItem
-  return allRawRepos.map((repo) => {
-    const isPrivate = repo.private === true;
-    const repoLabel = repo.full_name || repo.name;
-    const ownerAvatar = repo.owner?.avatar_url || null;
+  return allRawRepos.map(mapRawRepoToLauncherItem);
+}
+
+export function mapRawRepoToLauncherItem(repo: RawGitHubRepo): LauncherItem {
+  const isPrivate = repo.private === true;
+  const repoLabel = repo.full_name || repo.name;
+
+  return {
+    id: `github-${repo.id}`,
+    name: repoLabel,
+    location: repo.html_url,
+    action: 'open',
+    icon: 'folder_code',
+    image: '{favicon}',
+    priority: 5,
+    settings: 'git',
+    sourceId: 'github',
+    shortcuts: [repo.name, repo.full_name],
+    actions: [
+      {
+        name: 'Klonovat repozitář (git clone)...',
+        action: 'clone',
+        location: repo.clone_url,
+        icon: 'download',
+        settings: 'git',
+      },
+      {
+        name: 'Otevřít na GitHubu',
+        action: 'open',
+        location: repo.html_url,
+        icon: 'open_in_new',
+        settings: 'git',
+      },
+    ],
+    info: {
+      'Repozitář': repoLabel,
+      'Vlastník': repo.owner?.login || '',
+      'Viditelnost': isPrivate ? 'Soukromý (Private)' : 'Veřejný (Public)',
+      'Výchozí větev': repo.default_branch || 'main',
+      'Clone URL': repo.clone_url,
+      'SSH URL': repo.ssh_url,
+      ...(repo.language ? { 'Jazyk': repo.language } : {}),
+    },
+  };
+}
+
+export interface GitHubOwnerOption {
+  login: string;
+  type: 'user' | 'org';
+  name?: string;
+  avatarUrl?: string;
+}
+
+/**
+ * Fetches available repository owners (authenticated user + organizations).
+ * If a default organization is configured in settings, it is placed first.
+ */
+export async function fetchGitHubOwners(settings?: GithubSettings): Promise<{
+  ok: boolean;
+  owners: GitHubOwnerOption[];
+  error?: string;
+}> {
+  const token = getActiveGitHubToken(settings);
+  if (!token) {
+    return { ok: false, owners: [], error: 'Chybí přihlášení nebo přístupový token pro GitHub.' };
+  }
+
+  const base = getApiBaseUrl(settings?.apiUrl);
+  const headers = getHeaders(token);
+  const ownersMap = new Map<string, GitHubOwnerOption>();
+
+  try {
+    const userRes = await fetch(`${base}/user`, { headers });
+    if (userRes.ok) {
+      const userData = (await userRes.json()) as { login: string; name?: string; avatar_url?: string };
+      if (userData?.login) {
+        ownersMap.set(userData.login.toLowerCase(), {
+          login: userData.login,
+          type: 'user',
+          name: userData.name || undefined,
+          avatarUrl: userData.avatar_url || undefined,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[GitHubService] Failed to fetch /user for owners:', err);
+  }
+
+  if (ownersMap.size === 0) {
+    const fallbackUser = settings?.oauthUser?.login || settings?.username?.trim();
+    if (fallbackUser) {
+      ownersMap.set(fallbackUser.toLowerCase(), {
+        login: fallbackUser,
+        type: 'user',
+        name: settings?.oauthUser?.name,
+        avatarUrl: settings?.oauthUser?.avatar_url,
+      });
+    }
+  }
+
+  try {
+    const orgsRes = await fetch(`${base}/user/orgs?per_page=100`, { headers });
+    if (orgsRes.ok) {
+      const orgsData = (await orgsRes.json()) as Array<{ login: string; description?: string; avatar_url?: string }>;
+      if (Array.isArray(orgsData)) {
+        for (const o of orgsData) {
+          if (o?.login) {
+            ownersMap.set(o.login.toLowerCase(), {
+              login: o.login,
+              type: 'org',
+              name: o.description || undefined,
+              avatarUrl: o.avatar_url || undefined,
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[GitHubService] Failed to fetch /user/orgs for owners:', err);
+  }
+
+  const configuredOrg = settings?.org?.trim();
+  if (configuredOrg && !ownersMap.has(configuredOrg.toLowerCase())) {
+    ownersMap.set(configuredOrg.toLowerCase(), {
+      login: configuredOrg,
+      type: 'org',
+    });
+  }
+
+  const allOwners = Array.from(ownersMap.values());
+  if (configuredOrg) {
+    const prefLower = configuredOrg.toLowerCase();
+    allOwners.sort((a, b) => {
+      if (a.login.toLowerCase() === prefLower && b.login.toLowerCase() !== prefLower) return -1;
+      if (b.login.toLowerCase() === prefLower && a.login.toLowerCase() !== prefLower) return 1;
+      if (a.type !== b.type) return a.type === 'org' ? -1 : 1;
+      return a.login.localeCompare(b.login);
+    });
+  }
+
+  return { ok: true, owners: allOwners };
+}
+
+export interface CreateGitHubRepoParams {
+  owner: string;
+  ownerType?: 'user' | 'org';
+  name: string;
+  description?: string;
+  isPrivate: boolean;
+  autoInit: boolean;
+}
+
+/**
+ * Creates a new GitHub repository under the authenticated user or an organization.
+ */
+export async function createGitHubRepository(
+  settings: GithubSettings | undefined,
+  params: CreateGitHubRepoParams
+): Promise<{
+  ok: boolean;
+  repo?: {
+    id: number;
+    name: string;
+    fullName: string;
+    htmlUrl: string;
+    cloneUrl: string;
+    sshUrl?: string;
+    defaultBranch?: string;
+    private: boolean;
+  };
+  item?: LauncherItem;
+  error?: string;
+}> {
+  const token = getActiveGitHubToken(settings);
+  if (!token) {
+    return { ok: false, error: 'Chybí přihlášení nebo přístupový token pro GitHub.' };
+  }
+
+  const repoName = (params.name || '').trim();
+  if (!repoName) {
+    return { ok: false, error: 'Název repozitáře nesmí být prázdný.' };
+  }
+
+  const base = getApiBaseUrl(settings?.apiUrl);
+  const headers = {
+    ...getHeaders(token),
+    'Content-Type': 'application/json',
+  };
+
+  let isOrg = params.ownerType === 'org';
+  const ownerLogin = (params.owner || '').trim();
+
+  if (ownerLogin && !params.ownerType) {
+    const authUser = settings?.oauthUser?.login || settings?.username?.trim() || '';
+    if (authUser && ownerLogin.toLowerCase() !== authUser.toLowerCase()) {
+      isOrg = true;
+    }
+  }
+
+  const endpoint =
+    isOrg && ownerLogin
+      ? `${base}/orgs/${encodeURIComponent(ownerLogin)}/repos`
+      : `${base}/user/repos`;
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        name: repoName,
+        description: params.description?.trim() || undefined,
+        private: Boolean(params.isPrivate),
+        auto_init: Boolean(params.autoInit),
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const apiMsg =
+        Array.isArray(data?.errors) && data.errors[0]?.message
+          ? `${data.message || ''} (${data.errors[0].message})`.trim()
+          : data?.message || `${res.status} ${res.statusText}`;
+
+      if (res.status === 422 && JSON.stringify(data).toLowerCase().includes('name already exists')) {
+        return {
+          ok: false,
+          error: `Repozitář s názvem „${repoName}“ již pod účtem/organizací ${ownerLogin || ''} existuje.`,
+        };
+      }
+      if (res.status === 403 || res.status === 401) {
+        return {
+          ok: false,
+          error: `Nedostatečná oprávnění pro vytvoření repozitáře (${apiMsg}). Zkontrolujte oprávnění tokenu (scope 'repo').`,
+        };
+      }
+      if (res.status === 404) {
+        return {
+          ok: false,
+          error: `Organizace nebo cílový účet „${ownerLogin}“ nebyl nalezen nebo váš token nemá oprávnění vytvářet v něm repozitáře.`,
+        };
+      }
+      return {
+        ok: false,
+        error: `Nepodařilo se vytvořit repozitář: ${apiMsg}`,
+      };
+    }
+
+    const rawRepo = data as RawGitHubRepo;
+    const item = mapRawRepoToLauncherItem(rawRepo);
 
     return {
-      id: `github-${repo.id}`,
-      name: repoLabel,
-      location: repo.html_url,
-      action: 'open',
-      icon: 'folder_code',
-      image: '{favicon}',
-      priority: 5,
-      settings: 'git',
-      sourceId: 'github',
-      shortcuts: [repo.name, repo.full_name],
-      actions: [
-        {
-          name: 'Klonovat repozitář (git clone)...',
-          action: 'clone',
-          location: repo.clone_url,
-          icon: 'download',
-          settings: 'git',
-        },
-        {
-          name: 'Otevřít na GitHubu',
-          action: 'open',
-          location: repo.html_url,
-          icon: 'open_in_new',
-          settings: 'git',
-        },
-      ],
-      info: {
-        'Repozitář': repoLabel,
-        'Vlastník': repo.owner?.login || '',
-        'Viditelnost': isPrivate ? 'Soukromý (Private)' : 'Veřejný (Public)',
-        'Výchozí větev': repo.default_branch || 'main',
-        'Clone URL': repo.clone_url,
-        'SSH URL': repo.ssh_url,
-        ...(repo.language ? { 'Jazyk': repo.language } : {}),
+      ok: true,
+      repo: {
+        id: rawRepo.id,
+        name: rawRepo.name,
+        fullName: rawRepo.full_name || rawRepo.name,
+        htmlUrl: rawRepo.html_url,
+        cloneUrl: rawRepo.clone_url,
+        sshUrl: rawRepo.ssh_url,
+        defaultBranch: rawRepo.default_branch || 'main',
+        private: Boolean(rawRepo.private),
       },
+      item,
     };
-  });
+  } catch (err: any) {
+    return {
+      ok: false,
+      error: err?.message || 'Chyba sítě při komunikaci s GitHub API.',
+    };
+  }
 }
+

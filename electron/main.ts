@@ -19,7 +19,15 @@ import {
   getMagicGateDeploySchema,
   reapplyMagicGateDeployInfoSchema,
 } from './magicGateDeployApi';
-import { testGitHubConnection, startGitHubDeviceFlow, pollGitHubDeviceToken, getActiveGitHubToken } from './githubService';
+import {
+  testGitHubConnection,
+  startGitHubDeviceFlow,
+  pollGitHubDeviceToken,
+  getActiveGitHubToken,
+  fetchGitHubOwners,
+  createGitHubRepository,
+  type CreateGitHubRepoParams,
+} from './githubService';
 import { faviconService } from './faviconService';
 import { fetchInstanceSectionRepos, runMultiRepoClone, downloadInstanceCmsContent, normalizeInstanceCmsPath, MagicGateSectionRepo, createGitAuthEnv, createGitOutputSanitizer, executeGitProcess } from './magicGateService';
 import { InstallerService } from './installerService';
@@ -2832,6 +2840,52 @@ function setupIpcHandlers() {
 
   ipcMain.handle('github-oauth-poll-token', async (_event, params: { clientId: string; deviceCode: string; apiUrl?: string }) => {
     return await pollGitHubDeviceToken(params);
+  });
+
+  ipcMain.handle('github-get-owners', async () => {
+    const config = store.getConfig();
+    if (!config.extensions?.github) {
+      return { ok: false, owners: [], error: 'Rozšíření GitHub je v Nastavení vypnuté.' };
+    }
+    return await fetchGitHubOwners(config.github);
+  });
+
+  ipcMain.handle('github-create-repo', async (_event, params: CreateGitHubRepoParams) => {
+    const config = store.getConfig();
+    if (!config.extensions?.github) {
+      return { ok: false, error: 'Rozšíření GitHub je v Nastavení vypnuté.' };
+    }
+
+    const res = await createGitHubRepository(config.github, params);
+    if (res.ok && res.repo) {
+      diagnosticsService.logAction({
+        type: 'action',
+        title: `Vytvořen GitHub repozitář: ${res.repo.fullName}`,
+        details: `Viditelnost: ${res.repo.private ? 'Private' : 'Public'} | URL: ${res.repo.htmlUrl}`,
+        status: 'success',
+      });
+
+      if (res.item) {
+        try {
+          const currentItems = store.getItems();
+          const filtered = currentItems.filter((it) => it.id !== res.item!.id && it.location !== res.item!.location);
+          const updated = [res.item, ...filtered];
+          store.saveItems(updated);
+          windowManager.getMainWindow()?.webContents.send('items-updated', updated);
+        } catch (err) {
+          console.warn('[Main] Failed to inject new GitHub repo into cached items:', err);
+        }
+      }
+    } else {
+      diagnosticsService.logAction({
+        type: 'error',
+        title: `Chyba při vytváření GitHub repozitáře: ${params?.name || ''}`,
+        details: res.error || 'Neznámá chyba',
+        status: 'error',
+      });
+    }
+
+    return res;
   });
 
   ipcMain.handle('open-external', async (_event, url: string) => {

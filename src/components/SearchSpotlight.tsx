@@ -80,6 +80,116 @@ export const FEEDBACK_WIZARD_DEFINITION: LauncherWizard = {
   ],
 };
 
+export const GITHUB_CREATE_REPO_WIZARD_DEFINITION: LauncherWizard = {
+  action: 'creategithubrepo',
+  steps: [
+    {
+      id: 'owner',
+      title: 'Vlastník repozitáře',
+      placeholder: 'Vyberte účet nebo organizaci (šipky ↑/↓ a Enter)...',
+      icon: 'corporate_fare',
+      required: true,
+      type: 'select',
+      dynamicOption: 'github-owners',
+    },
+    {
+      id: 'name',
+      title: 'Název repozitáře',
+      placeholder: 'Zadejte název nového repozitáře (např. muj-projekt)...',
+      icon: 'folder_code',
+      required: true,
+      type: 'text',
+    },
+    {
+      id: 'description',
+      title: 'Popis repozitáře',
+      placeholder: 'Zadejte krátký popis repozitáře (Enter pro přeskočení)...',
+      icon: 'description',
+      required: false,
+      type: 'text',
+    },
+    {
+      id: 'visibility',
+      title: 'Viditelnost',
+      placeholder: 'Zvolte viditelnost repozitáře...',
+      icon: 'lock',
+      required: true,
+      type: 'select',
+      options: [
+        {
+          text: 'Soukromý (Private)',
+          value: 'private',
+          icon: 'lock',
+          color: '#f59e0b',
+          description: 'Viditelný pouze pro vás nebo členy organizace',
+        },
+        {
+          text: 'Veřejný (Public)',
+          value: 'public',
+          icon: 'public',
+          color: '#10b981',
+          description: 'Veřejně přístupný repozitář na internetu',
+        },
+      ],
+    },
+    {
+      id: 'autoInit',
+      title: 'Inicializace repozitáře',
+      placeholder: 'Zvolte výchozí stav repozitáře...',
+      icon: 'article',
+      required: true,
+      type: 'select',
+      options: [
+        {
+          text: 'S úvodním README.md',
+          value: 'true',
+          icon: 'article',
+          color: '#818cf8',
+          description: 'Vytvoří výchozí větev main s README.md (ihned připraveno ke klonování)',
+        },
+        {
+          text: 'Prázdný repozitář (bez souborů)',
+          value: 'false',
+          icon: 'folder_open',
+          color: '#9ca3af',
+          description: 'Vhodné pro napojení existujícího lokálního Gitu (git remote add origin)',
+        },
+      ],
+    },
+    {
+      id: 'afterAction',
+      title: 'Akce po vytvoření',
+      placeholder: 'Co udělat po založení repozitáře...',
+      icon: 'rocket_launch',
+      required: true,
+      type: 'select',
+      options: [
+        {
+          text: 'Naklonovat na disk (otevřít Git Clone okno)',
+          value: 'clone',
+          icon: 'download',
+          color: '#a855f7',
+          description: 'Otevře dialog pro naklonování repozitáře do výchozí složky',
+        },
+        {
+          text: 'Otevřít repozitář na GitHubu v prohlížeči',
+          value: 'open',
+          icon: 'open_in_new',
+          color: '#38bdf8',
+          description: 'Otevře stránku nového repozitáře ve výchozím prohlížeči',
+        },
+        {
+          text: 'Zkopírovat Clone URL do schránky',
+          value: 'copy',
+          icon: 'content_copy',
+          color: '#10b981',
+          description: 'Zkopíruje HTTPS .git adresu repozitáře do systémové schránky',
+        },
+      ],
+    },
+  ],
+};
+
 /**
  * Resolves the icon for a wizard step applying fallback rules:
  * 1) Explicit step icon
@@ -479,6 +589,36 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       } finally {
         setIsWizardLoadingDynamic(false);
       }
+    } else if (step.dynamicOption === 'github-owners') {
+      setIsWizardLoadingDynamic(true);
+      try {
+        const opts: WizardOption[] = [];
+        if (window.electronAPI?.getGitHubOwners) {
+          const res = await window.electronAPI.getGitHubOwners();
+          if (res?.ok && Array.isArray(res.owners)) {
+            for (const o of res.owners) {
+              opts.push({
+                text: o.login,
+                value: `${o.type}:${o.login}`,
+                icon: o.type === 'org' ? 'corporate_fare' : 'person',
+                color: o.type === 'org' ? '#818cf8' : '#38bdf8',
+                description:
+                  o.type === 'org'
+                    ? `Organizace${o.name ? ` – ${o.name}` : ''}`
+                    : `Osobní účet${o.name ? ` (${o.name})` : ''}`,
+              });
+            }
+          } else if (res?.error) {
+            setWizardError(res.error);
+          }
+        }
+        setWizardDynamicOptions(opts);
+      } catch (err) {
+        console.error('Failed to load GitHub owners:', err);
+        setWizardDynamicOptions([]);
+      } finally {
+        setIsWizardLoadingDynamic(false);
+      }
     } else {
       setWizardDynamicOptions([]);
     }
@@ -486,6 +626,15 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
   const startWizard = async (item: LauncherItem) => {
     if (!item?.wizard || !Array.isArray(item.wizard.steps) || item.wizard.steps.length === 0) return;
+
+    const initialValues: Record<string, any> = {};
+    if (item.wizard.action === 'creategithubrepo') {
+      const ghMatch = query.trim().match(/^\/(?:github|gh|repo)\s+(.+)$/i);
+      if (ghMatch && ghMatch[1]?.trim()) {
+        initialValues.name = ghMatch[1].trim().replace(/\s+/g, '-');
+      }
+    }
+
     setIsDonkeyToolsOpen(false);
     setActionsParentItem(null);
     setParentItem(null);
@@ -493,7 +642,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     setIsPaletteMode(false);
     setWizardItem(item);
     setWizardStepIndex(0);
-    setWizardValues({});
+    setWizardValues(initialValues);
     setWizardSelectedOptionIndex(0);
     setWizardError(null);
     setIsSubmittingWizard(false);
@@ -618,6 +767,71 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           await new Promise((r) => setTimeout(r, 80));
           await window.electronAPI.openFeedbackWindow('user');
         }
+      } else if (wizard.action === 'creategithubrepo') {
+        const rawOwner = String(values.owner || '');
+        const [ownerTypePart, ownerLoginPart] = rawOwner.includes(':')
+          ? rawOwner.split(':')
+          : ['user', rawOwner];
+        const ownerType: 'user' | 'org' = ownerTypePart === 'org' ? 'org' : 'user';
+        const owner = ownerLoginPart || rawOwner;
+        const name = String(values.name || '').trim();
+        const description = values.description ? String(values.description).trim() : '';
+        const isPrivate = values.visibility !== 'public';
+        const autoInit = values.autoInit !== 'false';
+        const afterAction = values.afterAction || 'clone';
+
+        if (!window.electronAPI?.createGitHubRepo) {
+          setWizardError('Rozhraní pro vytvoření GitHub repozitáře není dostupné.');
+          return;
+        }
+
+        const res = await window.electronAPI.createGitHubRepo({
+          owner,
+          ownerType,
+          name,
+          description,
+          isPrivate,
+          autoInit,
+        });
+
+        if (!res?.ok || !res.repo) {
+          const errMsg = res?.error || 'Nepodařilo se vytvořit repozitář na GitHubu.';
+          if (errMsg.toLowerCase().includes('existuje') || errMsg.toLowerCase().includes('název')) {
+            setWizardStepIndex(1);
+            setQuery(name);
+            setTimeout(() => {
+              inputRef.current?.focus();
+              inputRef.current?.select();
+            }, 50);
+          }
+          setWizardError(errMsg);
+          return;
+        }
+
+        const createdRepo = res.repo;
+        exitWizard();
+        setIsRevealed(false);
+        await window.electronAPI?.resetAndHideSpotlight?.();
+
+        if (afterAction === 'clone' && window.electronAPI?.openGitCloneWindow) {
+          await new Promise((r) => setTimeout(r, 80));
+          const targetDir = defaultCloneDir
+            ? `${defaultCloneDir.replace(/[\\/]+$/, '')}\\${createdRepo.name}`
+            : '';
+          await window.electronAPI.openGitCloneWindow({
+            repoName: createdRepo.fullName,
+            repoUrl: createdRepo.cloneUrl,
+            targetDir,
+          });
+        } else if (afterAction === 'open' && window.electronAPI?.openExternal) {
+          await window.electronAPI.openExternal(createdRepo.htmlUrl);
+        } else if (afterAction === 'copy' && window.electronAPI?.executeAction) {
+          await window.electronAPI.executeAction({
+            action: 'copy',
+            location: createdRepo.cloneUrl,
+            sourceId: 'github',
+          });
+        }
       } else {
         console.warn('Neznámá akce wizardu:', wizard.action, values);
         exitWizard();
@@ -654,7 +868,16 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           setWizardError('Tento údaj je povinný, prosím vyplňte jej.');
           return;
         }
-        chosenValue = textVal || null;
+        if (wizardItem.wizard?.action === 'creategithubrepo' && currentWizardStep.id === 'name') {
+          const sanitized = textVal.replace(/\s+/g, '-');
+          if (!/^[a-zA-Z0-9._-]+$/.test(sanitized)) {
+            setWizardError('Název repozitáře může obsahovat pouze písmena, číslice, pomlčky (-), podtržítka (_) a tečky (.).');
+            return;
+          }
+          chosenValue = sanitized;
+        } else {
+          chosenValue = textVal || null;
+        }
       }
     }
 
@@ -2289,7 +2512,33 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         }
       }
 
-      const allSlash = [...ssmsAndFtpCommands, ...dtCommands, ...planCommands, ...feedbackCommands];
+      const githubCommands: LauncherItem[] = [];
+      if (githubEnabled && hasGithubCredentials) {
+        const ghShortcuts = ['/github', '/gh', '/repo'];
+        const ghCmdBase = slashCmd.split(/\s+/)[0] || '';
+        if (
+          slashCmd === '' ||
+          'github'.includes(ghCmdBase) ||
+          'gh'.includes(ghCmdBase) ||
+          'repo'.includes(ghCmdBase) ||
+          'repozitar'.includes(removeDiacritics(ghCmdBase)) ||
+          ghShortcuts.some((s) => s.replace(/^\//, '').includes(ghCmdBase))
+        ) {
+          githubCommands.push({
+            id: 'github-create-repo-command',
+            name: 'Vytvořit nový GitHub repozitář',
+            location: 'Spustit průvodce založením nového repozitáře na GitHubu',
+            action: 'github-create-repo-wizard',
+            icon: 'create_new_folder',
+            priority: -1.14,
+            sourceId: 'github',
+            shortcuts: ghShortcuts,
+            wizard: GITHUB_CREATE_REPO_WIZARD_DEFINITION,
+          });
+        }
+      }
+
+      const allSlash = [...ssmsAndFtpCommands, ...dtCommands, ...planCommands, ...githubCommands, ...feedbackCommands];
       if (allSlash.length > 0) {
         return allSlash;
       }
@@ -2852,6 +3101,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     magicgateEnabled,
     ftpEnabled,
     allowFtpWithoutSlash,
+    githubEnabled,
+    hasGithubCredentials,
   ]);
 
   const [renderLimit, setRenderLimit] = useState<number>(45);
@@ -4681,6 +4932,18 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         displayVal = 'Nevybráno';
                         badgeColor = '#9ca3af';
                         badgeIcon = 'block';
+                      }
+                    } else if (st.dynamicOption === 'github-owners') {
+                      const rawOwner = String(val ?? '');
+                      if (rawOwner.includes(':')) {
+                        const [oType, ...oRest] = rawOwner.split(':');
+                        const oLogin = oRest.join(':');
+                        displayVal = oLogin;
+                        badgeIcon = oType === 'org' ? 'corporate_fare' : 'person';
+                        badgeColor = oType === 'org' ? '#818cf8' : '#38bdf8';
+                      } else {
+                        displayVal = rawOwner || '—';
+                        badgeIcon = 'account_tree';
                       }
                     } else if (st.dynamicOption) {
                       const matchedOpt = wizardDynamicOptions.find((o) => o.value === val);

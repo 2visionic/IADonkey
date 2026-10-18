@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   testGitHubConnection: (settings: any): Promise<any> => ipcRenderer.invoke('test-github-connection', settings),
   startGitHubDeviceFlow: (params: any): Promise<any> => ipcRenderer.invoke('github-oauth-start-device-flow', params),
   pollGitHubDeviceToken: (params: any): Promise<any> => ipcRenderer.invoke('github-oauth-poll-token', params),
+  getGitHubOwners: (): Promise<any> => ipcRenderer.invoke('github-get-owners'),
+  createGitHubRepo: (params: any): Promise<any> => ipcRenderer.invoke('github-create-repo', params),
   selectDirectory: (defaultPath?: string): Promise<string | null> => ipcRenderer.invoke('select-directory', defaultPath),
   runGitClone: (params: { repoUrl: string; targetDir: string; recursive?: boolean }): Promise<{ success: boolean; targetPath: string; output?: string; error?: string; alreadyExists?: boolean }> =>
     ipcRenderer.invoke('run-git-clone', params),

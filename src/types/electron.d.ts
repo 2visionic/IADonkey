@@ -59,6 +59,33 @@ declare global {
         user?: { login: string; name?: string; avatar_url?: string };
         error?: string;
       }>;
+      getGitHubOwners: () => Promise<{
+        ok: boolean;
+        owners: Array<{ login: string; type: 'user' | 'org'; name?: string; avatarUrl?: string }>;
+        error?: string;
+      }>;
+      createGitHubRepo: (params: {
+        owner: string;
+        ownerType?: 'user' | 'org';
+        name: string;
+        description?: string;
+        isPrivate: boolean;
+        autoInit: boolean;
+      }) => Promise<{
+        ok: boolean;
+        repo?: {
+          id: number;
+          name: string;
+          fullName: string;
+          htmlUrl: string;
+          cloneUrl: string;
+          sshUrl?: string;
+          defaultBranch?: string;
+          private: boolean;
+        };
+        item?: LauncherItem;
+        error?: string;
+      }>;
       selectDirectory: (defaultPath?: string) => Promise<string | null>;
       runGitClone: (params: { repoUrl: string; targetDir: string; recursive?: boolean }) => Promise<{
         success: boolean;
