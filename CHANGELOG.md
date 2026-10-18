@@ -4,6 +4,12 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.19] - 18. 10. 2026
+### Průvodce vytvořením nového GitHub repozitáře přes příkaz /github ve Spotlightu
+- **GitHub – Vícekrokový průvodce založením nového repozitáře (`/github`, `/gh`, `/repo`)**: Při zapnutém rozšíření GitHub lze přímo ze Spotlightu spustit 6krokového průvodce pro vytvoření nového repozitáře bez nutnosti otevírat prohlížeč. Podporuje i přímé předvyplnění názvu příkazem `/github <název-repozitáře>`.
+- **GitHub – Výběr vlastníka/organizace, viditelnosti a inicializace**: Průvodce automaticky načte dostupné organizace (s upřednostněním výchozí organizace z nastavení) i osobní účet, umožní zadat název s okamžitou validací povolených znaků, volitelný popis, zvolit viditelnost (Soukromý / Veřejný) a inicializaci s `README.md`.
+- **GitHub – Okamžité naklonování a zařazení do vyhledávání**: V posledním kroku si lze zvolit navazující akci po vytvoření (okamžité otevření okna Klonování repozitáře na disk, otevření na GitHubu v prohlížeči nebo zkopírování `.git` URL do schránky). Nově založený repozitář je ihned dostupný ve vyhledávání Spotlightu bez čekání na synchronizaci.
+
 ## [2.1.18] - 17. 10. 2026
 ### Rozšíření SSMS (/db), kopírování FTP adres (/ftp) v MagicGate, plynulé řazení rozpracovaných úkolů v MagicPlanu a zrychlení Spotlightu
 - **SQL Server Management Studio (SSMS) – Rychlé otevírání SQL dotazů (`/db` a akce u instancí)**: V Nastavení -> Rozšíření přibyl modul SSMS s automatickou detekcí `Ssms.exe`, přímým připojením k produkční/testovací databázi instance z MagicGate (s překladem interního DNS hostu) i podporou lokálního SQL serveru a načtení seznamu databází z `sys.databases`.

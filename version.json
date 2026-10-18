@@ -1,6 +1,6 @@
 {
-  "version": "2.1.18",
-  "releaseNotes": "• SQL Server Management Studio (SSMS): Nové rozšíření pro rychlé otevírání SQL dotazů (/db a akce u instancí MagicGate) s podporou produkčních/testovacích serverů i lokálního SQL serveru.\n• MagicGate – Kopírování FTP adres (/ftp) a přepínače v hlavičce rozšíření: Samostatně vypínatelná sekce FTP v MagicGate, přepínač zapnutí/vypnutí modulu v hlavičce všech rozšíření a automatické vynucení DB polí při aktivním SSMS se zachováním uživatelského nastavení.\n• MagicPlan – Rozpracované úkoly z předchozích dnů: Řazení odpracované části nehotových úkolů za hotové požadavky (včetně overburnu) a zobrazení zbývajícího plánu v aktuálním dni s plynulým propojením při přetečení.\n• Spotlight – Výrazné zrychlení odezvy při psaní.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.18/IADonkey-Setup-2.1.18.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.18/IADonkey-2.1.18.zip"
+  "version": "2.1.19",
+  "releaseNotes": "• GitHub – Vícekrokový průvodce založením nového repozitáře (/github, /gh, /repo): 6krokový průvodce ve Spotlightu s podporou předvyplnění názvu (/github <název>).\n• GitHub – Výběr vlastníka/organizace, viditelnosti (Private/Public) a inicializace s README.md.\n• GitHub – Okamžité naklonování na disk, otevření v prohlížeči nebo zkopírování .git URL po vytvoření a okamžité zařazení nového repozitáře do vyhledávání.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.19/IADonkey-Setup-2.1.19.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.19/IADonkey-2.1.19.zip"
 }

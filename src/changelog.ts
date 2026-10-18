@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.18';
+export const CURRENT_APP_VERSION = '2.1.19';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,16 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.19',
+    date: '18. 10. 2026',
+    title: 'Průvodce vytvořením nového GitHub repozitáře přes příkaz /github ve Spotlightu',
+    highlights: [
+      'GitHub – Vícekrokový průvodce založením nového repozitáře (/github, /gh, /repo): Při zapnutém rozšíření GitHub lze přímo ze Spotlightu spustit 6krokového průvodce pro vytvoření nového repozitáře bez nutnosti otevírat prohlížeč. Podporuje i přímé předvyplnění názvu příkazem /github <název-repozitáře>.',
+      'GitHub – Výběr vlastníka/organizace, viditelnosti a inicializace: Průvodce automaticky načte dostupné organizace (s upřednostněním výchozí organizace z nastavení) i osobní účet, umožní zadat název s okamžitou validací povolených znaků, volitelný popis, zvolit viditelnost (Soukromý / Veřejný) a inicializaci s README.md.',
+      'GitHub – Okamžité naklonování a zařazení do vyhledávání: V posledním kroku si lze zvolit navazující akci po vytvoření (okamžité otevření okna Klonování repozitáře na disk, otevření na GitHubu v prohlížeči nebo zkopírování .git URL do schránky). Nově založený repozitář je ihned dostupný ve vyhledávání Spotlightu bez čekání na synchronizaci.',
+    ],
+  },
   {
     version: '2.1.18',
     date: '17. 10. 2026',
