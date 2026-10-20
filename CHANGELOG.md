@@ -4,6 +4,15 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.20] - 20. 10. 2026
+### Zadavatel a dovolené v MagicPlanu, zachování stavu Spotlightu, vylepšení nástrojů obrazovky, MagicGate domény a Feedback
+- **Spotlight – Zachování rozpracovaného stavu a plynulý reset po dokončení akce**: Zavření okna Spotlightu mimo finální akce zachová rozpracovaný stav (např. uprostřed průvodce či vyhledávání), zatímco po otevření odkazu nebo zkopírování do schránky se stav plynule vyresetuje před skrytím okna bez probliknutí při dalším vyvolání.
+- **Nástroje obrazovky (QuickCap, ColorMaster, ScreenRuler) – Spolupráce s otevřeným Spotlightem**: Při spuštění přes globální klávesovou zkratku zůstává otevřený Spotlight zachován a po dokončení výřezu v QuickCapu či výběru barvy v ColorMasteru se v něm rovnou zobrazí nabídka akcí.
+- **MagicPlan – Výběr zadavatele v Nastavení, propojení s filtrem a chytré notifikace**: V nastavení MagicPlanu lze zvolit výchozího zadavatele (obousměrně propojeného s filtrem v okně plánu). Pokud není v plánu označena osoba „To jsem já“ a je aktivní filtr na zadavatele, zobrazují se upozornění pouze na úkoly od tohoto zadavatele.
+- **MagicPlan – Detekce dovolené (`Vacation`) v denní časové ose**: Doplněno rozpoznání bloků dovolené (`.vacation` / `data-availability-type="Vacation"`) se započtením kapacity 1 blok = 1 hodina stejně jako u nedostupnosti.
+- **MagicGate – Upřednostnění veřejných klientských domén a párování pomlček**: Ostré klientské domény mají při řazení vždy přednost před technickými subdoménami (`.iscontent.cz`, `.magicware.cz`) včetně automatického párování názvů instancí s pomlčkou v doméně.
+- **Aktualizace & Zpětná vazba – Kontrola aktualizací každých 10 minut a spolehlivý fokus polí**: Automatická kontrola nové verze na pozadí probíhá každých 10 minut i při odemčení PC (s jednorázovou notifikací pro danou verzi) a v okně Zpětné vazby bylo opraveno zamrzání kurzoru v textových polích.
+
 ## [2.1.19] - 18. 10. 2026
 ### Průvodce vytvořením nového GitHub repozitáře přes příkaz /github ve Spotlightu
 - **GitHub – Vícekrokový průvodce založením nového repozitáře (`/github`, `/gh`, `/repo`)**: Při zapnutém rozšíření GitHub lze přímo ze Spotlightu spustit 6krokového průvodce pro vytvoření nového repozitáře bez nutnosti otevírat prohlížeč. Podporuje i přímé předvyplnění názvu příkazem `/github <název-repozitáře>`.

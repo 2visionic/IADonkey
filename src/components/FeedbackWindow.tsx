@@ -112,15 +112,27 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
   const [targetVersionInput, setTargetVersionInput] = useState('');
   const [devNoteInput, setDevNoteInput] = useState('');
 
-  // Notifikace o zkopírování do schránky
+  // Dialog pro potvrzení smazání (místo nativního confirm(), který v Electronu rozbíjí focus inputů)
+  const [deletingItem, setDeletingItem] = useState<FeedbackItem | null>(null);
+  const titleInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Notifikace o zkopírování do schránky / chybová hlášení (místo nativního alert())
   const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const showActionError = useCallback((msg: string) => {
+    setActionError(msg);
+    setTimeout(() => setActionError(null), 4500);
+  }, []);
 
   const sharedFolder = config.feedback?.sharedFolder?.trim() || '';
   const currentAuthor = config.feedback?.authorName?.trim() || formAuthor || 'Uživatel';
 
   // Načtení feedbacků ze souborů
-  const loadFeedbacks = useCallback(async () => {
-    setLoading(true);
+  const loadFeedbacks = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       if (window.electronAPI?.listFeedbacks) {
@@ -137,18 +149,20 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
     } catch (err: any) {
       setError(err?.message || 'Chyba při komunikaci se systémem.');
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [sharedFolder]);
 
   useEffect(() => {
-    loadFeedbacks();
+    loadFeedbacks(false);
   }, [loadFeedbacks]);
 
-  // Automatický refresh při získání fokusu okna
+  // Automatický tichý refresh při získání fokusu okna (neruší rozpracované psaní v inputech)
   useEffect(() => {
     const handleFocus = () => {
-      loadFeedbacks();
+      loadFeedbacks(true);
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
@@ -163,7 +177,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
         } else {
           setMode(newMode);
         }
-        loadFeedbacks();
+        loadFeedbacks(true);
       });
       return () => unsub();
     }
@@ -173,7 +187,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
   useEffect(() => {
     if (window.electronAPI?.onFeedbackRefresh) {
       const unsub = window.electronAPI.onFeedbackRefresh(() => {
-        loadFeedbacks();
+        loadFeedbacks(true);
       });
       return () => unsub();
     }
@@ -232,6 +246,9 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
     setFormAuthor(config.feedback?.authorName || '');
     setFormScreenshot(null);
     setIsCreateOpen(true);
+    setTimeout(() => {
+      titleInputRef.current?.focus();
+    }, 50);
   };
 
   // Otevření formuláře pro editaci (pouze pro stav 'new')
@@ -245,6 +262,9 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
     setFormAuthor(item.author);
     setFormScreenshot(null);
     setIsCreateOpen(true);
+    setTimeout(() => {
+      titleInputRef.current?.focus();
+    }, 50);
   };
 
   // Uložení formuláře (vytvoření nebo editace)
@@ -273,9 +293,9 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
           });
           if (res.success) {
             setIsCreateOpen(false);
-            loadFeedbacks();
+            loadFeedbacks(true);
           } else {
-            alert(res.error || 'Chyba při ukládání úprav.');
+            showActionError(res.error || 'Chyba při ukládání úprav.');
           }
         }
       } else {
@@ -306,9 +326,9 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
               });
             }
             setIsCreateOpen(false);
-            loadFeedbacks();
+            loadFeedbacks(true);
           } else {
-            alert(res.error || 'Chyba při zakládání zpětné vazby.');
+            showActionError(res.error || 'Chyba při zakládání zpětné vazby.');
           }
         }
       }
@@ -322,15 +342,21 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
     if (e) e.stopPropagation();
     const isOwner = isItemOwnedByMe(item);
     if (!isOwner && mode !== 'dev') {
-      alert('Můžete mazat pouze své vlastní záznamy.');
+      showActionError('Můžete mazat pouze své vlastní záznamy.');
       return;
     }
     if (item.status !== 'new' && mode !== 'dev') {
-      alert('Požadavek je již ve zpracování a nelze jej smazat.');
+      showActionError('Požadavek je již ve zpracování a nelze jej smazat.');
       return;
     }
 
-    if (!confirm(`Opravdu chcete smazat požadavek "${item.title}"?`)) return;
+    setDeletingItem(item);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingItem) return;
+    const item = deletingItem;
+    setDeletingItem(null);
 
     if (window.electronAPI?.deleteFeedback) {
       const res = await window.electronAPI.deleteFeedback({
@@ -339,9 +365,9 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
       });
       if (res.success) {
         if (detailItem?.id === item.id) setDetailItem(null);
-        await loadFeedbacks();
+        await loadFeedbacks(true);
       } else {
-        alert(res.error || 'Chyba při mazání.');
+        showActionError(res.error || 'Chyba při mazání.');
       }
     }
   };
@@ -369,9 +395,9 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
       });
       if (res.success && res.item) {
         if (detailItem?.id === item.id) setDetailItem(res.item);
-        loadFeedbacks();
+        loadFeedbacks(true);
       } else {
-        alert(res.error || 'Chyba při změně stavu.');
+        showActionError(res.error || 'Chyba při změně stavu.');
       }
     }
   };
@@ -638,7 +664,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
           {/* Obnovit (zarovnáno přesně na h-[38px] w-[38px]) */}
           <button
             type="button"
-            onClick={loadFeedbacks}
+            onClick={() => loadFeedbacks(false)}
             disabled={loading}
             className="w-[38px] h-[38px] rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 hover:text-white flex items-center justify-center transition cursor-pointer disabled:opacity-50 shrink-0"
             title="Znovu načíst záznamy (F5)"
@@ -682,6 +708,23 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
         <div className="bg-emerald-500/20 px-6 py-2 text-xs font-semibold text-emerald-300 flex items-center gap-2 animate-fade-in">
           <span className="material-symbols-outlined text-base">check_circle</span>
           <span>{copiedNotification}</span>
+        </div>
+      )}
+
+      {/* Notifikace o chybě (náhrada za blokující alert) */}
+      {actionError && (
+        <div className="bg-rose-500/20 px-6 py-2 text-xs font-semibold text-rose-300 flex items-center justify-between gap-2 animate-fade-in">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-base">error</span>
+            <span>{actionError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="text-rose-200 hover:text-white cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm">close</span>
+          </button>
         </div>
       )}
 
@@ -892,7 +935,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Hledat v připomínkách (název, popis, autor, verze)..."
-              className="flex-1 h-[38px] bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 outline-none transition"
+              className="flex-1 h-[38px] bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 outline-none transition select-text"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
@@ -1711,7 +1754,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                   value={formAuthor}
                   onChange={(e) => setFormAuthor(e.target.value)}
                   placeholder="např. Petr Kulhánek"
-                  className="w-full h-[38px] px-3 py-2 rounded-lg border border-white/10 bg-black/30 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition"
+                  className="w-full h-[38px] px-3 py-2 rounded-lg border border-white/10 bg-black/30 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition select-text"
                 />
               </div>
 
@@ -1721,12 +1764,13 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                   Název / Stručné shrnutí
                 </label>
                 <input
+                  ref={titleInputRef}
                   type="text"
                   required
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
                   placeholder="např. Špatně zarovnaný text v denní timeline"
-                  className="w-full h-[38px] px-3 py-2 rounded-lg border border-white/10 bg-black/30 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition"
+                  className="w-full h-[38px] px-3 py-2 rounded-lg border border-white/10 bg-black/30 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition select-text"
                 />
               </div>
 
@@ -1740,7 +1784,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="Popište co přesně se stalo, jak problém vyvolat nebo jak by měla nová funkce fungovat..."
-                  className="w-full p-3 rounded-lg border border-white/10 bg-black/30 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 resize-none leading-relaxed transition"
+                  className="w-full p-3 rounded-lg border border-white/10 bg-black/30 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 resize-none leading-relaxed transition select-text"
                 />
               </div>
 
@@ -1834,10 +1878,11 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
               <input
                 type="text"
                 required
+                autoFocus
                 value={targetVersionInput}
                 onChange={(e) => setTargetVersionInput(e.target.value)}
                 placeholder="např. v1.2.4"
-                className="w-full h-[38px] px-3 py-2 rounded-lg border border-white/10 bg-black/30 text-sm text-white font-mono font-bold focus:outline-none focus:border-emerald-500 transition"
+                className="w-full h-[38px] px-3 py-2 rounded-lg border border-white/10 bg-black/30 text-sm text-white font-mono font-bold focus:outline-none focus:border-emerald-500 transition select-text"
               />
             </div>
 
@@ -1850,7 +1895,7 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                 value={devNoteInput}
                 onChange={(e) => setDevNoteInput(e.target.value)}
                 placeholder="např. Opraveno ve vývojové větvi, přidán filtr..."
-                className="w-full p-3 rounded-lg border border-white/10 bg-black/30 text-sm text-white focus:outline-none focus:border-emerald-500 resize-none transition"
+                className="w-full p-3 rounded-lg border border-white/10 bg-black/30 text-sm text-white focus:outline-none focus:border-emerald-500 resize-none transition select-text"
               />
             </div>
 
@@ -1868,6 +1913,39 @@ export const FeedbackWindow: React.FC<FeedbackWindowProps> = ({
                 className="h-[38px] px-5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-lg shadow-emerald-600/30 cursor-pointer"
               >
                 Dokončit a uložit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DIALOG PRO POTVRZENÍ SMAZÁNÍ (náhrada za window.confirm, které v Electronu rozbíjí focus inputů) */}
+      {deletingItem && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-[#14151f] rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4 animate-zoom-in">
+            <div className="flex items-center gap-2 text-rose-400">
+              <span className="material-symbols-outlined text-2xl">delete_forever</span>
+              <h3 className="text-base font-bold text-white">Smazat připomínku</h3>
+            </div>
+
+            <p className="text-xs text-gray-300 leading-relaxed">
+              Opravdu chcete trvale smazat připomínku <strong className="text-white">"{deletingItem.title}"</strong>?
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletingItem(null)}
+                className="h-[38px] px-4 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 text-xs font-semibold cursor-pointer transition"
+              >
+                Zrušit
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="h-[38px] px-5 rounded-full bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition shadow-lg shadow-rose-600/30 cursor-pointer"
+              >
+                Smazat
               </button>
             </div>
           </div>

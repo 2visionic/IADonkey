@@ -2205,21 +2205,31 @@ export class MagicPlanService {
       });
     }
 
-    // Also extract not-available blocks (e.g. holidays, vacations, sick leaves)
-    const naBlockRegex =
-      /<div\s+class="[^"]*block[^"]*not-available[^"]*"[^>]*style="([^"]*)"[^>]*title="([^"]*)"[^>]*data-user-id="([^"]*)"[^>]*data-date="([^"]*)"/gi;
-    let naMatch: RegExpExecArray | null;
+    // Also extract not-available / vacation blocks (e.g. holidays, vacations, sick leaves; 1 block = 1h)
+    const divTagRegex = /<div\b([^>]*)>/gi;
+    let divMatch: RegExpExecArray | null;
     const naByDate = new Map<string, { count: number; userId: string; topPx: number }>();
 
-    while ((naMatch = naBlockRegex.exec(columnHtml)) !== null) {
-      const naStyle = naMatch[1] || '';
-      const naUserId = naMatch[3] || '';
-      const naDateRaw = naMatch[4] || ''; // e.g. "2026-09-28 00:00"
+    while ((divMatch = divTagRegex.exec(columnHtml)) !== null) {
+      const attrs = divMatch[1] || '';
+      const classAttr = (attrs.match(/\bclass="([^"]*)"/i) || [])[1] || '';
+      const availTypeAttr = (attrs.match(/\bdata-availability-type="([^"]*)"/i) || [])[1] || '';
+
+      const isNotAvailableOrVacation =
+        /\b(?:not-available|unavailable|vacation)\b/i.test(classAttr) ||
+        /^(?:vacation|unavailable|notavailable|not-available)$/i.test(availTypeAttr.trim());
+
+      if (!isNotAvailableOrVacation) continue;
+
+      const naStyle = (attrs.match(/\bstyle="([^"]*)"/i) || [])[1] || '';
+      const naUserId = (attrs.match(/\bdata-user-id="([^"]*)"/i) || [])[1] || '';
+      const naDateRaw = (attrs.match(/\bdata-date="([^"]*)"/i) || [])[1] || ''; // e.g. "2026-09-28 00:00"
       const datePart = naDateRaw.split(' ')[0];
-      const parsedTop = parseInt((naStyle.match(/top:\s*(\d+)px/i) || [])[1] || '0', 10);
+      const topRaw = (naStyle.match(/top:\s*(\d+)px/i) || [])[1];
+      const parsedTop = topRaw !== undefined ? parseInt(topRaw, 10) : 0;
       const scheduledDate =
         datePart ||
-        getDateForTop(parsedTop);
+        (topRaw !== undefined ? getDateForTop(parsedTop) : '');
 
       if (scheduledDate) {
         const prev = naByDate.get(scheduledDate) || { count: 0, userId: naUserId, topPx: parsedTop };
@@ -2390,6 +2400,53 @@ export class MagicPlanService {
     const userColumns = (planConfig.userColumns && planConfig.userColumns.length > 0)
       ? planConfig.userColumns.map((u) => u.trim()).filter(Boolean)
       : (planConfig.userColumn?.trim() ? [planConfig.userColumn.trim()] : []);
+    const personsList = this.cachedData?.availablePersons || Array.from(this.knownPersonsMap.values());
+
+    const explicitCurrentUser = (planConfig.currentUserColumn || '').trim();
+    const hasMarkedMeInPlan = Boolean(
+      explicitCurrentUser &&
+        userColumns.some(
+          (u) =>
+            u.toLowerCase() === explicitCurrentUser.toLowerCase() ||
+            isTaskForUser({ userId: u, userName: u } as PlanTaskItem, explicitCurrentUser, personsList)
+        )
+    );
+    const activeAuthorFilter = (planConfig.authorFilter || '').trim();
+    const filterNotificationsByAuthor = !hasMarkedMeInPlan && Boolean(activeAuthorFilter);
+
+    const doesTaskMatchAuthorFilter = (task?: PlanTaskItem): boolean => {
+      if (!filterNotificationsByAuthor) return true;
+      if (!task?.author) return false;
+      const tNorm = task.author.trim().toLowerCase();
+      const sNorm = activeAuthorFilter.toLowerCase();
+      if (tNorm === sNorm) return true;
+      const parts = tNorm.split(/[,/;\s]+/).map((p) => p.trim()).filter(Boolean);
+      if (parts.includes(sNorm)) return true;
+
+      if (personsList.length > 0) {
+        const matchedPerson = personsList.find(
+          (p) =>
+            (p.shortcut && p.shortcut.trim().toLowerCase() === sNorm) ||
+            String(p.id).trim().toLowerCase() === sNorm ||
+            (p.name && p.name.trim().toLowerCase() === sNorm) ||
+            (p.cleanName && p.cleanName.trim().toLowerCase() === sNorm)
+        );
+        if (matchedPerson?.shortcut) {
+          const scNorm = matchedPerson.shortcut.trim().toLowerCase();
+          if (tNorm === scNorm || parts.includes(scNorm)) return true;
+        }
+      }
+      return false;
+    };
+
+    const notifyPlanTask = (task: PlanTaskItem, payload: Parameters<typeof notificationService.show>[0]) => {
+      if (!doesTaskMatchAuthorFilter(task)) {
+        return;
+      }
+      notificationService.show(payload);
+    };
+
+    const effectiveNotifyColleagues = planConfig.notifyColleagueTasks !== false || filterNotificationsByAuthor;
     const currentUserName = (planConfig.currentUserColumn?.trim() || userColumns[0] || '').toLowerCase();
 
     const rawQueue = planConfig.unassignedColumn?.trim() || 'FK';
@@ -2402,8 +2459,6 @@ export class MagicPlanService {
     const currentSnapshot = new Map<string, TrackedTaskSnapshot>();
     const currentMap = new Map<string, PlanTaskItem>();
     const currentUnassignedMap = new Map<string, PlanTaskItem>();
-
-    const personsList = this.cachedData?.availablePersons || Array.from(this.knownPersonsMap.values());
 
     for (const t of currentTasks) {
       const fp = getTaskFingerprint(t);
@@ -2486,7 +2541,7 @@ export class MagicPlanService {
           // Situace 1: požadavek se objevil ve frontě
           diffResult.newTasks.push(`[${queueName}] ${taskDesc}`);
           if (notificationsEnabled && planConfig.notifyNewTasks !== false) {
-            notificationService.show({
+            notifyPlanTask(curr.task, {
               type: 'magicPlan',
               subType: curr.isCritical ? 'critical' : 'queue',
               title: curr.isCritical ? `Nový kritický požadavek ve frontě (${queueName})` : `Nový úkol ve frontě (${queueName})`,
@@ -2500,7 +2555,7 @@ export class MagicPlanService {
           // Situace 2: požadavek se objevil u mě (při předchozím načtení v plánu nebyl)
           diffResult.newTasks.push(taskDesc);
           if (notificationsEnabled && planConfig.notifyNewTasks !== false) {
-            notificationService.show({
+            notifyPlanTask(curr.task, {
               type: 'magicPlan',
               subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
               title: curr.isCritical ? 'Nový kritický požadavek v plánu' : 'Nový požadavek v plánu',
@@ -2513,8 +2568,8 @@ export class MagicPlanService {
         } else {
           // Situace 5: požadavek se objevil u kolegy (při předchozím načtení v plánu nebyl)
           diffResult.newTasks.push(`[${curr.userName}] ${taskDesc}`);
-          if (notificationsEnabled && planConfig.notifyColleagueTasks !== false) {
-            notificationService.show({
+          if (notificationsEnabled && effectiveNotifyColleagues) {
+            notifyPlanTask(curr.task, {
               type: 'magicPlan',
               subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
               title: curr.isCritical ? `${curr.userName} má nový kritický úkol` : `${curr.userName} má nový úkol v plánu`,
@@ -2535,7 +2590,7 @@ export class MagicPlanService {
             // Situace 3: požadavek se objevil u mě a byl ve frontě
             diffResult.newTasks.push(taskDesc);
             if (notificationsEnabled && planConfig.notifyNewTasks !== false) {
-              notificationService.show({
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
                 title: curr.isCritical ? 'Přiřazení kritického úkolu z fronty' : 'Přiřazení úkolu z fronty',
@@ -2548,8 +2603,8 @@ export class MagicPlanService {
           } else if (prev.location === 'queue' && curr.location === 'other') {
             // Situace 6: požadavek se objevil u kolegy a byl ve frontě
             diffResult.newTasks.push(`[${curr.userName}] ${taskDesc}`);
-            if (notificationsEnabled && planConfig.notifyColleagueTasks !== false) {
-              notificationService.show({
+            if (notificationsEnabled && effectiveNotifyColleagues) {
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
                 title: curr.isCritical ? `${curr.userName} byl přiřazen kritický úkol` : `${curr.userName} byl přiřazen úkol z fronty`,
@@ -2563,7 +2618,7 @@ export class MagicPlanService {
             // Situace 9: požadavek se objevil ve frontě a byl u mě
             diffResult.newTasks.push(`[${queueName}] ${taskDesc}`);
             if (notificationsEnabled && planConfig.notifyNewTasks !== false) {
-              notificationService.show({
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: curr.isCritical ? 'critical' : 'queue',
                 title: curr.isCritical ? 'Váš kritický úkol byl vrácen do fronty' : 'Váš úkol byl vrácen do fronty',
@@ -2578,9 +2633,8 @@ export class MagicPlanService {
             // Bez zapnutí notifikace kolegů se bere jako nový úkol ve frontě (Situace 1)
             diffResult.newTasks.push(`[${queueName}] ${taskDesc}`);
             if (notificationsEnabled && planConfig.notifyNewTasks !== false) {
-              const notifyColleagues = planConfig.notifyColleagueTasks !== false;
-              if (notifyColleagues) {
-                notificationService.show({
+              if (effectiveNotifyColleagues) {
+                notifyPlanTask(curr.task, {
                   type: 'magicPlan',
                   subType: curr.isCritical ? 'critical' : 'queue',
                   title: curr.isCritical ? `Kritický úkol od ${prev.userName} byl vrácen do fronty` : `Úkol od ${prev.userName} byl vrácen do fronty`,
@@ -2590,7 +2644,7 @@ export class MagicPlanService {
                   taskType: curr.task.taskType === 'service' ? 'service' : 'dev',
                 });
               } else {
-                notificationService.show({
+                notifyPlanTask(curr.task, {
                   type: 'magicPlan',
                   subType: curr.isCritical ? 'critical' : 'queue',
                   title: curr.isCritical ? 'Kritický úkol ve frontě (Nástěnka)' : 'Nový úkol ve frontě (Nástěnka)',
@@ -2606,9 +2660,8 @@ export class MagicPlanService {
             // Bez zapnutí notifikace kolegů se úkol od kolegy bere jako požadavek z fronty (Situace 3)
             diffResult.newTasks.push(taskDesc);
             if (notificationsEnabled && planConfig.notifyNewTasks !== false) {
-              const notifyColleagues = planConfig.notifyColleagueTasks !== false;
-              if (notifyColleagues) {
-                notificationService.show({
+              if (effectiveNotifyColleagues) {
+                notifyPlanTask(curr.task, {
                   type: 'magicPlan',
                   subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
                   title: curr.isCritical ? `Kritický úkol od ${prev.userName} byl přiřazen k vám` : `Úkol od ${prev.userName} byl přiřazen k vám`,
@@ -2618,7 +2671,7 @@ export class MagicPlanService {
                   taskType: curr.task.taskType === 'service' ? 'service' : 'dev',
                 });
               } else {
-                notificationService.show({
+                notifyPlanTask(curr.task, {
                   type: 'magicPlan',
                   subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
                   title: curr.isCritical ? 'Přiřazení kritického úkolu z fronty' : 'Přiřazení úkolu z fronty',
@@ -2633,9 +2686,8 @@ export class MagicPlanService {
             // Situace 7: požadavek se objevil u kolegy a byl u mě
             // Pokud jsou notifikace kolegů vypnuté, úkol byl odebrán z mého sloupce (fallback na Situaci 9 - vrácen/odebrán)
             if (notificationsEnabled && planConfig.notifyNewTasks !== false) {
-              const notifyColleagues = planConfig.notifyColleagueTasks !== false;
-              if (notifyColleagues) {
-                notificationService.show({
+              if (effectiveNotifyColleagues) {
+                notifyPlanTask(curr.task, {
                   type: 'magicPlan',
                   subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
                   title: curr.isCritical ? `${curr.userName} převzal váš kritický úkol` : `${curr.userName} převzal váš úkol`,
@@ -2645,7 +2697,7 @@ export class MagicPlanService {
                   taskType: curr.task.taskType === 'service' ? 'service' : 'dev',
                 });
               } else {
-                notificationService.show({
+                notifyPlanTask(curr.task, {
                   type: 'magicPlan',
                   subType: curr.isCritical ? 'critical' : 'queue',
                   title: curr.isCritical ? 'Váš kritický úkol byl vrácen do fronty' : 'Váš úkol byl vrácen do fronty',
@@ -2659,8 +2711,8 @@ export class MagicPlanService {
           } else if (colleagueChanged) {
             // Situace 8: požadavek se objevil u kolegy a byl u jiného kolegy
             diffResult.newTasks.push(`[${curr.userName}] ${taskDesc}`);
-            if (notificationsEnabled && planConfig.notifyColleagueTasks !== false) {
-              notificationService.show({
+            if (notificationsEnabled && effectiveNotifyColleagues) {
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
                 title: curr.isCritical ? `Kritický úkol přesunut: ${prev.userName} ➜ ${curr.userName}` : `Úkol přesunut od ${prev.userName} k ${curr.userName}`,
@@ -2679,7 +2731,7 @@ export class MagicPlanService {
           if (notificationsEnabled && planConfig.notifyTaskChanges !== false) {
             if (curr.location === 'queue') {
               // Situace 17: ve frontě se změnil úkol na kritický
-              notificationService.show({
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: 'critical',
                 title: 'Úkol ve frontě změněn na kritický!',
@@ -2690,10 +2742,20 @@ export class MagicPlanService {
               });
             } else if (curr.location === 'me') {
               // Situace 18: u mě se změnil úkol na kritický
-              notificationService.show({
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: 'critical',
                 title: 'Váš úkol označen jako kritický!',
+                body: `${taskDesc} (přiřazena priorita 1)`,
+                mpSituation: 18,
+                isCritical: true,
+                taskType: curr.task.taskType === 'service' ? 'service' : 'dev',
+              });
+            } else if (curr.location === 'other' && filterNotificationsByAuthor) {
+              notifyPlanTask(curr.task, {
+                type: 'magicPlan',
+                subType: 'critical',
+                title: `${curr.userName}: Úkol označen jako kritický!`,
                 body: `${taskDesc} (přiřazena priorita 1)`,
                 mpSituation: 18,
                 isCritical: true,
@@ -2706,7 +2768,7 @@ export class MagicPlanService {
           if (notificationsEnabled && planConfig.notifyTaskChanges !== false) {
             if (curr.location === 'queue') {
               // Situace 19: ve frontě se změnil úkol na nekritický
-              notificationService.show({
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: 'queue',
                 title: 'Úkol ve frontě již není kritický',
@@ -2717,10 +2779,20 @@ export class MagicPlanService {
               });
             } else if (curr.location === 'me') {
               // Situace 20: u mě se změnil úkol na nekritický
-              notificationService.show({
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: curr.task.taskType === 'service' ? 'service' : 'dev',
                 title: 'U vašeho úkolu zrušena kritická priorita',
+                body: `${taskDesc} (priorita snížena na běžnou)`,
+                mpSituation: 20,
+                isCritical: false,
+                taskType: curr.task.taskType === 'service' ? 'service' : 'dev',
+              });
+            } else if (curr.location === 'other' && filterNotificationsByAuthor) {
+              notifyPlanTask(curr.task, {
+                type: 'magicPlan',
+                subType: curr.task.taskType === 'service' ? 'service' : 'dev',
+                title: `${curr.userName}: Zrušena kritická priorita úkolu`,
                 body: `${taskDesc} (priorita snížena na běžnou)`,
                 mpSituation: 20,
                 isCritical: false,
@@ -2736,7 +2808,7 @@ export class MagicPlanService {
           if (notificationsEnabled && planConfig.notifyCompletedTasks !== false) {
             if (curr.location === 'me') {
               // Situace 14: úkol u mě změnil stav na solved
-              notificationService.show({
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: 'completed',
                 title: 'Úkol v plánu splněn',
@@ -2747,8 +2819,8 @@ export class MagicPlanService {
               });
             } else if (curr.location === 'other') {
               // Situace 16: kolegovi úkol přepnul stav na solved
-              if (planConfig.notifyColleagueTasks !== false) {
-                notificationService.show({
+              if (effectiveNotifyColleagues) {
+                notifyPlanTask(curr.task, {
                   type: 'magicPlan',
                   subType: 'completed',
                   title: `${curr.userName} označil úkol za splněný`,
@@ -2768,7 +2840,7 @@ export class MagicPlanService {
             // Situace 11: požadavek u mě změnil čas na vyšší
             diffResult.changedTasks.push(`${taskTitle} (navýšeno: ${prev.totalHours}h → ${curr.totalHours}h)`);
             if (notificationsEnabled && planConfig.notifyTaskChanges !== false) {
-              notificationService.show({
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
                 title: curr.isCritical ? 'Zvýšení času u kritického úkolu' : 'Zvýšení odhadu času úkolu',
@@ -2782,7 +2854,7 @@ export class MagicPlanService {
             // Situace 12: požadavek u mě změnil čas na nižší
             diffResult.changedTasks.push(`${taskTitle} (zkráceno: ${prev.totalHours}h → ${curr.totalHours}h)`);
             if (notificationsEnabled && planConfig.notifyTaskChanges !== false) {
-              notificationService.show({
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
                 title: curr.isCritical ? 'Snížení času u kritického úkolu' : 'Snížení odhadu času úkolu',
@@ -2796,8 +2868,8 @@ export class MagicPlanService {
         } else if (curr.location === 'other' && !curr.isSolved && prev.totalHours !== curr.totalHours) {
           if (curr.totalHours > prev.totalHours) {
             diffResult.changedTasks.push(`[${curr.userName}] ${taskTitle} (navýšeno: ${prev.totalHours}h → ${curr.totalHours}h)`);
-            if (notificationsEnabled && planConfig.notifyColleagueTasks !== false && planConfig.notifyTaskChanges !== false) {
-              notificationService.show({
+            if (notificationsEnabled && effectiveNotifyColleagues && planConfig.notifyTaskChanges !== false) {
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
                 title: curr.isCritical ? `${curr.userName}: Zvýšení času u kritického úkolu` : `${curr.userName}: Zvýšení odhadu času úkolu`,
@@ -2809,8 +2881,8 @@ export class MagicPlanService {
             }
           } else {
             diffResult.changedTasks.push(`[${curr.userName}] ${taskTitle} (zkráceno: ${prev.totalHours}h → ${curr.totalHours}h)`);
-            if (notificationsEnabled && planConfig.notifyColleagueTasks !== false && planConfig.notifyTaskChanges !== false) {
-              notificationService.show({
+            if (notificationsEnabled && effectiveNotifyColleagues && planConfig.notifyTaskChanges !== false) {
+              notifyPlanTask(curr.task, {
                 type: 'magicPlan',
                 subType: curr.isCritical ? 'critical' : (curr.task.taskType === 'service' ? 'service' : 'dev'),
                 title: curr.isCritical ? `${curr.userName}: Snížení času u kritického úkolu` : `${curr.userName}: Snížení odhadu času úkolu`,
@@ -2851,7 +2923,7 @@ export class MagicPlanService {
           // Situace 13: úkol u mě zmizel a neobjevil se jinde
           diffResult.completedTasks.push(prevTaskTitle);
           if (notificationsEnabled && planConfig.notifyCompletedTasks !== false) {
-            notificationService.show({
+            notifyPlanTask(prev.task, {
               type: 'magicPlan',
               subType: 'completed',
               title: 'Úkol v plánu vyřešen',
@@ -2864,8 +2936,8 @@ export class MagicPlanService {
         } else if (prev.location === 'other') {
           // Situace 15: kolegovi zmizel úkol a nikde jinde se neobjevil
           diffResult.completedTasks.push(`[${prev.userName}] ${prevTaskTitle}`);
-          if (notificationsEnabled && planConfig.notifyCompletedTasks !== false && planConfig.notifyColleagueTasks !== false) {
-            notificationService.show({
+          if (notificationsEnabled && planConfig.notifyCompletedTasks !== false && effectiveNotifyColleagues) {
+            notifyPlanTask(prev.task, {
               type: 'magicPlan',
               subType: 'completed',
               title: `${prev.userName} dokončil úkol`,

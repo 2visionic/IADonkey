@@ -1389,9 +1389,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  const [magicPlanPersons, setMagicPlanPersons] = useState<{ id: string; name: string }[]>([]);
+  const [magicPlanPersons, setMagicPlanPersons] = useState<{ id: string; name: string; cleanName?: string; shortcut?: string }[]>([]);
+  const [magicPlanTasksList, setMagicPlanTasksList] = useState<any[]>([]);
   const [isFetchingMagicPlanPersons, setIsFetchingMagicPlanPersons] = useState(false);
   const [fetchPersonsFeedback, setFetchPersonsFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (!config?.magicplan) return;
+    setFormData((prev) => ({
+      ...prev,
+      magicplan: {
+        ...prev.magicplan,
+        ...config.magicplan,
+      },
+    }));
+  }, [
+    config.magicplan?.authorFilter,
+    config.magicplan?.currentUserColumn,
+    config.magicplan?.showAllTasks,
+    config.magicplan?.userColumn,
+  ]);
 
   const handleFetchPersonsFromUrls = async (urlsToFetch?: string[]) => {
     if (!window.electronAPI?.fetchMagicPlanPersons) return;
@@ -1439,6 +1456,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (data?.availablePersons && Array.isArray(data.availablePersons)) {
         setMagicPlanPersons(data.availablePersons);
       }
+      if (data) {
+        setMagicPlanTasksList([...(data.myTasks || []), ...(data.unassignedTasks || [])]);
+      }
     } catch (err) {
       console.warn('[Settings] Failed to fetch available MagicPlan persons:', err);
     }
@@ -1461,6 +1481,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const cleanup = window.electronAPI.onMagicPlanDataUpdated((data: any) => {
       if (data?.availablePersons && Array.isArray(data.availablePersons)) {
         setMagicPlanPersons(data.availablePersons);
+      }
+      if (data) {
+        setMagicPlanTasksList([...(data.myTasks || []), ...(data.unassignedTasks || [])]);
       }
       if (activeTab === 'develop' && formData.extensions?.magicplan) {
         fetchMagicPlanDevLogs();
@@ -1500,6 +1523,73 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [magicPlanPersons, magicPlanDevLogs?.cachedData?.availablePersons, formData.magicplan?.userColumns, formData.magicplan?.userColumn, formData.magicplan?.unassignedColumn]);
+
+  const allAvailableAuthors = useMemo(() => {
+    const sourcePersons: { id: string; name: string; cleanName?: string; shortcut?: string }[] =
+      magicPlanPersons && magicPlanPersons.length > 0
+        ? magicPlanPersons
+        : Array.isArray(magicPlanDevLogs?.cachedData?.availablePersons)
+        ? magicPlanDevLogs.cachedData.availablePersons
+        : [];
+
+    const tasksPool =
+      magicPlanTasksList.length > 0
+        ? magicPlanTasksList
+        : [
+            ...(magicPlanDevLogs?.cachedData?.myTasks || []),
+            ...(magicPlanDevLogs?.cachedData?.unassignedTasks || []),
+          ];
+
+    const authorMap = new Map<string, { code: string; label: string }>();
+
+    const registerCode = (rawCode: string) => {
+      const code = rawCode.trim();
+      if (!code) return;
+      const key = code.toLowerCase();
+      if (authorMap.has(key)) return;
+
+      const p = sourcePersons.find(
+        (x) =>
+          (x.shortcut && x.shortcut.trim().toLowerCase() === key) ||
+          String(x.id).trim().toLowerCase() === key ||
+          (x.name && x.name.trim().toLowerCase() === key)
+      );
+      let label = code;
+      if (p) {
+        const clean = p.cleanName || p.name.replace(/\s*\([^)]*\)/g, '').trim();
+        label = clean ? `${clean} (${code})` : code;
+      }
+      authorMap.set(key, { code, label });
+    };
+
+    for (const t of tasksPool) {
+      if (!t?.author) continue;
+      const authorRaw = String(t.author).trim();
+      if (!authorRaw) continue;
+      const codes = authorRaw.split(/[,/]+/).map((s) => s.trim()).filter(Boolean);
+      for (const c of codes) {
+        registerCode(c);
+      }
+    }
+
+    for (const p of sourcePersons) {
+      if (p?.shortcut && p.shortcut.trim()) {
+        registerCode(p.shortcut.trim());
+      } else if (p?.name) {
+        const scMatch = p.name.match(/\(([^)]+)\)/);
+        if (scMatch && scMatch[1]) {
+          registerCode(scMatch[1].trim());
+        }
+      }
+    }
+
+    const currentSaved = formData.magicplan?.authorFilter?.trim();
+    if (currentSaved) {
+      registerCode(currentSaved);
+    }
+
+    return Array.from(authorMap.values()).sort((a, b) => a.label.localeCompare(b.label, 'cs'));
+  }, [magicPlanPersons, magicPlanTasksList, magicPlanDevLogs?.cachedData, formData.magicplan?.authorFilter]);
 
   const handleCopyMagicPlanJson = () => {
     if (!magicPlanDevLogs) return;
@@ -9221,6 +9311,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </select>
                     <span className="text-[11px] text-gray-400 block">
                       Zásobník volných nezařazených úkolů z plánu práce. Nezařazená fronta je fiktivní uživatel identifikovaný svým ID.
+                    </span>
+                  </div>
+
+                  {/* Filtr zadavatele (Zadavatel) */}
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-xs font-medium text-gray-300 block">Filtr zadavatele (Zadavatel)</label>
+                    <select
+                      value={formData.magicplan?.authorFilter ?? ''}
+                      onChange={(e) => {
+                        const updated = {
+                          ...formData,
+                          magicplan: {
+                            ...formData.magicplan,
+                            authorFilter: e.target.value,
+                          },
+                        };
+                        setFormData(updated);
+                        handleSave(updated);
+                      }}
+                      className="w-full h-[38px] bg-black/30 border border-white/10 rounded-xl px-3.5 text-sm text-white focus:border-cyan-500 outline-none cursor-pointer"
+                    >
+                      <option value="" className="bg-[#181920] text-gray-400">
+                        -- Všichni zadavatelé (nefiltrovat) --
+                      </option>
+                      {allAvailableAuthors.map((a) => (
+                        <option key={a.code} value={a.code} className="bg-[#181920] text-white">
+                          {a.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[11px] text-gray-400 block">
+                      Propojeno s filtrem zadavatele přímo v okně MagicPlan. Pokud v plánu není označena žádná osoba jako „Já“, budou vyskakovat pouze notifikace úkolů od tohoto zadavatele.
                     </span>
                   </div>
 

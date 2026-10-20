@@ -211,7 +211,7 @@ function getColorPickerExePath(): string {
 
 async function pickScreenColorNative(
   instant = false,
-  options?: { noClipboard?: boolean; noSpotlight?: boolean }
+  options?: { noClipboard?: boolean; noSpotlight?: boolean; keepSpotlightVisible?: boolean }
 ): Promise<string | null> {
   const exePath = getColorPickerExePath();
 
@@ -231,10 +231,14 @@ async function pickScreenColorNative(
 
   console.log('[Main] Launching color-picker.exe:', exePath, instant ? '--instant' : '(loupe mode)');
 
-  // If Spotlight window is visible, hide it with animation so user can pick what is under it
+  // If Spotlight window is visible, hide it unless keepSpotlightVisible is set (e.g. global shortcut)
   const mainWin = windowManager ? windowManager.getMainWindow() : null;
-  const wasMainVisible = !options?.noSpotlight && mainWin && !mainWin.isDestroyed() && mainWin.isVisible();
-  if (wasMainVisible && windowManager) {
+  const isMainCurrentlyVisible = Boolean(mainWin && !mainWin.isDestroyed() && mainWin.isVisible());
+  const preserveOpenSpotlight = Boolean(options?.keepSpotlightVisible && isMainCurrentlyVisible);
+  const wasMainVisible = !options?.noSpotlight && !preserveOpenSpotlight && isMainCurrentlyVisible;
+  if (preserveOpenSpotlight && windowManager) {
+    windowManager.setSuppressSpotlightBlurHide(true);
+  } else if (wasMainVisible && windowManager) {
     windowManager.hideSpotlight();
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -276,9 +280,19 @@ async function pickScreenColorNative(
       });
 
       const restoreWindows = () => {
-        if (wasMainVisible && windowManager) {
-          windowManager.showSpotlight();
+        if (windowManager) {
+          windowManager.setSuppressSpotlightBlurHide(false);
+        }
+        if ((wasMainVisible || preserveOpenSpotlight) && windowManager) {
+          if (!preserveOpenSpotlight) {
+            windowManager.showSpotlight();
+          }
           app.focus({ steal: true });
+          const win = windowManager.getMainWindow();
+          if (win && !win.isDestroyed() && win.isVisible()) {
+            win.focus();
+            win.webContents.focus();
+          }
         } else {
           const palBarWin = windowManager ? windowManager.getPaletteBarWindow() : null;
           if (palBarWin && !palBarWin.isDestroyed() && palBarWin.isVisible()) {
@@ -297,6 +311,9 @@ async function pickScreenColorNative(
       };
 
       child.on('close', (code) => {
+        if (windowManager) {
+          windowManager.setSuppressSpotlightBlurHide(false);
+        }
         if (stderrData.trim()) {
           console.warn('[Main] color-picker.exe stderr:', stderrData.trim());
         }
@@ -404,7 +421,14 @@ async function pickScreenColorNative(
             });
           }
 
-          if (wasMainVisible && windowManager) {
+          if (preserveOpenSpotlight && windowManager) {
+            const win = windowManager.getMainWindow();
+            if (win && !win.isDestroyed() && win.isVisible()) {
+              app.focus({ steal: true });
+              win.focus();
+              win.webContents.focus();
+            }
+          } else if (wasMainVisible && windowManager) {
             windowManager.showSpotlight();
             const win = windowManager.getMainWindow();
             if (win && !win.isDestroyed()) {
@@ -438,6 +462,9 @@ async function pickScreenColorNative(
       });
 
       child.on('error', (err) => {
+        if (windowManager) {
+          windowManager.setSuppressSpotlightBlurHide(false);
+        }
         if (wasMainVisible && windowManager) {
           windowManager.showSpotlight();
         }
@@ -446,6 +473,9 @@ async function pickScreenColorNative(
         resolve(null);
       });
     } catch (err) {
+      if (windowManager) {
+        windowManager.setSuppressSpotlightBlurHide(false);
+      }
       if (wasMainVisible && windowManager) {
         windowManager.showSpotlight();
       }
@@ -478,7 +508,7 @@ function registerColorMasterHotkey(hotkey?: string) {
           details: 'Spuštění kapátka přes klávesovou zkratku',
           status: 'info',
         });
-        await pickScreenColorNative();
+        await pickScreenColorNative(false, { keepSpotlightVisible: true });
       } catch (err) {
         console.error('[Main] Error in ColorMaster hotkey callback:', err);
         diagnosticsService.recordCrash('Volání kapátka z klávesové zkratky', err, { hotkey: cleanHotkey });
@@ -520,7 +550,7 @@ function registerQuickCapHotkey(hotkey?: string) {
           details: 'Spuštění výstřižku přes klávesovou zkratku',
           status: 'info',
         });
-        await startQuickCapProcess();
+        await startQuickCapProcess({ preserveSpotlight: true });
       } catch (err) {
         console.error('[Main] Error in QuickCap hotkey callback:', err);
         diagnosticsService.recordCrash('Volání QuickCap z klávesové zkratky', err, { hotkey: cleanHotkey });
@@ -565,7 +595,7 @@ function registerScreenRulerHotkey(hotkey?: string) {
           details: 'Spuštění měřítka a pravítka přes klávesovou zkratku',
           status: 'info',
         });
-        await startScreenRulerProcess();
+        await startScreenRulerProcess({ preserveSpotlight: true });
       } catch (err) {
         console.error('[Main] Error in ScreenRuler hotkey callback:', err);
         diagnosticsService.recordCrash('Volání ScreenRuler z klávesové zkratky', err, { hotkey: cleanHotkey });
@@ -720,7 +750,9 @@ function getQuickCapSaveDirectory(): string {
 }
 const getFastSnapSaveDirectory = getQuickCapSaveDirectory;
 
-async function startQuickCapProcess(): Promise<void> {
+let quickCapPreservedOpenSpotlight = false;
+
+async function startQuickCapProcess(options?: { preserveSpotlight?: boolean }): Promise<void> {
   try {
     diagnosticsService.logAction({
       type: 'action',
@@ -729,18 +761,25 @@ async function startQuickCapProcess(): Promise<void> {
       status: 'info',
     });
 
+    const mainWin = windowManager ? windowManager.getMainWindow() : null;
+    const isMainCurrentlyVisible = Boolean(mainWin && !mainWin.isDestroyed() && mainWin.isVisible());
+    quickCapPreservedOpenSpotlight = Boolean(options?.preserveSpotlight && isMainCurrentlyVisible);
+
     if (windowManager) {
       windowManager.setSkipSpotlightRestoreOnCloneClose(true);
-      windowManager.hideImmediately();
       windowManager.closeScreenRulerWindow();
-      windowManager.getMainWindow()?.webContents.send('reset-spotlight');
+      if (quickCapPreservedOpenSpotlight) {
+        windowManager.setSuppressSpotlightBlurHide(true);
+      } else {
+        windowManager.hideImmediately();
+      }
     }
     const settingsWin = windowManager ? windowManager.getSettingsWindow() : null;
     if (settingsWin && !settingsWin.isDestroyed() && settingsWin.isVisible()) {
       settingsWin.hide();
     }
 
-    // Krátká prodleva pro překreslení DWM bez oken aplikace
+    // Krátká prodleva pro překreslení DWM
     await new Promise((r) => setTimeout(r, 50));
 
     const cursorPoint = screen.getCursorScreenPoint();
@@ -783,6 +822,10 @@ async function startQuickCapProcess(): Promise<void> {
 
     windowManager.createSnipperWindow(bounds, dataUrl, scaleFactor);
   } catch (err: any) {
+    if (windowManager) {
+      windowManager.setSuppressSpotlightBlurHide(false);
+    }
+    quickCapPreservedOpenSpotlight = false;
     console.error('[Main] startQuickCapProcess error:', err);
     diagnosticsService.recordCrash('Spuštění QuickCap', err);
     diagnosticsService.logAction({
@@ -797,7 +840,7 @@ const startFastSnapProcess = startQuickCapProcess;
 
 let currentScreenRulerInitData: { width: number; height: number; color: string; defaultUnit: string } | null = null;
 
-async function startScreenRulerProcess(): Promise<void> {
+async function startScreenRulerProcess(options?: { preserveSpotlight?: boolean }): Promise<void> {
   try {
     diagnosticsService.logAction({
       type: 'action',
@@ -806,18 +849,25 @@ async function startScreenRulerProcess(): Promise<void> {
       status: 'info',
     });
 
+    const mainWin = windowManager ? windowManager.getMainWindow() : null;
+    const isMainCurrentlyVisible = Boolean(mainWin && !mainWin.isDestroyed() && mainWin.isVisible());
+    const preserveOpenSpotlight = Boolean(options?.preserveSpotlight && isMainCurrentlyVisible);
+
     if (windowManager) {
       windowManager.setSkipSpotlightRestoreOnCloneClose(true);
-      windowManager.hideImmediately();
       windowManager.closeSnipperWindow();
-      windowManager.getMainWindow()?.webContents.send('reset-spotlight');
+      if (preserveOpenSpotlight) {
+        windowManager.setSuppressSpotlightBlurHide(true);
+      } else {
+        windowManager.hideImmediately();
+      }
     }
     const settingsWin = windowManager ? windowManager.getSettingsWindow() : null;
     if (settingsWin && !settingsWin.isDestroyed() && settingsWin.isVisible()) {
       settingsWin.hide();
     }
 
-    // Krátká prodleva pro překreslení DWM bez oken aplikace
+    // Krátká prodleva pro překreslení DWM
     await new Promise((r) => setTimeout(r, 40));
 
     const cursorPoint = screen.getCursorScreenPoint();
@@ -838,6 +888,9 @@ async function startScreenRulerProcess(): Promise<void> {
 
     windowManager.openScreenRulerWindow(bounds, { color, defaultUnit });
   } catch (err: any) {
+    if (windowManager) {
+      windowManager.setSuppressSpotlightBlurHide(false);
+    }
     console.error('[Main] startScreenRulerProcess error:', err);
     diagnosticsService.recordCrash('Spuštění ScreenRuler', err);
     diagnosticsService.logAction({
@@ -1037,6 +1090,7 @@ function setupIpcHandlers() {
   ipcMain.handle('fastsnap-get-init-data', handleQuickCapGetInitData);
 
   const handleQuickCapCancel = () => {
+    quickCapPreservedOpenSpotlight = false;
     windowManager.closeSnipperWindow();
     currentCapturedScreenImage = null;
     currentCapturedBounds = null;
@@ -1047,6 +1101,8 @@ function setupIpcHandlers() {
 
   const handleQuickCapFinishCrop = async (_event: any, cropArea: { x: number; y: number; width: number; height: number; windowWidth?: number; windowHeight?: number }) => {
     try {
+      const preservedSpotlight = quickCapPreservedOpenSpotlight;
+      quickCapPreservedOpenSpotlight = false;
       windowManager.closeSnipperWindow();
 
       if (!currentCapturedScreenImage) {
@@ -1441,10 +1497,10 @@ function setupIpcHandlers() {
         details: `ID: ${id}`,
         status: 'success',
       });
-      windowManager.hideImmediately();
+      windowManager.hideSpotlight();
       if (paste) {
         const hwnd = windowManager.getMainWindowHandle();
-        pasteService.simulatePaste(80, hwnd);
+        pasteService.simulatePaste(150, hwnd);
       }
     }
     return success;
@@ -1458,10 +1514,10 @@ function setupIpcHandlers() {
         title: `EasyClip: ${paste ? 'Vloženo' : 'Zkopírováno'} více položek (${ids.length})`,
         status: 'success',
       });
-      windowManager.hideImmediately();
+      windowManager.hideSpotlight();
       if (paste) {
         const hwnd = windowManager.getMainWindowHandle();
-        pasteService.simulatePaste(80, hwnd);
+        pasteService.simulatePaste(150, hwnd);
       }
     }
     return success;
@@ -2732,11 +2788,11 @@ function setupIpcHandlers() {
           body: `Text "${truncated}" byl úspěšně zkopírován do schránky.`,
         });
         if (!skipHide && !preserveSpotlight && sourceId !== 'source-manager') {
-          windowManager.hideImmediately();
+          windowManager.hideSpotlight();
         }
         if (autoPaste || sourceId === 'snippet' || action === 'paste') {
           const hwnd = windowManager.getMainWindowHandle();
-          pasteService.simulatePaste(80, hwnd);
+          pasteService.simulatePaste(150, hwnd);
         }
         return;
       }
@@ -2756,7 +2812,9 @@ function setupIpcHandlers() {
           console.error('[Main] Failed to open in paint:', paintErr);
           diagnosticsService.recordCrash('Chyba při otevírání v Malování', paintErr, { filePath: trimmed });
         }
-        windowManager.hideImmediately();
+        if (!skipHide && !preserveSpotlight) {
+          windowManager.hideSpotlight();
+        }
         return;
       }
 
@@ -2772,7 +2830,9 @@ function setupIpcHandlers() {
         } catch (folderErr: any) {
           console.error('[Main] Failed to show item in folder:', folderErr);
         }
-        windowManager.hideImmediately();
+        if (!skipHide && !preserveSpotlight) {
+          windowManager.hideSpotlight();
+        }
         return;
       }
 
@@ -2951,8 +3011,7 @@ function setupIpcHandlers() {
   ipcMain.handle('reset-and-hide-spotlight', () => {
     windowManager.setSkipSpotlightRestoreOnCloneClose(true);
     windowManager.setSkipSpotlightRestoreOnCmsDownloadClose(true);
-    windowManager.hideImmediately();
-    windowManager.getMainWindow()?.webContents.send('reset-spotlight');
+    windowManager.resetAndHideSpotlight();
   });
 
   ipcMain.handle('check-update', async () => {

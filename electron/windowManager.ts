@@ -91,10 +91,16 @@ export class WindowManager {
   private shouldRestoreSpotlightOnCmsDownloadClose = true;
   private shouldResetSpotlightOnCloneClose = false;
   private shouldResetSpotlightOnCmsDownloadClose = false;
+  private suppressSpotlightBlurHide = false;
+  private hideSpotlightTimer: ReturnType<typeof setTimeout> | null = null;
   private onMagicPlanWindowStateChanged?: (isOpen: boolean) => void;
 
   public setOnMagicPlanWindowStateChanged(cb: (isOpen: boolean) => void): void {
     this.onMagicPlanWindowStateChanged = cb;
+  }
+
+  public setSuppressSpotlightBlurHide(suppress: boolean): void {
+    this.suppressSpotlightBlurHide = suppress;
   }
 
   private registerCrashHandlers(win: BrowserWindow, windowName: string): void {
@@ -183,6 +189,7 @@ export class WindowManager {
         sandbox: false,
         contextIsolation: true,
         nodeIntegration: false,
+        backgroundThrottling: false,
       },
     });
 
@@ -203,6 +210,13 @@ export class WindowManager {
     // Hide window when it loses focus (unless devtools is active or during initial reveal / reactivation)
     this.mainWindow.on('blur', () => {
       if (Date.now() - this.lastShowTime < 800) {
+        return;
+      }
+      if (
+        this.suppressSpotlightBlurHide ||
+        (this.snipperWindow && !this.snipperWindow.isDestroyed() && this.snipperWindow.isVisible()) ||
+        (this.rulerWindow && !this.rulerWindow.isDestroyed() && this.rulerWindow.isVisible())
+      ) {
         return;
       }
       if (this.mainWindow && !this.mainWindow.webContents.isDevToolsOpened()) {
@@ -250,6 +264,11 @@ export class WindowManager {
   public showSpotlight(): void {
     if (!this.mainWindow) return;
 
+    if (this.hideSpotlightTimer) {
+      clearTimeout(this.hideSpotlightTimer);
+      this.hideSpotlightTimer = null;
+    }
+
     this.lastShowTime = Date.now();
 
     // Center on the display where the mouse cursor is located
@@ -286,24 +305,31 @@ export class WindowManager {
 
   public hideSpotlight(): void {
     if (!this.mainWindow || !this.mainWindow.isVisible()) return;
+    if (this.hideSpotlightTimer) {
+      clearTimeout(this.hideSpotlightTimer);
+      this.hideSpotlightTimer = null;
+    }
     this.mainWindow.webContents.send('window-hide-request');
-    setTimeout(() => {
-      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+    this.hideSpotlightTimer = setTimeout(() => {
+      this.hideSpotlightTimer = null;
+      if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
         try {
           this.mainWindow.setAlwaysOnTop(false);
-          this.mainWindow.blur();
         } catch {}
         this.mainWindow.hide();
       }
-    }, 90);
+    }, 135);
   }
 
   public hideImmediately(): void {
-    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+    if (this.hideSpotlightTimer) {
+      clearTimeout(this.hideSpotlightTimer);
+      this.hideSpotlightTimer = null;
+    }
+    if (!this.mainWindow || this.mainWindow.isDestroyed() || !this.mainWindow.isVisible()) return;
     this.mainWindow.webContents.send('window-hide-request');
     try {
       this.mainWindow.setAlwaysOnTop(false);
-      this.mainWindow.blur();
     } catch {}
     this.mainWindow.hide();
   }
@@ -312,7 +338,7 @@ export class WindowManager {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send('reset-spotlight');
     }
-    this.hideImmediately();
+    this.hideSpotlight();
   }
 
   public getMainWindowHandle(): number {
@@ -1163,6 +1189,7 @@ export class WindowManager {
   }
 
   public async openFeedbackWindow(mode: 'user' | 'dev' = 'user'): Promise<BrowserWindow> {
+    this.hideImmediately();
     const query = new URLSearchParams({
       window: 'feedback',
       mode,
@@ -1173,7 +1200,9 @@ export class WindowManager {
       this.feedbackWindow.webContents.send('feedback-refresh');
       if (this.feedbackWindow.isMinimized()) this.feedbackWindow.restore();
       this.feedbackWindow.show();
+      app.focus({ steal: true });
       this.feedbackWindow.focus();
+      this.feedbackWindow.webContents.focus();
       return this.feedbackWindow;
     }
 
@@ -1229,6 +1258,11 @@ export class WindowManager {
 
     this.feedbackWindow.on('show', () => {
       this.feedbackWindow?.webContents.send('feedback-refresh');
+      this.feedbackWindow?.webContents.focus();
+    });
+
+    this.feedbackWindow.on('focus', () => {
+      this.feedbackWindow?.webContents.focus();
     });
 
     this.feedbackWindow.on('closed', () => {
@@ -1242,7 +1276,9 @@ export class WindowManager {
           resolved = true;
           if (this.feedbackWindow && !this.feedbackWindow.isDestroyed()) {
             this.feedbackWindow.show();
+            app.focus({ steal: true });
             this.feedbackWindow.focus();
+            this.feedbackWindow.webContents.focus();
           }
           resolve(this.feedbackWindow!);
         }
@@ -1260,10 +1296,16 @@ export class WindowManager {
   }
 
   public closeSnipperWindow(): void {
+    this.suppressSpotlightBlurHide = false;
     if (this.snipperWindow && !this.snipperWindow.isDestroyed()) {
       this.snipperWindow.webContents.send('quickcap-cleanup');
       this.snipperWindow.webContents.send('fastsnap-cleanup');
       this.snipperWindow.hide();
+    }
+    if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
+      app.focus({ steal: true });
+      this.mainWindow.focus();
+      this.mainWindow.webContents.focus();
     }
   }
 
@@ -1364,9 +1406,15 @@ export class WindowManager {
   }
 
   public closeScreenRulerWindow(): void {
+    this.suppressSpotlightBlurHide = false;
     if (this.rulerWindow && !this.rulerWindow.isDestroyed()) {
       this.rulerWindow.webContents.send('screenruler-cleanup');
       this.rulerWindow.hide();
+    }
+    if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
+      app.focus({ steal: true });
+      this.mainWindow.focus();
+      this.mainWindow.webContents.focus();
     }
   }
 
@@ -1381,7 +1429,7 @@ export class WindowManager {
         width: displayBounds.width,
         height: displayBounds.height - 1,
       });
-      win.setAlwaysOnTop(true);
+      win.setAlwaysOnTop(true, 'screen-saver');
       const initPayload = {
         width: displayBounds.width,
         height: displayBounds.height,
@@ -1430,7 +1478,7 @@ export class WindowManager {
       },
     });
 
-    this.rulerWindow.setAlwaysOnTop(true);
+    this.rulerWindow.setAlwaysOnTop(true, 'screen-saver');
     this.registerCrashHandlers(this.rulerWindow, 'ScreenRuler');
 
     if (process.env.VITE_DEV_SERVER_URL) {

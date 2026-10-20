@@ -1,6 +1,6 @@
 {
-  "version": "2.1.19",
-  "releaseNotes": "• GitHub – Vícekrokový průvodce založením nového repozitáře (/github, /gh, /repo): 6krokový průvodce ve Spotlightu s podporou předvyplnění názvu (/github <název>).\n• GitHub – Výběr vlastníka/organizace, viditelnosti (Private/Public) a inicializace s README.md.\n• GitHub – Okamžité naklonování na disk, otevření v prohlížeči nebo zkopírování .git URL po vytvoření a okamžité zařazení nového repozitáře do vyhledávání.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.19/IADonkey-Setup-2.1.19.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.19/IADonkey-2.1.19.zip"
+  "version": "2.1.20",
+  "releaseNotes": "• Spotlight – Zachování rozpracovaného stavu a plynulý reset po dokončení akce bez probliku.\n• Nástroje obrazovky (QuickCap, ColorMaster, ScreenRuler) – Zachování otevřeného Spotlightu při spuštění zkratkou a zobrazení akcí po výřezu.\n• MagicPlan – Výběr zadavatele v Nastavení, chytré filtrování notifikací a detekce dovolené (Vacation, 1ks = 1h).\n• MagicGate, Aktualizace & Feedback – Priorita klientských domén, kontrola aktualizací každých 10 min a oprava fokusu polí ve Feedbacku.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.20/IADonkey-Setup-2.1.20.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.20/IADonkey-2.1.20.zip"
 }

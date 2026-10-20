@@ -12,7 +12,7 @@ declare global {
       selectJsonFile: (defaultPath?: string) => Promise<string | null>;
       selectXmlFile: (defaultPath?: string) => Promise<string | null>;
       inspectSource: (source: DataSource) => Promise<{ keys: string[]; sample: Record<string, any> | null }>;
-      executeAction: (data: { action: string; location: string; settings?: string | null; autoPaste?: boolean; sourceId?: string }) => Promise<void>;
+      executeAction: (data: { action: string; location: string; settings?: string | null; autoPaste?: boolean; sourceId?: string; skipHide?: boolean; preserveSpotlight?: boolean }) => Promise<void>;
       openExternal: (url: string) => Promise<void>;
       openPath: (path: string) => Promise<void>;
       hideWindow: () => Promise<void>;

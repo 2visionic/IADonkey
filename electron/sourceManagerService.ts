@@ -1,16 +1,16 @@
 import fs from 'fs';
 import path from 'path';
-import { Store } from './store';
-import { DataSync } from './dataSync';
+import { AppStore } from './store';
+import { DataSyncManager } from './dataSync';
 import { diagnosticsService } from './diagnosticsService';
 import { DataSource, FileSource, LauncherItem, StaticSource } from '../src/types';
 
 export class SourceManagerService {
-  private store: Store;
-  private syncManager: DataSync;
+  private store: AppStore;
+  private syncManager: DataSyncManager;
   private onDataChanged?: () => void;
 
-  constructor(store: Store, syncManager: DataSync, onDataChanged?: () => void) {
+  constructor(store: AppStore, syncManager: DataSyncManager, onDataChanged?: () => void) {
     this.store = store;
     this.syncManager = syncManager;
     this.onDataChanged = onDataChanged;
@@ -125,7 +125,7 @@ export class SourceManagerService {
     originalIndex?: number;
   }): Promise<{ ok: boolean; error?: string }> {
     const config = this.store.getConfig();
-    const source = config.sources?.find((s) => s.id === params.sourceId);
+    const source = config.sources?.find((s: DataSource) => s.id === params.sourceId);
     if (!source) {
       return { ok: false, error: `Zdroj s ID "${params.sourceId}" nebyl nalezen.` };
     }
@@ -191,7 +191,7 @@ export class SourceManagerService {
     itemName?: string;
   }): Promise<{ ok: boolean; error?: string }> {
     const config = this.store.getConfig();
-    const source = config.sources?.find((s) => s.id === params.sourceId);
+    const source = config.sources?.find((s: DataSource) => s.id === params.sourceId);
     if (!source) {
       return { ok: false, error: `Zdroj s ID "${params.sourceId}" nebyl nalezen.` };
     }
@@ -258,7 +258,7 @@ export class SourceManagerService {
    */
   public async deleteSource(sourceId: string): Promise<{ ok: boolean; error?: string }> {
     const config = this.store.getConfig();
-    const sourceIndex = config.sources?.findIndex((s) => s.id === sourceId);
+    const sourceIndex = config.sources?.findIndex((s: DataSource) => s.id === sourceId);
     if (sourceIndex === undefined || sourceIndex === -1) {
       return { ok: false, error: `Zdroj s ID "${sourceId}" nebyl nalezen.` };
     }

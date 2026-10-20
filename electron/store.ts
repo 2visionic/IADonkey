@@ -96,6 +96,7 @@ const DEFAULT_CONFIG: AppConfig = {
     url: '',
     userColumn: '',
     unassignedColumn: '',
+    authorFilter: '',
     pollIntervalMinutes: 2,
     notifyNewTasks: true,
     notifyCompletedTasks: true,

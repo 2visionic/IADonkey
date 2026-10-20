@@ -353,7 +353,10 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
   const [filterTrigger, setFilterTrigger] = useState<number>(0);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [selectedAuthorFilter, setSelectedAuthorFilter] = useState<string | null>(null);
+  const [selectedAuthorFilter, setSelectedAuthorFilter] = useState<string | null>(() => {
+    const saved = config.magicplan?.authorFilter?.trim();
+    return saved ? saved : null;
+  });
   const [authorMenuState, setAuthorMenuState] = useState<{ top: number; right: number } | null>(null);
   const authorMenuRef = useRef<HTMLDivElement>(null);
   const authorButtonRef = useRef<HTMLButtonElement>(null);
@@ -636,6 +639,43 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
     }
   }, [config.magicplan?.showAllTasks, currentConfig?.magicplan?.showAllTasks]);
 
+  // Sync selectedAuthorFilter whenever authorFilter in config changes (e.g. from Settings modal)
+  useEffect(() => {
+    const activeCfg = currentConfig || config;
+    const saved = activeCfg.magicplan?.authorFilter?.trim() || null;
+    setSelectedAuthorFilter(saved);
+  }, [config.magicplan?.authorFilter, currentConfig?.magicplan?.authorFilter]);
+
+  const handleUpdateAuthorFilter = useCallback(
+    async (newAuthor: string | null) => {
+      const normalized = newAuthor?.trim() || null;
+      setSelectedAuthorFilter(normalized);
+      let baseConfig = currentConfig || config;
+      if (window.electronAPI?.getConfig) {
+        try {
+          baseConfig = await window.electronAPI.getConfig();
+        } catch {
+          // fallback to state
+        }
+      }
+      const updatedConfig: AppConfig = {
+        ...baseConfig,
+        magicplan: {
+          ...baseConfig.magicplan,
+          authorFilter: normalized || '',
+        },
+      };
+      setCurrentConfig(updatedConfig);
+      if (onSaveConfig) {
+        onSaveConfig(updatedConfig);
+      }
+      if (window.electronAPI?.saveConfig) {
+        await window.electronAPI.saveConfig(updatedConfig);
+      }
+    },
+    [currentConfig, config, onSaveConfig]
+  );
+
   // Handle initial filter passed via URL query params on mount
   useEffect(() => {
     try {
@@ -799,6 +839,13 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
       }
     }
 
+    if (
+      selectedAuthorFilter &&
+      !Array.from(authorCounts.keys()).some((k) => k.toLowerCase() === selectedAuthorFilter.toLowerCase())
+    ) {
+      authorCounts.set(selectedAuthorFilter, 0);
+    }
+
     const list = Array.from(authorCounts.entries()).map(([code, count]) => {
       const p = availablePersons.find(
         (x) =>
@@ -821,7 +868,7 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
     });
 
     return list.sort((a, b) => a.displayName.localeCompare(b.displayName, 'cs'));
-  }, [data, availablePersons]);
+  }, [data, availablePersons, selectedAuthorFilter]);
 
   // Filtering by search query & author filter
   const filteredMyTasks = useMemo(() => {
@@ -1165,7 +1212,7 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
                           key={author.code}
                           type="button"
                           onClick={() => {
-                            setSelectedAuthorFilter(author.code);
+                            handleUpdateAuthorFilter(author.code);
                             setAuthorMenuState(null);
                           }}
                           className={`w-full flex items-center justify-between px-3.5 py-2 text-left transition cursor-pointer ${
@@ -1197,7 +1244,7 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedAuthorFilter(null);
+                      handleUpdateAuthorFilter(null);
                       setAuthorMenuState(null);
                     }}
                     className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left transition cursor-pointer ${

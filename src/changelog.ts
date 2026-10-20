@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.19';
+export const CURRENT_APP_VERSION = '2.1.20';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,19 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.20',
+    date: '20. 10. 2026',
+    title: 'Zadavatel a dovolené v MagicPlanu, zachování stavu Spotlightu, vylepšení nástrojů obrazovky, MagicGate domény a Feedback',
+    highlights: [
+      'Spotlight – Zachování rozpracovaného stavu a plynulý reset po dokončení akce: Zavření okna Spotlightu mimo finální akce zachová rozpracovaný stav (např. uprostřed průvodce či vyhledávání), zatímco po otevření odkazu nebo zkopírování do schránky se stav plynule vyresetuje před skrytím okna bez probliknutí při dalším vyvolání.',
+      'Nástroje obrazovky (QuickCap, ColorMaster, ScreenRuler) – Spolupráce s otevřeným Spotlightem: Při spuštění přes globální klávesovou zkratku zůstává otevřený Spotlight zachován a po dokončení výřezu v QuickCapu či výběru barvy v ColorMasteru se v něm rovnou zobrazí nabídka akcí.',
+      'MagicPlan – Výběr zadavatele v Nastavení, propojení s filtrem a chytré notifikace: V nastavení MagicPlanu lze zvolit výchozího zadavatele (obousměrně propojeného s filtrem v okně plánu). Pokud není v plánu označena osoba „To jsem já“ a je aktivní filtr na zadavatele, zobrazují se upozornění pouze na úkoly od tohoto zadavatele.',
+      'MagicPlan – Detekce dovolené (Vacation) v denní časové ose: Doplněno rozpoznání bloků dovolené (.vacation / data-availability-type="Vacation") se započtením kapacity 1 blok = 1 hodina stejně jako u nedostupnosti.',
+      'MagicGate – Upřednostnění veřejných klientských domén a párování pomlček: Ostré klientské domény mají při řazení vždy přednost před technickými subdoménami (.iscontent.cz, .magicware.cz) včetně automatického párování názvů instancí s pomlčkou v doméně.',
+      'Aktualizace & Zpětná vazba – Kontrola aktualizací každých 10 minut a spolehlivý fokus polí: Automatická kontrola nové verze na pozadí probíhá každých 10 minut i při odemčení PC (s jednorázovou notifikací pro danou verzi) a v okně Zpětné vazby bylo opraveno zamrzání kurzoru v textových polích.',
+    ],
+  },
   {
     version: '2.1.19',
     date: '18. 10. 2026',

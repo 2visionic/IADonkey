@@ -71,6 +71,82 @@ export const SOURCE_ITEM_WIZARD_DEFINITION: LauncherWizard = {
         { text: 'Hvězda (star)', value: 'star', icon: 'star', color: '#f97316' },
       ],
     },
+    {
+      id: 'optionsAction',
+      title: 'Podpoložky (options)',
+      placeholder: 'Zvolte uložení záznamu nebo správu jeho podpoložek (options)...',
+      icon: 'account_tree',
+      required: true,
+      type: 'select',
+      dynamicOption: 'source-item-options',
+    },
+  ],
+};
+
+export const SOURCE_SUBITEM_WIZARD_DEFINITION: LauncherWizard = {
+  action: 'savesourcesubitem',
+  steps: [
+    {
+      id: 'name',
+      title: 'Název podpoložky (option)',
+      placeholder: 'Zadejte název podpoložky (např. Template, Admin, Staging)...',
+      icon: 'edit',
+      required: true,
+      type: 'text',
+    },
+    {
+      id: 'action',
+      title: 'Typ akce podpoložky',
+      placeholder: 'Vyberte akci při spuštění podpoložky (šipky ↑/↓ a Enter)...',
+      icon: 'touch_app',
+      required: true,
+      type: 'select',
+      options: [
+        { text: 'Zkopírovat do schránky (kód / text)', value: 'copy', icon: 'content_copy', color: '#10b981', description: 'Vhodné pro code snippety, šablony a texty' },
+        { text: 'Otevřít odkaz nebo soubor', value: 'open', icon: 'open_in_new', color: '#0ea5e9', description: 'Otevře webovou adresu nebo spustí soubor na disku' },
+        { text: 'Otevřít ve VS Code', value: 'vscode', icon: 'code', color: '#38bdf8', description: 'Otevře složku nebo soubor ve Visual Studio Code' },
+      ],
+    },
+    {
+      id: 'location',
+      title: 'Obsah / Cíl / Odkaz podpoložky',
+      placeholder: 'Upravte obsah/URL nahoře nebo vyberte ze seznamu níže...',
+      icon: 'link',
+      required: true,
+      type: 'text',
+      dynamicOption: 'clipboard',
+    },
+    {
+      id: 'icon',
+      title: 'Ikona podpoložky',
+      placeholder: 'Zvolte ikonu podpoložky (nebo Ponechat výchozí)...',
+      icon: 'star',
+      required: false,
+      type: 'select',
+      options: [
+        { text: 'Kód (code)', value: 'code', icon: 'code', color: '#38bdf8' },
+        { text: 'Text / Šablona (description)', value: 'description', icon: 'description', color: '#a855f7' },
+        { text: 'Odkaz (link)', value: 'link', color: '#0ea5e9' },
+        { text: 'Terminál (terminal)', value: 'terminal', color: '#10b981' },
+        { text: 'Složka (folder)', value: 'folder', color: '#f59e0b' },
+        { text: 'Databáze (database)', value: 'database', color: '#ec4899' },
+        { text: 'Záložka (bookmark)', value: 'bookmark', icon: 'bookmark', color: '#eab308' },
+        { text: 'Hvězda (star)', value: 'star', icon: 'star', color: '#f97316' },
+      ],
+    },
+    {
+      id: 'afterSubitemAction',
+      title: 'Dokončení podpoložky',
+      placeholder: 'Co udělat po uložení podpoložky...',
+      icon: 'task_alt',
+      required: true,
+      type: 'select',
+      options: [
+        { text: 'Uložit a zobrazit podpoložky záznamu', value: 'browse-options', icon: 'account_tree', color: '#10b981', description: 'Vrátí se do seznamu podpoložek (options) tohoto záznamu' },
+        { text: 'Uložit a přidat další podpoložku...', value: 'add-another', icon: 'add', color: '#a855f7', description: 'Rovnou otevře průvodce pro přidání další podpoložky' },
+        { text: 'Uložit a vrátit se do výpisu zdroje', value: 'back-to-source', icon: 'arrow_back', color: '#38bdf8', description: 'Vrátí se na hlavní seznam položek zdroje' },
+      ],
+    },
   ],
 };
 
@@ -528,7 +604,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       setIsDonkeyToolsOpen(false);
       setIsRevealed(false);
       await new Promise((r) => setTimeout(r, 110));
-      await window.electronAPI?.resetAndHideSpotlight?.();
+      window.electronAPI?.hideWindow?.();
       await pickScreenColor();
     } catch (err) {
       console.error('Pick color error:', err);
@@ -546,7 +622,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       setIsDonkeyToolsOpen(false);
       setIsRevealed(false);
       await new Promise((r) => setTimeout(r, 110));
-      await window.electronAPI?.resetAndHideSpotlight?.();
+      window.electronAPI?.hideWindow?.();
       const startFn = window.electronAPI?.startQuickCap || window.electronAPI?.startFastSnap;
       if (startFn) {
         await startFn();
@@ -567,7 +643,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       setIsDonkeyToolsOpen(false);
       setIsRevealed(false);
       await new Promise((r) => setTimeout(r, 110));
-      await window.electronAPI?.resetAndHideSpotlight?.();
+      window.electronAPI?.hideWindow?.();
       if (window.electronAPI?.startScreenRuler) {
         await window.electronAPI.startScreenRuler();
       }
@@ -580,9 +656,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   // POUZE zavře okno, NIKDY neresetuje stav!
   const handleClose = () => {
     setIsRevealed(false);
-    setTimeout(() => {
-      window.electronAPI?.hideWindow?.();
-    }, 90);
+    window.electronAPI?.hideWindow?.();
   };
 
   const preWizardQueryRef = useRef<string | null>(null);
@@ -614,8 +688,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
   };
 
-  const exitWizard = () => {
+  const exitWizard = (overrideQuery?: string) => {
     const activeSourceId = wizardValues?.__sourceId;
+    const activeParentItem = wizardValues?.__parentItem;
     const savedQ = preWizardQueryRef.current;
     preWizardQueryRef.current = null;
     setIsDonkeyToolsOpen(false);
@@ -626,9 +701,15 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     setWizardDynamicOptions([]);
     setWizardError(null);
     setIsSubmittingWizard(false);
-    if (activeSourceId) {
+    if (overrideQuery !== undefined) {
+      setQuery(overrideQuery);
+    } else if (activeSourceId) {
       const src = sources.find((s) => s.id === activeSourceId);
-      setQuery(src ? `/source "${src.name}" ` : '/source ');
+      if (src && activeParentItem?.name) {
+        setQuery(`/source "${src.name}" "${activeParentItem.name}" options`);
+      } else {
+        setQuery(src ? `/source "${src.name}" ` : '/source ');
+      }
     } else if (savedQ && /^\/(?:source|sources|zdroj|zdroje)/i.test(savedQ.trimStart())) {
       setQuery('/source ');
     } else if (!query.trimStart().match(/^\/(?:source|sources|zdroj|zdroje)/i)) {
@@ -641,12 +722,68 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }, 50);
   };
 
-  const loadStepDynamicOptions = async (step?: WizardStep) => {
+  const loadStepDynamicOptions = async (step?: WizardStep, currentValues?: Record<string, any>) => {
     if (!step) return;
+    const vals = currentValues || wizardValues;
+    if (step.dynamicOption === 'source-item-options') {
+      const currentOptions: LauncherItem[] = Array.isArray(vals?.__options) ? vals.__options : [];
+      const opts: WizardOption[] = [
+        {
+          text:
+            currentOptions.length > 0
+              ? `Uložit záznam (ponechat podpoložky: ${currentOptions.length})`
+              : 'Uložit záznam (hotovo)',
+          value: 'save',
+          icon: 'check',
+          color: '#10b981',
+          description:
+            currentOptions.length > 0
+              ? `Uloží záznam se stávajícími podpoložkami (${currentOptions.length}) a vrátí se do zdroje`
+              : 'Uloží záznam a vrátí se do výpisu zdroje',
+        },
+        {
+          text: 'Uložit a přidat podpoložku (option)...',
+          value: 'save-and-add-option',
+          icon: 'add',
+          color: '#a855f7',
+          description: 'Uloží záznam a otevře průvodce pro vytvoření nové podpoložky v options: []',
+        },
+      ];
+      if (currentOptions.length > 0) {
+        opts.push({
+          text: `Uložit a procházet podpoložky (${currentOptions.length})`,
+          value: 'save-and-browse-options',
+          icon: 'account_tree',
+          color: '#38bdf8',
+          description: 'Uloží záznam a zobrazí seznam jeho podpoložek ve Spotlightu',
+        });
+        currentOptions.forEach((opt, optIdx) => {
+          const locPreview = (opt.location || '').trim().replace(/\s+/g, ' ').slice(0, 55);
+          opts.push({
+            text: `Upravit podpoložku: „${opt.name}“`,
+            value: `edit-option:${optIdx}`,
+            icon: 'edit',
+            color: '#f59e0b',
+            description: `${opt.action ? `[${opt.action}] ` : ''}${locPreview || '—'}`,
+          });
+          opts.push({
+            text: `Smazat podpoložku: „${opt.name}“`,
+            value: `delete-option:${optIdx}`,
+            icon: 'delete',
+            color: '#f43f5e',
+            description: 'Odstraní tuto podpoložku ze seznamu options: []',
+          });
+        });
+      }
+      setWizardDynamicOptions(opts);
+      return;
+    }
+
     if (step.dynamicOption === 'clipboard') {
       setIsWizardLoadingDynamic(true);
       try {
         const opts: WizardOption[] = [];
+        const existingVal = vals?.[step.id];
 
         // 0. If not required, put "Nevybráno" as the FIRST option
         if (!step.required) {
@@ -659,8 +796,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           });
         }
 
-        // 1. Current clipboard image if any
-        if (window.electronAPI?.getClipboardImage) {
+        // 1. Current clipboard image if any (only for image/screen steps)
+        if ((step.settings === 'screens' || step.settings === 'images') && window.electronAPI?.getClipboardImage) {
           const currentImg = await window.electronAPI.getClipboardImage();
           if (currentImg && currentImg.startsWith('data:image')) {
             opts.push({
@@ -673,8 +810,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           }
         }
 
-        // 2. EasyClip history images
-        if (window.electronAPI?.getEasyClipItems) {
+        // 2. EasyClip history images (only for image/screen steps)
+        if ((step.settings === 'screens' || step.settings === 'images') && window.electronAPI?.getEasyClipItems) {
           const easyClipItems = await window.electronAPI.getEasyClipItems();
           if (Array.isArray(easyClipItems)) {
             const imageItems = easyClipItems.filter((it) => it && it.type === 'image' && (it.filePath || it.dataUrl));
@@ -710,16 +847,31 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             }
           } catch {}
 
+          // If editing an existing record with existing text/location, put the original value FIRST
+          if (typeof existingVal === 'string' && existingVal.length > 0) {
+            const cleanPreview = existingVal.trim().replace(/\s+/g, ' ').slice(0, 60);
+            opts.unshift({
+              text: `Ponechat původní obsah: „${cleanPreview}${existingVal.trim().length > 60 ? '…' : ''}“`,
+              value: existingVal,
+              icon: 'history_edu',
+              color: '#a855f7',
+              description: existingVal.includes('\n')
+                ? `Stávající víceřádkový obsah (${existingVal.split(/\r?\n/).length} řádků, ${existingVal.length} znaků)`
+                : `Stávající hodnota (${existingVal.length} znaků)`,
+            });
+          }
+
           if (window.electronAPI?.getEasyClipItems) {
             const easyClipItems = await window.electronAPI.getEasyClipItems();
             if (Array.isArray(easyClipItems)) {
-              const textItems = easyClipItems.filter((it) => it && it.type === 'text' && it.content?.trim());
+              const textItems = easyClipItems.filter((it) => it && it.type === 'text' && it.text?.trim());
               textItems.slice(0, 5).forEach((it) => {
-                const preview = it.content.trim().replace(/\s+/g, ' ').slice(0, 45);
-                if (opts.some((o) => o.value === it.content)) return;
+                const textContent = it.text || '';
+                const preview = textContent.trim().replace(/\s+/g, ' ').slice(0, 45);
+                if (opts.some((o) => o.value === textContent)) return;
                 opts.push({
                   text: `Text z EasyClipu: „${preview}“`,
-                  value: it.content,
+                  value: textContent,
                   icon: 'history',
                   color: '#0ea5e9',
                   description: new Date(it.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -777,10 +929,36 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
   };
 
+  const applyStepInputAndSelection = (step: WizardStep, values: Record<string, any>) => {
+    const existingVal = values[step.id];
+    if (step.type === 'text' && step.dynamicOption === 'clipboard') {
+      if (typeof existingVal === 'string' && existingVal.length > 0) {
+        setQuery(existingVal.replace(/\r?\n/g, ' ↵ '));
+      } else {
+        setQuery('');
+      }
+      setWizardSelectedOptionIndex(0);
+    } else if (typeof existingVal === 'string' && !step.options && !step.dynamicOption) {
+      setQuery(existingVal);
+      setWizardSelectedOptionIndex(0);
+    } else {
+      setQuery('');
+      if (step.options && existingVal !== undefined) {
+        const matchIdx = step.options.findIndex((o) => o.value === existingVal);
+        setWizardSelectedOptionIndex(matchIdx >= 0 ? matchIdx : 0);
+      } else {
+        setWizardSelectedOptionIndex(0);
+      }
+    }
+    loadStepDynamicOptions(step, values);
+  };
+
   const startWizard = async (item: LauncherItem) => {
     if (!item?.wizard || !Array.isArray(item.wizard.steps) || item.wizard.steps.length === 0) return;
 
-    preWizardQueryRef.current = query;
+    if (!wizardItem) {
+      preWizardQueryRef.current = query;
+    }
     const initialValues: Record<string, any> = {
       ...((item as any).__wizardInitialValues || {}),
     };
@@ -799,19 +977,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     setWizardItem(item);
     setWizardStepIndex(0);
     setWizardValues(initialValues);
-    setWizardSelectedOptionIndex(0);
     setWizardError(null);
     setIsSubmittingWizard(false);
 
-    const firstStep = item.wizard.steps[0];
-    const firstVal = initialValues[firstStep.id];
-    if (typeof firstVal === 'string' && !firstStep.options && !firstStep.dynamicOption) {
-      setQuery(firstVal);
-    } else {
-      setQuery('');
-    }
-
-    loadStepDynamicOptions(item.wizard.steps[0]);
+    applyStepInputAndSelection(item.wizard.steps[0], initialValues);
     setTimeout(() => {
       inputRef.current?.focus();
     }, 50);
@@ -826,15 +995,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     if (targetIndex >= wizardItem.wizard.steps.length) return;
     setWizardStepIndex(targetIndex);
     const targetStep = wizardItem.wizard.steps[targetIndex];
-    const existingVal = wizardValues[targetStep.id];
-    if (typeof existingVal === 'string' && (!targetStep.options && !targetStep.dynamicOption)) {
-      setQuery(existingVal);
-    } else {
-      setQuery('');
-    }
-    setWizardSelectedOptionIndex(0);
     setWizardError(null);
-    loadStepDynamicOptions(targetStep);
+    applyStepInputAndSelection(targetStep, wizardValues);
     setTimeout(() => {
       inputRef.current?.focus();
     }, 50);
@@ -848,10 +1010,20 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     if (currentWizardStep.dynamicOption) {
       baseOptions = wizardDynamicOptions;
     } else {
-      baseOptions = currentWizardStep.options || [];
+      baseOptions = currentWizardStep.options ? [...currentWizardStep.options] : [];
+      const curVal = wizardValues[currentWizardStep.id];
+      if (typeof curVal === 'string' && curVal.trim() && !baseOptions.some((o) => o.value === curVal)) {
+        baseOptions.unshift({
+          text: `Původní hodnota (${curVal})`,
+          value: curVal,
+          icon: currentWizardStep.id === 'icon' ? curVal : 'check_circle',
+          color: '#a855f7',
+          description: 'Stávající nastavená hodnota',
+        });
+      }
     }
 
-    if (!currentWizardStep.required && baseOptions.length > 0) {
+    if (!currentWizardStep.required && baseOptions.length > 0 && currentWizardStep.type !== 'text') {
       const hasUnselected = baseOptions.some(
         (o) => o.value === null || o.value === '' || o.value === undefined
       );
@@ -870,7 +1042,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
 
     return baseOptions;
-  }, [currentWizardStep, wizardDynamicOptions]);
+  }, [currentWizardStep, wizardDynamicOptions, wizardValues]);
 
   const isWizardSelectStep = Boolean(
     currentWizardStep &&
@@ -881,6 +1053,26 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
   const filteredWizardOptions = useMemo<WizardOption[]>(() => {
     if (!currentWizardStep || !isWizardSelectStep) return [];
+    // Special case: text step with clipboard dynamic options (e.g. location / content)
+    // Typing in the input edits the text value rather than filtering out clipboard options!
+    if (currentWizardStep.type === 'text' && currentWizardStep.dynamicOption === 'clipboard') {
+      const rawTrim = query.trim();
+      const normalizedInput = query.replace(/ ↵ /g, '\n');
+      const existingVal = wizardValues[currentWizardStep.id];
+      const opts = [...currentWizardOptions];
+      if (rawTrim && normalizedInput !== existingVal) {
+        const cleanPreview = rawTrim.replace(/\s+/g, ' ').slice(0, 60);
+        opts.unshift({
+          text: `Použít zadaný obsah: „${cleanPreview}${rawTrim.length > 60 ? '…' : ''}“`,
+          value: normalizedInput,
+          icon: 'edit_note',
+          color: '#38bdf8',
+          description: 'Uložit text zadaný ve vstupním poli nahoře (Enter)',
+        });
+      }
+      return opts;
+    }
+
     const q = query.trim().toLowerCase();
     if (!q) return currentWizardOptions;
     const normQ = removeDiacritics(q);
@@ -889,7 +1081,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       const normDesc = opt.description ? removeDiacritics(opt.description.toLowerCase()) : '';
       return normText.includes(normQ) || normDesc.includes(normQ);
     });
-  }, [currentWizardStep, isWizardSelectStep, currentWizardOptions, query]);
+  }, [currentWizardStep, isWizardSelectStep, currentWizardOptions, query, wizardValues]);
 
   const executeWizardAction = async (wizard: LauncherWizard, values: Record<string, any>) => {
     setIsSubmittingWizard(true);
@@ -999,12 +1191,25 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       } else if (wizard.action === 'savesourceitem') {
         const sourceId = values.__sourceId;
         const originalIndex = typeof values.__originalIndex === 'number' ? values.__originalIndex : undefined;
+        const optionsAction = String(values.optionsAction || 'save');
+        let itemOptions: LauncherItem[] | undefined = Array.isArray(values.__options)
+          ? [...values.__options]
+          : undefined;
+
+        if (optionsAction.startsWith('delete-option:') && itemOptions) {
+          const delIdx = Number(optionsAction.split(':')[1]);
+          if (!isNaN(delIdx) && delIdx >= 0 && delIdx < itemOptions.length) {
+            itemOptions.splice(delIdx, 1);
+          }
+        }
+
         const itemToSave: LauncherItem = {
           name: String(values.name || '').trim(),
           action: values.action || 'open',
           location: values.location ? String(values.location).trim() : null,
-          icon: values.icon || 'star',
+          icon: values.icon || 'code',
           priority: values.priority !== undefined ? Number(values.priority) : 0,
+          ...(itemOptions !== undefined ? { options: itemOptions } : {}),
         };
         if (!sourceId) {
           setWizardError('Chybí identifikátor cílového zdroje.');
@@ -1025,7 +1230,140 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             return;
           }
         }
-        exitWizard();
+
+        const src = sources.find((s) => s.id === sourceId);
+        const allSourceItems = items.filter((it) => it.sourceId === sourceId);
+        const effectiveParentIndex = typeof originalIndex === 'number' ? originalIndex : allSourceItems.length;
+
+        if (optionsAction === 'save-and-add-option') {
+          const subWizardItem: LauncherItem = {
+            name: `Přidat podpoložku do „${itemToSave.name}“`,
+            wizard: SOURCE_SUBITEM_WIZARD_DEFINITION,
+          };
+          (subWizardItem as any).__wizardInitialValues = {
+            __sourceId: sourceId,
+            __parentIndex: effectiveParentIndex,
+            __parentItem: { ...itemToSave, options: itemOptions || [] },
+            action: itemToSave.action || 'open',
+            icon: itemToSave.icon || 'code',
+            afterSubitemAction: 'browse-options',
+          };
+          startWizard(subWizardItem);
+          return;
+        }
+
+        if (optionsAction.startsWith('edit-option:')) {
+          const editOptIdx = Number(optionsAction.split(':')[1]);
+          const targetOpt = itemOptions?.[editOptIdx];
+          if (targetOpt) {
+            const subWizardItem: LauncherItem = {
+              name: `Upravit podpoložku „${targetOpt.name}“ (${itemToSave.name})`,
+              wizard: SOURCE_SUBITEM_WIZARD_DEFINITION,
+            };
+            (subWizardItem as any).__wizardInitialValues = {
+              __sourceId: sourceId,
+              __parentIndex: effectiveParentIndex,
+              __parentItem: { ...itemToSave, options: itemOptions || [] },
+              __optionIndex: editOptIdx,
+              name: targetOpt.name || '',
+              action: targetOpt.action || itemToSave.action || 'open',
+              location: targetOpt.location || '',
+              icon: targetOpt.icon || itemToSave.icon || 'code',
+              afterSubitemAction: 'browse-options',
+            };
+            startWizard(subWizardItem);
+            return;
+          }
+        }
+
+        if (optionsAction === 'save-and-browse-options' || optionsAction.startsWith('delete-option:')) {
+          exitWizard(src ? `/source "${src.name}" "${itemToSave.name}" options` : '/source ');
+          return;
+        }
+
+        exitWizard(src ? `/source "${src.name}" ` : '/source ');
+        return;
+      } else if (wizard.action === 'savesourcesubitem') {
+        const sourceId = values.__sourceId;
+        const parentIndex = typeof values.__parentIndex === 'number' ? values.__parentIndex : undefined;
+        const parentItem: LauncherItem | undefined = values.__parentItem;
+        const optionIndex = typeof values.__optionIndex === 'number' ? values.__optionIndex : undefined;
+        const afterAction = String(values.afterSubitemAction || 'browse-options');
+
+        if (!sourceId || !parentItem) {
+          setWizardError('Chybí identifikátor nadřazeného záznamu nebo zdroje.');
+          return;
+        }
+        const subName = String(values.name || '').trim();
+        if (!subName) {
+          setWizardError('Název podpoložky je povinný.');
+          return;
+        }
+
+        const curOptions: LauncherItem[] = Array.isArray(parentItem.options) ? [...parentItem.options] : [];
+        const existingOpt = typeof optionIndex === 'number' ? curOptions[optionIndex] : undefined;
+        const subitemToSave: LauncherItem = {
+          ...(existingOpt || { id: `opt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}` }),
+          name: subName,
+          action: values.action || 'open',
+          location: values.location ? String(values.location).trim() : null,
+          icon: values.icon || null,
+        };
+
+        if (typeof optionIndex === 'number' && optionIndex >= 0 && optionIndex < curOptions.length) {
+          curOptions[optionIndex] = subitemToSave;
+        } else {
+          curOptions.push(subitemToSave);
+        }
+
+        const updatedParent: LauncherItem = {
+          name: parentItem.name,
+          action: (parentItem as any).__originalAction || parentItem.action || 'open',
+          location:
+            (parentItem as any).__originalLocation !== undefined
+              ? (parentItem as any).__originalLocation
+              : (parentItem.location || null),
+          icon: parentItem.icon || 'code',
+          priority: parentItem.priority !== undefined ? Number(parentItem.priority) : 0,
+          options: curOptions,
+        };
+
+        if (window.electronAPI?.saveSourceItem) {
+          const res = await window.electronAPI.saveSourceItem({
+            sourceId,
+            item: updatedParent,
+            originalIndex: parentIndex,
+          });
+          if (!res?.ok) {
+            setWizardError(res?.error || 'Uložení podpoložky selhalo.');
+            return;
+          }
+        }
+
+        const src = sources.find((s) => s.id === sourceId);
+        if (afterAction === 'add-another') {
+          const nextSubWizard: LauncherItem = {
+            name: `Přidat podpoložku do „${updatedParent.name}“`,
+            wizard: SOURCE_SUBITEM_WIZARD_DEFINITION,
+          };
+          (nextSubWizard as any).__wizardInitialValues = {
+            __sourceId: sourceId,
+            __parentIndex: parentIndex,
+            __parentItem: updatedParent,
+            action: updatedParent.action || 'open',
+            icon: updatedParent.icon || 'code',
+            afterSubitemAction: 'browse-options',
+          };
+          startWizard(nextSubWizard);
+          return;
+        }
+
+        if (afterAction === 'back-to-source') {
+          exitWizard(src ? `/source "${src.name}" ` : '/source ');
+          return;
+        }
+
+        exitWizard(src ? `/source "${src.name}" "${updatedParent.name}" options` : '/source ');
         return;
       } else if (wizard.action === 'createsource') {
         const type = values.type || 'file';
@@ -1082,6 +1420,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         const option = filteredWizardOptions[wizardSelectedOptionIndex] || filteredWizardOptions[0];
         if (option) {
           chosenValue = option.value;
+        } else if (currentWizardStep.type === 'text' && query.trim()) {
+          chosenValue = query.replace(/ ↵ /g, '\n');
         } else if (!currentWizardStep.required) {
           chosenValue = null;
         } else {
@@ -1102,7 +1442,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           }
           chosenValue = sanitized;
         } else {
-          chosenValue = textVal || null;
+          chosenValue = textVal ? query.replace(/ ↵ /g, '\n') : null;
         }
       }
     }
@@ -1120,14 +1460,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       const nextIdx = wizardStepIndex + 1;
       setWizardStepIndex(nextIdx);
       const nextStep = wizardItem.wizard.steps[nextIdx];
-      const existingVal = updatedValues[nextStep.id];
-      if (typeof existingVal === 'string' && (!nextStep.options && !nextStep.dynamicOption)) {
-        setQuery(existingVal);
-      } else {
-        setQuery('');
-      }
-      setWizardSelectedOptionIndex(0);
-      loadStepDynamicOptions(nextStep);
+      applyStepInputAndSelection(nextStep, updatedValues);
       setTimeout(() => {
         inputRef.current?.focus();
       }, 50);
@@ -1227,15 +1560,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       const isDevActive =
         typeof localStorage !== 'undefined' && localStorage.getItem('iadonkey_develop_mode') === 'true';
       const mode = requestedMode === 'dev' && !isDevActive ? 'user' : requestedMode;
+      setIsDonkeyToolsOpen(false);
+      setIsRevealed(false);
+      await window.electronAPI?.resetAndHideSpotlight?.();
       if (window.electronAPI?.openFeedbackWindow) {
         await window.electronAPI.openFeedbackWindow(mode);
       }
     } catch (err) {
       console.error('Failed to open Feedback window:', err);
-    } finally {
-      setIsDonkeyToolsOpen(false);
-      setIsRevealed(false);
-      await window.electronAPI?.resetAndHideSpotlight?.();
     }
   };
 
@@ -1521,6 +1853,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           isEyedropperRef.current = true;
           const parsed = parseColorQuery(data.color);
           const format = colorMasterConfig?.defaultFormat || 'hex';
+          setIsDonkeyToolsOpen(false);
+          setIsEasyClipMode(false);
+          setIsPaletteMode(false);
           setQuery(data.color);
           if (parsed) {
             const newItem = createColorLauncherItem(parsed, format);
@@ -1591,11 +1926,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             },
           ],
         };
-        setQuery('');
+        setIsDonkeyToolsOpen(false);
+        setIsEasyClipMode(false);
+        setIsPaletteMode(false);
         setActionsParentItem(item);
         setSelectedActionIndex(0);
         setIsRevealed(true);
         inputRef.current?.focus();
+        setTimeout(() => inputRef.current?.focus(), 50);
       });
       return () => unsub?.();
     }
@@ -1712,7 +2050,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       setIsAltDown(e.altKey);
     };
     const handleBlur = () => {
-      setIsRevealed(false);
       setIsShiftDown(false);
       setIsCtrlDown(false);
       setIsAltDown(false);
@@ -2587,10 +2924,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
       const addSourceItem: LauncherItem = {
         id: 'source-add-command',
-        name: '➕ Přidat nový zdroj...',
+        name: 'Přidat nový zdroj...',
         location: 'Spustit průvodce pro vytvoření nového lokálního, statického nebo API zdroje',
         action: 'create-source-wizard',
-        icon: 'add_circle',
+        icon: 'add',
         priority: 9999,
         sourceId: 'source-manager',
         wizard: SOURCE_CREATE_WIZARD_DEFINITION,
@@ -2725,7 +3062,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         return [
           {
             id: `delete-source-confirm-${matchedSource.id}`,
-            name: `🗑️ Smazat zdroj dat „${matchedSource.name}“?`,
+            name: `Smazat zdroj dat „${matchedSource.name}“?`,
             location: `Stiskněte Enter pro potvrzení odstranění zdroje (${matchedSource.type})`,
             action: 'delete-source-confirmed',
             icon: 'delete_forever',
@@ -2737,20 +3074,24 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
       // 3b. /source "<source>" add
       const isReadOnlyApi = matchedSource.type === 'api';
+      const sharedParams = matchedSource.type === 'static' ? (matchedSource as StaticSource).sharedParams : undefined;
       const addItemToSourceCard: LauncherItem = {
         id: `add-item-to-${matchedSource.id}`,
-        name: `➕ Přidat záznam do zdroje „${matchedSource.name}“...`,
+        name: `Přidat záznam do zdroje „${matchedSource.name}“...`,
         location: isReadOnlyApi
           ? 'API zdroje jsou pouze pro čtení – záznamy nelze přidávat'
           : `Spustit průvodce pro vytvoření nového záznamu ve zdroji ${matchedSource.name}`,
         action: isReadOnlyApi ? 'none' : 'add-source-item-wizard',
-        icon: isReadOnlyApi ? 'block' : 'add_circle',
+        icon: isReadOnlyApi ? 'block' : 'add',
         priority: 9999,
         sourceId: 'source-manager',
         wizard: isReadOnlyApi ? undefined : SOURCE_ITEM_WIZARD_DEFINITION,
       };
       (addItemToSourceCard as any).__wizardInitialValues = {
         __sourceId: matchedSource.id,
+        action: sharedParams?.action || 'open',
+        icon: sharedParams?.icon || 'code',
+        optionsAction: 'save',
       };
 
       if (queryRemainder.toLowerCase() === 'add') {
@@ -2761,11 +3102,105 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       const allSourceItems = items.filter((it) => it.sourceId === matchedSource!.id);
       let sourceItems = allSourceItems;
 
-      // Direct item subcommands: /source "<source>" <item> delete | /source "<source>" <item> edit
+      // Direct item subcommands: /source "<source>" <item> delete | edit | options
       if (!isReadOnlyApi && queryRemainder) {
+        const itemOptionsMatch = queryRemainder.match(/^(.*?)\s+(?:options|podpolozky|subitems)(?:\s+(.*))?$/i);
+        if (itemOptionsMatch) {
+          const itemTarget = itemOptionsMatch[1].trim().replace(/^"([^"]+)"$/, '$1');
+          const subFilter = (itemOptionsMatch[2] || '').trim();
+          const targetItem = allSourceItems.find(
+            (it) =>
+              removeDiacritics(it.name || '').toLowerCase() === removeDiacritics(itemTarget).toLowerCase() ||
+              removeDiacritics(it.name || '').toLowerCase().includes(removeDiacritics(itemTarget).toLowerCase())
+          );
+          if (targetItem) {
+            const parentIdx = allSourceItems.findIndex((orig) => orig.name === targetItem.name);
+            const rawOpts: LauncherItem[] = Array.isArray(targetItem.options) ? targetItem.options : [];
+            const filteredOpts = subFilter
+              ? rawOpts.filter((o) => {
+                  const n = removeDiacritics(o.name || '').toLowerCase();
+                  const l = removeDiacritics(o.location || '').toLowerCase();
+                  const q = removeDiacritics(subFilter).toLowerCase();
+                  return n.includes(q) || l.includes(q);
+                })
+              : rawOpts;
+
+            const enhancedSubitems: LauncherItem[] = filteredOpts.map((opt) => {
+              const realOptIdx = rawOpts.findIndex((ro) => ro === opt || ro.name === opt.name);
+              const cleanOptLoc = (opt.location || '—').replace(/\r?\n/g, ' ↵ ');
+              const subActions: LauncherAction[] = [
+                {
+                  name: `Upravit podpoložku „${opt.name}“`,
+                  action: 'edit-source-subitem',
+                  icon: 'edit',
+                },
+                {
+                  name: `Smazat podpoložku „${opt.name}“`,
+                  action: 'delete-source-subitem',
+                  icon: 'delete',
+                },
+                {
+                  name: opt.action === 'copy' ? 'Zkopírovat obsah do schránky' : 'Otevřít podpoložku',
+                  action: opt.action || 'open',
+                  location: opt.location || opt.name,
+                  icon: opt.action === 'copy' ? 'content_copy' : 'open_in_new',
+                },
+              ];
+
+              const subEditCard: LauncherItem = {
+                ...opt,
+                icon: opt.icon?.trim() ? opt.icon : (targetItem.icon || 'subdirectory_arrow_right'),
+                location: `${opt.action ? `[${opt.action}] ` : ''}${cleanOptLoc} • Enter: Upravit, Ctrl+Enter: Spustit, Shift+Enter: Akce`,
+                action: 'edit-source-subitem',
+                sourceId: matchedSource.id,
+                wizard: SOURCE_SUBITEM_WIZARD_DEFINITION,
+                actions: subActions,
+              };
+              (subEditCard as any).__originalAction = opt.action || targetItem.action || 'open';
+              (subEditCard as any).__originalLocation = opt.location || '';
+              (subEditCard as any).__parentIndex = parentIdx;
+              (subEditCard as any).__parentItem = targetItem;
+              (subEditCard as any).__optionIndex = realOptIdx >= 0 ? realOptIdx : 0;
+              (subEditCard as any).__wizardInitialValues = {
+                __sourceId: matchedSource.id,
+                __parentIndex: parentIdx >= 0 ? parentIdx : undefined,
+                __parentItem: targetItem,
+                __optionIndex: realOptIdx >= 0 ? realOptIdx : 0,
+                name: opt.name || '',
+                action: opt.action || targetItem.action || 'open',
+                location: opt.location || '',
+                icon: opt.icon || targetItem.icon || 'code',
+                afterSubitemAction: 'browse-options',
+              };
+              return subEditCard;
+            });
+
+            const addSubitemCard: LauncherItem = {
+              id: `add-subitem-to-${targetItem.id || targetItem.name}`,
+              name: `Přidat podpoložku do „${targetItem.name}“...`,
+              location: `Spustit průvodce vytvořením nové podpoložky (options) v záznamu ${targetItem.name}`,
+              action: 'add-source-subitem-wizard',
+              icon: 'add',
+              priority: 9999,
+              sourceId: 'source-manager',
+              wizard: SOURCE_SUBITEM_WIZARD_DEFINITION,
+            };
+            (addSubitemCard as any).__wizardInitialValues = {
+              __sourceId: matchedSource.id,
+              __parentIndex: parentIdx >= 0 ? parentIdx : undefined,
+              __parentItem: targetItem,
+              action: targetItem.action || sharedParams?.action || 'open',
+              icon: targetItem.icon || sharedParams?.icon || 'code',
+              afterSubitemAction: 'browse-options',
+            };
+
+            return [...enhancedSubitems, addSubitemCard];
+          }
+        }
+
         const itemDeleteMatch = queryRemainder.match(/^(.*?)\s+(?:delete|smazat|remove)$/i);
         if (itemDeleteMatch) {
-          const itemTarget = itemDeleteMatch[1].trim();
+          const itemTarget = itemDeleteMatch[1].trim().replace(/^"([^"]+)"$/, '$1');
           const targetItem = sourceItems.find(
             (it) =>
               removeDiacritics(it.name || '').toLowerCase() === removeDiacritics(itemTarget).toLowerCase() ||
@@ -2775,7 +3210,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             return [
               {
                 id: `delete-source-item-confirm-${targetItem.id || targetItem.name}`,
-                name: `🗑️ Smazat záznam „${targetItem.name}“ ze zdroje „${matchedSource.name}“?`,
+                name: `Smazat záznam „${targetItem.name}“ ze zdroje „${matchedSource.name}“?`,
                 location: 'Stiskněte Enter pro potvrzení trvalého odstranění záznamu ze zdroje',
                 action: 'delete-source-item-confirmed',
                 icon: 'delete_forever',
@@ -2792,7 +3227,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
         const itemEditMatch = queryRemainder.match(/^(.*?)\s+(?:edit|upravit)$/i);
         if (itemEditMatch) {
-          const itemTarget = itemEditMatch[1].trim();
+          const itemTarget = itemEditMatch[1].trim().replace(/^"([^"]+)"$/, '$1');
           const targetItem = sourceItems.find(
             (it) =>
               removeDiacritics(it.name || '').toLowerCase() === removeDiacritics(itemTarget).toLowerCase() ||
@@ -2802,7 +3237,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             const origIdx = allSourceItems.findIndex((orig) => orig.name === targetItem.name);
             const editItemCard: LauncherItem = {
               id: `edit-item-${targetItem.id || targetItem.name}`,
-              name: `✏️ Upravit záznam „${targetItem.name}“ (${matchedSource.name})`,
+              name: `Upravit záznam „${targetItem.name}“ (${matchedSource.name})`,
               location: 'Stiskněte Enter pro spuštění průvodce úpravou záznamu',
               action: 'edit-source-item',
               icon: 'edit',
@@ -2816,8 +3251,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               name: targetItem.name,
               action: (targetItem as any).__originalAction || targetItem.action || 'open',
               location: (targetItem as any).__originalLocation !== undefined ? (targetItem as any).__originalLocation : (targetItem.location || ''),
-              icon: targetItem.icon || 'star',
+              icon: targetItem.icon || 'code',
               priority: targetItem.priority !== undefined ? targetItem.priority : 0,
+              __options: targetItem.options || [],
+              optionsAction: 'save',
             };
             return [editItemCard];
           }
@@ -2833,17 +3270,28 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         });
       }
 
-      // Enhance source items with edit/delete actions if not API
+      // Enhance source items with edit/delete/options actions if not API
       const enhancedItems: LauncherItem[] = sourceItems.map((it, idx) => {
         if (isReadOnlyApi) {
           return it;
         }
         const origIdx = allSourceItems.findIndex((orig) => orig.name === it.name);
+        const optCount = Array.isArray(it.options) ? it.options.length : 0;
         const itemActions: LauncherAction[] = [
           {
             name: `Upravit záznam „${it.name}“`,
             action: 'edit-source-item',
             icon: 'edit',
+          },
+          {
+            name: `Podpoložky (options: ${optCount}) – procházet a upravovat`,
+            action: 'browse-source-item-options',
+            icon: 'account_tree',
+          },
+          {
+            name: `Přidat podpoložku (option) do „${it.name}“`,
+            action: 'add-source-item-option',
+            icon: 'add',
           },
           {
             name: `Smazat záznam „${it.name}“`,
@@ -2869,23 +3317,27 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           });
         }
 
+        const cleanLoc = (it.location || '—').replace(/\r?\n/g, ' ↵ ');
         const editCard: LauncherItem = {
           ...it,
-          location: `${it.action ? `[${it.action}] ` : ''}${it.location || '—'} • Enter: Upravit, Ctrl+Enter: Spustit, Shift+Enter: Akce`,
+          location: `${it.action ? `[${it.action}] ` : ''}${cleanLoc}${optCount > 0 ? ` • Podpoložky: ${optCount}` : ''} • Enter: Upravit, Alt+Enter: Podpoložky, Shift+Enter: Akce`,
           action: 'edit-source-item',
           wizard: SOURCE_ITEM_WIZARD_DEFINITION,
           actions: itemActions,
         };
         (editCard as any).__originalAction = it.action || 'open';
         (editCard as any).__originalLocation = it.location || '';
+        (editCard as any).__originalOptions = it.options || [];
         (editCard as any).__wizardInitialValues = {
           __sourceId: matchedSource!.id,
           __originalIndex: origIdx >= 0 ? origIdx : idx,
           name: it.name,
           action: it.action || 'open',
           location: it.location || '',
-          icon: it.icon || 'star',
+          icon: it.icon || 'code',
           priority: it.priority !== undefined ? it.priority : 0,
+          __options: it.options || [],
+          optionsAction: 'save',
         };
         return editCard;
       });
@@ -3832,7 +4284,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       return;
     }
 
-    if (item.action === 'edit-source-item') {
+    if (item.action === 'edit-source-item' || item.action === 'edit-source-subitem') {
       if (item.wizard && (item as any).__wizardInitialValues) {
         startWizard(item);
         return;
@@ -3850,8 +4302,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         name: item.name,
         action: (item as any).__originalAction || item.action || 'open',
         location: (item as any).__originalLocation !== undefined ? (item as any).__originalLocation : (item.location || ''),
-        icon: item.icon || 'star',
+        icon: item.icon || 'code',
         priority: item.priority !== undefined ? item.priority : 0,
+        __options: (item as any).__originalOptions || item.options || [],
+        optionsAction: 'save',
       };
       startWizard(wizardItem);
       return;
@@ -3883,7 +4337,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           isLocal: item.id?.startsWith('ssms-db-local-'),
         });
       }
-      handleClose();
+      resetSpotlightState();
       return;
     }
 
@@ -3893,30 +4347,26 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
 
     if (item.action === 'pick-color') {
+      if (query.trim().startsWith('/')) {
+        setQuery('');
+      }
       await handlePickColor();
       return;
     }
 
     if (item.action === 'quickcap' || item.action === 'fastsnap') {
-      setIsDonkeyToolsOpen(false);
-      setIsRevealed(false);
-      await new Promise((r) => setTimeout(r, 110));
-      await window.electronAPI?.resetAndHideSpotlight?.();
-      const startFn = window.electronAPI?.startQuickCap || window.electronAPI?.startFastSnap;
-      if (startFn) {
-        await startFn();
+      if (query.trim().startsWith('/')) {
+        setQuery('');
       }
+      await handleStartQuickCap();
       return;
     }
 
     if (item.action === 'screenruler') {
-      setIsDonkeyToolsOpen(false);
-      setIsRevealed(false);
-      await new Promise((r) => setTimeout(r, 110));
-      await window.electronAPI?.resetAndHideSpotlight?.();
-      if (window.electronAPI?.startScreenRuler) {
-        await window.electronAPI.startScreenRuler();
+      if (query.trim().startsWith('/')) {
+        setQuery('');
       }
+      await handleStartScreenRuler();
       return;
     }
 
@@ -3962,11 +4412,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       const format = colorMasterConfig?.defaultFormat || 'hex';
       const parsed = parseColorQuery(item.colorPreview);
       const toCopy = parsed ? formatColorValue(parsed, format) : item.colorPreview;
+      resetSpotlightState();
       if (window.electronAPI) {
         try {
           await window.electronAPI.executeAction({
             action: 'copy',
             location: toCopy,
+            skipHide: true,
           });
         } catch (err) {
           console.error('Clipboard copy error via electronAPI:', err);
@@ -3974,7 +4426,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       } else {
         await navigator.clipboard.writeText(toCopy);
       }
-      handleClose();
       return;
     }
 
@@ -3986,9 +4437,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           ? item.name
           : (item.location || item.name);
       const isSnippet = item.sourceId === 'snippet';
-      if (isSnippet) {
-        resetSpotlightState();
-      }
+      resetSpotlightState();
       if (window.electronAPI) {
         try {
           await window.electronAPI.executeAction({
@@ -3997,7 +4446,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             settings: item.settings,
             sourceId: item.sourceId,
             autoPaste: isSnippet,
-            preserveSpotlight: isSourceCommandMode,
+            skipHide: true,
           });
         } catch (err) {
           console.error('Clipboard copy error via electronAPI:', err);
@@ -4009,14 +4458,12 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           console.error('Clipboard copy error:', err);
         }
       }
-      if (!isSnippet && !isSourceCommandMode) {
-        handleClose();
-      }
       return;
     }
 
     // Default action is 'open'
     const target = item.location || item.name;
+    resetSpotlightState();
     if (target) {
       const trimmed = target.trim();
       const isUrl = /^https?:\/\//i.test(trimmed) || /^(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/i.test(trimmed);
@@ -4050,6 +4497,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             action: item.action || 'open',
             location: trimmed,
             settings: item.settings,
+            skipHide: true,
           });
         } catch (err) {
           console.error('Failed to execute action via electronAPI:', err);
@@ -4058,10 +4506,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         const fullUrl = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
         window.open(fullUrl, '_blank');
       }
-    }
-
-    if (!isSourceCommandMode) {
-      handleClose();
     }
   };
 
@@ -4082,7 +4526,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
     if (actionType === 'close') {
       exitActions();
-      resetSpotlightState();
+      if (!wizardItem) {
+        resetSpotlightState();
+      }
       return;
     }
 
@@ -4102,7 +4548,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           isLocal: parent.id?.startsWith('ssms-db-local-'),
         });
       }
-      handleClose();
+      resetSpotlightState();
       return;
     }
 
@@ -4168,23 +4614,21 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
 
     if (actionType === 'copy') {
+      exitActions();
+      resetSpotlightState();
       if (window.electronAPI) {
         try {
           await window.electronAPI.executeAction({
             action: 'copy',
             location: effectiveLocation,
             settings: effectiveSettings,
-            preserveSpotlight: isSourceCommandMode,
+            skipHide: true,
           });
         } catch (err) {
           console.error('Clipboard copy error via electronAPI:', err);
         }
       } else {
         await navigator.clipboard.writeText(effectiveLocation);
-      }
-      exitActions();
-      if (!isSourceCommandMode) {
-        handleClose();
       }
       return;
     }
@@ -4195,7 +4639,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         window.electronAPI.openInVscode(effectiveLocation);
       }
       setTimeout(() => {
-        handleClose();
+        resetSpotlightState();
       }, 60);
       return;
     }
@@ -4206,7 +4650,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         window.electronAPI.openInAndroidStudio(effectiveLocation);
       }
       setTimeout(() => {
-        handleClose();
+        resetSpotlightState();
       }, 60);
       return;
     }
@@ -4218,7 +4662,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         await window.electronAPI.saveConfig({ ...cfg, primaryColor: effectiveLocation });
       }
       exitActions();
-      handleClose();
+      resetSpotlightState();
       return;
     }
 
@@ -4229,60 +4673,62 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         await window.electronAPI.saveConfig({ ...cfg, actionsColor: effectiveLocation });
       }
       exitActions();
-      handleClose();
+      resetSpotlightState();
       return;
     }
 
     if (actionType === 'edit-quickcap') {
       exitActions();
+      resetSpotlightState();
       if (window.electronAPI?.openQuickCapEditor) {
         await window.electronAPI.openQuickCapEditor(effectiveLocation);
       }
-      handleClose();
       return;
     }
 
     if (actionType === 'open-paint') {
       exitActions();
+      resetSpotlightState();
       if (window.electronAPI) {
         await window.electronAPI.executeAction({
           action: 'open-paint',
           location: effectiveLocation,
+          skipHide: true,
         });
       }
-      handleClose();
       return;
     }
 
     if (actionType === 'show-in-folder') {
       exitActions();
+      resetSpotlightState();
       if (window.electronAPI) {
         await window.electronAPI.executeAction({
           action: 'show-in-folder',
           location: effectiveLocation,
+          skipHide: true,
         });
       }
-      handleClose();
       return;
     }
 
     if (actionType === 'magicplan') {
       exitActions();
-      handleClose();
+      resetSpotlightState();
       await openMagicPlan(effectiveLocation || undefined);
       return;
     }
 
     if (actionType === 'feedback-user') {
       exitActions();
-      handleClose();
+      resetSpotlightState();
       await openFeedback('user');
       return;
     }
 
     if (actionType === 'feedback-dev') {
       exitActions();
-      handleClose();
+      resetSpotlightState();
       await openFeedback('dev');
       return;
     }
@@ -4309,7 +4755,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       return;
     }
 
-    if (actionType === 'edit-source-item') {
+    if (actionType === 'edit-source-item' || actionType === 'edit-source-subitem') {
       exitActions();
       if (parent.wizard && (parent as any).__wizardInitialValues) {
         startWizard(parent);
@@ -4328,10 +4774,77 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         name: parent.name,
         action: (parent as any).__originalAction || parent.action || 'open',
         location: (parent as any).__originalLocation !== undefined ? (parent as any).__originalLocation : (parent.location || ''),
-        icon: parent.icon || 'star',
+        icon: parent.icon || 'code',
         priority: parent.priority !== undefined ? parent.priority : 0,
+        __options: (parent as any).__originalOptions || parent.options || [],
+        optionsAction: 'save',
       };
       startWizard(wizardItem);
+      return;
+    }
+
+    if (actionType === 'browse-source-item-options') {
+      exitActions();
+      const src = sources.find((s) => s.id === parent.sourceId);
+      if (src) {
+        setQuery(`/source "${src.name}" "${parent.name}" options`);
+        setSelectedIndex(0);
+        requestAnimationFrame(() => {
+          inputRef.current?.focus();
+        });
+      }
+      return;
+    }
+
+    if (actionType === 'add-source-item-option') {
+      exitActions();
+      const origIdx = items
+        .filter((orig) => orig.sourceId === parent.sourceId)
+        .findIndex((orig) => orig.name === parent.name);
+      const subWizardItem: LauncherItem = {
+        name: `Přidat podpoložku do „${parent.name}“`,
+        wizard: SOURCE_SUBITEM_WIZARD_DEFINITION,
+      };
+      (subWizardItem as any).__wizardInitialValues = {
+        __sourceId: parent.sourceId,
+        __parentIndex: origIdx >= 0 ? origIdx : undefined,
+        __parentItem: parent,
+        action: (parent as any).__originalAction || parent.action || 'open',
+        icon: parent.icon || 'code',
+        afterSubitemAction: 'browse-options',
+      };
+      startWizard(subWizardItem);
+      return;
+    }
+
+    if (actionType === 'delete-source-subitem') {
+      exitActions();
+      const sId = parent.sourceId;
+      const parentItemObj: LauncherItem | undefined = (parent as any).__parentItem;
+      const parentIdx: number | undefined = (parent as any).__parentIndex;
+      const optIdx: number | undefined = (parent as any).__optionIndex;
+      if (sId && parentItemObj && typeof optIdx === 'number' && window.confirm(`Opravdu chcete smazat podpoložku „${parent.name}“ ze záznamu „${parentItemObj.name}“?`)) {
+        const curOptions = Array.isArray(parentItemObj.options) ? [...parentItemObj.options] : [];
+        if (optIdx >= 0 && optIdx < curOptions.length) {
+          curOptions.splice(optIdx, 1);
+          const updatedParent: LauncherItem = {
+            name: parentItemObj.name,
+            action: (parentItemObj as any).__originalAction || parentItemObj.action || 'open',
+            location:
+              (parentItemObj as any).__originalLocation !== undefined
+                ? (parentItemObj as any).__originalLocation
+                : (parentItemObj.location || null),
+            icon: parentItemObj.icon || 'code',
+            priority: parentItemObj.priority !== undefined ? Number(parentItemObj.priority) : 0,
+            options: curOptions,
+          };
+          await window.electronAPI?.saveSourceItem?.({
+            sourceId: sId,
+            item: updatedParent,
+            originalIndex: parentIdx,
+          });
+        }
+      }
       return;
     }
 
@@ -4368,13 +4881,54 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       });
     }
     exitActions();
-    if (!isSourceCommandMode) {
-      handleClose();
-    }
+    resetSpotlightState();
   };
 
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // If in actions mode (takes priority even if a wizard was open underneath)
+    if (actionsParentItem) {
+      const actionsList = getItemActions(actionsParentItem);
+      const allInfoEntries = Object.entries(actionsParentItem.info || {});
+      const totalInfoPages = Math.ceil(allInfoEntries.length / INFO_ITEMS_PER_PAGE);
+
+      if (e.key === 'ArrowRight') {
+        if (totalInfoPages > 1) {
+          e.preventDefault();
+          setInfoPage((prev) => (prev < totalInfoPages - 1 ? prev + 1 : prev));
+        }
+      } else if (e.key === 'ArrowLeft') {
+        if (totalInfoPages > 1) {
+          e.preventDefault();
+          setInfoPage((prev) => (prev > 0 ? prev - 1 : prev));
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedActionIndex((prev) => (actionsList.length > 0 ? (prev + 1) % actionsList.length : 0));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedActionIndex((prev) => (actionsList.length > 0 ? (prev - 1 + actionsList.length) % actionsList.length : 0));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const chosen = actionsList[selectedActionIndex];
+        if (chosen) {
+          handleExecuteAction(actionsParentItem, chosen);
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        if (isEyedropperRef.current) {
+          isEyedropperRef.current = false;
+          handleClose();
+        } else {
+          exitActions();
+        }
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        exitActions();
+      }
+      return;
+    }
+
     // 0. If in wizard mode
     if (wizardItem && currentWizardStep) {
       if (e.key === 'Escape') {
@@ -4427,49 +4981,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         return;
       }
 
-      return;
-    }
-
-    // If in actions mode
-    if (actionsParentItem) {
-      const actionsList = getItemActions(actionsParentItem);
-      const allInfoEntries = Object.entries(actionsParentItem.info || {});
-      const totalInfoPages = Math.ceil(allInfoEntries.length / INFO_ITEMS_PER_PAGE);
-
-      if (e.key === 'ArrowRight') {
-        if (totalInfoPages > 1) {
-          e.preventDefault();
-          setInfoPage((prev) => (prev < totalInfoPages - 1 ? prev + 1 : prev));
-        }
-      } else if (e.key === 'ArrowLeft') {
-        if (totalInfoPages > 1) {
-          e.preventDefault();
-          setInfoPage((prev) => (prev > 0 ? prev - 1 : prev));
-        }
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedActionIndex((prev) => (actionsList.length > 0 ? (prev + 1) % actionsList.length : 0));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedActionIndex((prev) => (actionsList.length > 0 ? (prev - 1 + actionsList.length) % actionsList.length : 0));
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        const chosen = actionsList[selectedActionIndex];
-        if (chosen) {
-          handleExecuteAction(actionsParentItem, chosen);
-        }
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        if (isEyedropperRef.current) {
-          isEyedropperRef.current = false;
-          handleClose();
-        } else {
-          exitActions();
-        }
-      } else if (e.key === 'Backspace') {
-        e.preventDefault();
-        exitActions();
-      }
       return;
     }
 
@@ -4706,10 +5217,15 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       return;
     }
 
-    // F2 -> Edit source item
+    // F2 -> Edit source item or subitem
     if (e.key === 'F2') {
       const currentItem = results[selectedIndex];
-      if (currentItem?.actions?.some((a) => a.action === 'edit-source-item') || currentItem?.action === 'edit-source-item') {
+      if (currentItem?.wizard && (currentItem as any).__wizardInitialValues) {
+        e.preventDefault();
+        startWizard(currentItem);
+        return;
+      }
+      if (currentItem?.actions?.some((a) => a.action === 'edit-source-item' || a.action === 'edit-source-subitem') || currentItem?.action === 'edit-source-item' || currentItem?.action === 'edit-source-subitem') {
         e.preventDefault();
         const origIdx = items.findIndex((orig) => orig.sourceId === currentItem.sourceId && orig.name === currentItem.name);
         const wizardItem: LauncherItem = {
@@ -4719,6 +5235,11 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         (wizardItem as any).__wizardInitialValues = {
           __sourceId: currentItem.sourceId,
           __originalIndex: origIdx >= 0 ? origIdx : undefined,
+          __options: Array.isArray((currentItem as any).__originalOptions)
+            ? (currentItem as any).__originalOptions
+            : Array.isArray(currentItem.options)
+            ? currentItem.options
+            : [],
           name: currentItem.name,
           action: (currentItem as any).__originalAction || currentItem.action || 'open',
           location: (currentItem as any).__originalLocation !== undefined ? (currentItem as any).__originalLocation : (currentItem.location || ''),
@@ -4730,7 +5251,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
     }
 
-    // Shift+Delete -> Delete source item
+    // Shift+Delete -> Delete source item or subitem
     if (e.key === 'Delete' && e.shiftKey) {
       const currentItem = results[selectedIndex];
       if (currentItem?.actions?.some((a) => a.action === 'delete-source-item')) {
@@ -4740,6 +5261,12 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             window.electronAPI.deleteSourceItem({ sourceId: currentItem.sourceId, itemName: currentItem.name });
           }
         }
+        return;
+      }
+      const delSubAct = currentItem?.actions?.find((a) => a.action === 'delete-source-subitem');
+      if (delSubAct) {
+        e.preventDefault();
+        handleExecuteAction(currentItem, delSubAct);
         return;
       }
     }
@@ -4820,7 +5347,15 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           handleExecute(currentItem.options[0]);
           return;
         }
-        const origAction = currentItem.actions?.find((a) => a.action !== 'edit-source-item' && a.action !== 'delete-source-item');
+        const origAction = currentItem.actions?.find(
+          (a) =>
+            a.action !== 'edit-source-item' &&
+            a.action !== 'delete-source-item' &&
+            a.action !== 'browse-source-item-options' &&
+            a.action !== 'add-source-item-option' &&
+            a.action !== 'edit-source-subitem' &&
+            a.action !== 'delete-source-subitem'
+        );
         if (origAction) {
           handleExecuteAction(currentItem, origAction);
           return;
@@ -4828,8 +5363,16 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         return;
       }
 
-      // 3. Alt + Enter -> Enter SUBITEMS navigation (old Shift+Enter behavior, 2nd subitem removed)
+      // 3. Alt + Enter -> Enter SUBITEMS navigation (or /source item options manager)
       if (e.altKey) {
+        if (currentItem.action === 'edit-source-item' && currentItem.sourceId) {
+          const src = sources.find((s) => s.id === currentItem.sourceId);
+          if (src) {
+            setQuery(`/source "${src.name}" "${currentItem.name}" options`);
+            setSelectedIndex(0);
+            return;
+          }
+        }
         if (currentItem.options && currentItem.options.length > 0) {
           enterSubitems(currentItem);
         }
@@ -4845,6 +5388,20 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       } else if (parentItem) {
         exitSubitems();
       } else {
+        // If inside `/source "<source>" "<item>" options`, step back to `/source "<source>" `
+        const sourceOptionsBackMatch = query.match(/^(\s*\/(?:source|sources|zdroj|zdroje)\s+"[^"]+"\s+).+\s+(?:options|subitems|podpolozky|podpoložky)\s*$/i);
+        if (sourceOptionsBackMatch) {
+          setQuery(sourceOptionsBackMatch[1]);
+          setSelectedIndex(0);
+          return;
+        }
+        // If inside `/source "<source>" ...`, step back to `/source `
+        const sourceItemsBackMatch = query.match(/^(\s*\/(?:source|sources|zdroj|zdroje)\s+).+$/i);
+        if (sourceItemsBackMatch) {
+          setQuery(sourceItemsBackMatch[1]);
+          setSelectedIndex(0);
+          return;
+        }
         resetSpotlightState();
       }
     }
@@ -4949,8 +5506,16 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       return;
     }
 
-    // 3. Alt + Click -> Enter SUBITEMS navigation
+    // 3. Alt + Click -> Enter SUBITEMS navigation (or /source item options manager)
     if (e.altKey) {
+      if (item.action === 'edit-source-item' && item.sourceId) {
+        const src = sources.find((s) => s.id === item.sourceId);
+        if (src) {
+          setQuery(`/source "${src.name}" "${item.name}" options`);
+          setSelectedIndex(0);
+          return;
+        }
+      }
       if (item.options && item.options.length > 0) {
         enterSubitems(item);
       }
@@ -4965,6 +5530,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   const renderSubtitle = (item: LauncherItem, isSelected: boolean) => {
     if (parentItem) {
       return <span className="text-gray-400 truncate">{item.location || item.name}</span>;
+    }
+    if (item.action === 'edit-source-item' || item.action === 'edit-source-subitem') {
+      return <span className="text-gray-400 truncate">{item.location || ''}</span>;
     }
     if (item.sourceId === 'snippet') {
       return (
@@ -5124,14 +5692,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         <div className="w-9 h-9 rounded-full bg-white/[0.05] shadow-sm flex items-center justify-center shrink-0">
           <span
             className={`material-symbols-outlined select-none text-[20px] transition-colors duration-150 ${
-              wizardItem
+              actionsParentItem
+                ? 'm3-actions-text'
+                : wizardItem
                 ? 'text-purple-400'
                 : isPaletteMode
                 ? 'text-rose-400'
                 : isEasyClipMode
                 ? 'text-rose-400'
-                : actionsParentItem
-                ? 'm3-actions-text'
                 : parentItem
                 ? 'm3-primary-text'
                 : isDbPrefix
@@ -5147,14 +5715,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 : 'text-gray-400'
             }`}
           >
-            {wizardItem
+            {actionsParentItem
+              ? 'bolt'
+              : wizardItem
               ? getWizardStepIcon(currentWizardStep || undefined, wizardItem.icon || undefined)
               : isPaletteMode
               ? 'palette'
               : isEasyClipMode
               ? 'content_paste'
-              : actionsParentItem
-              ? 'bolt'
               : parentItem
               ? 'subdirectory_arrow_right'
               : isDbPrefix
@@ -5190,7 +5758,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             }}
             onKeyDown={handleKeyDown}
             placeholder={
-              wizardItem
+              actionsParentItem
+                ? `Akce položky: „${actionsParentItem.name}“`
+                : wizardItem
                 ? currentWizardStep?.placeholder || `${currentWizardStep?.title || 'Zadejte hodnotu'}...`
                 : isPaletteMode
                 ? isCreatingPalette
@@ -5198,8 +5768,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                   : 'Hledat v barevných paletách...'
                 : isEasyClipMode
                 ? 'Hledat v historii schránky (EasyClip)...'
-                : actionsParentItem
-                ? `Akce položky: „${actionsParentItem.name}“`
                 : parentItem
                 ? `Hledat v podpoložkách „${parentItem.name}“...`
                 : isDbPrefix
@@ -5232,10 +5800,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             Tab ↹
           </button>
         )}
-        {wizardItem ? (
+        {wizardItem && !actionsParentItem ? (
           <div className="flex items-center gap-2">
             <button
-              onClick={exitWizard}
+              onClick={() => exitWizard()}
               className="w-8 h-8 rounded-full bg-white/[0.04] hover:bg-white/[0.09] text-gray-400 hover:text-white transition flex items-center justify-center cursor-pointer shrink-0"
               title="Ukončit průvodce (Esc)"
             >
@@ -5529,7 +6097,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       )}
 
       {/* Wizard (Stepper) Mode View */}
-      {wizardItem ? (
+      {wizardItem && !actionsParentItem ? (
         <>
           {/* Wizard Header & Stepper Progress Banner */}
           <div
@@ -5548,22 +6116,28 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               {/* Stepper circles */}
               <div className="flex items-center gap-1.5">
                 {wizardItem.wizard?.steps.map((st, sIdx) => {
+                  const isEditingExisting =
+                    wizardValues.__originalIndex !== undefined ||
+                    wizardValues.__optionIndex !== undefined;
                   const isPassed = sIdx < wizardStepIndex;
                   const isCurrent = sIdx === wizardStepIndex;
+                  const canJump = isPassed || isEditingExisting;
                   return (
                     <div
                       key={st.id}
                       onClick={(e) => {
-                        if (isPassed) {
+                        if (canJump) {
                           e.stopPropagation();
                           goToWizardStep(sIdx);
                         }
                       }}
                       className={`w-2.5 h-2.5 rounded-full transition-all duration-200 ${
-                        isPassed
-                          ? 'bg-emerald-500 cursor-pointer hover:bg-emerald-400 hover:scale-125 shadow-sm'
-                          : isCurrent
+                        isCurrent
                           ? 'bg-purple-500 shadow-sm ring-2 ring-purple-400/50 scale-125'
+                          : isPassed
+                          ? 'bg-emerald-500 cursor-pointer hover:bg-emerald-400 hover:scale-125 shadow-sm'
+                          : canJump
+                          ? 'bg-emerald-500/50 cursor-pointer hover:bg-emerald-400 hover:scale-125 shadow-sm'
                           : 'bg-white/20'
                       }`}
                       style={
@@ -5571,7 +6145,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                           ? { backgroundColor: 'var(--color-actions-hex, #a855f7)' }
                           : undefined
                       }
-                      title={`Krok ${sIdx + 1}: ${st.title} (${isPassed ? 'Hotovo' : isCurrent ? 'Aktivní' : 'Čeká'})`}
+                      title={`Krok ${sIdx + 1}: ${st.title} (${isCurrent ? 'Aktivní' : isPassed ? 'Hotovo' : canJump ? 'Kliknutím přejít' : 'Čeká'})`}
                     />
                   );
                 })}
@@ -5615,24 +6189,32 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           {/* Main Step Interaction View */}
           <div ref={listRef} className="max-h-[360px] overflow-y-auto px-2 py-1 space-y-2 focus:outline-none relative">
             {/* Information Preview Section ("Dosud zadané údaje") - shown at the top like MagicGate actions */}
-            {wizardStepIndex > 0 && (
+            {(wizardStepIndex > 0 || wizardValues.__originalIndex !== undefined || wizardValues.__optionIndex !== undefined) && (
               <div className="p-3 rounded-2xl bg-white/[0.03] shadow-sm space-y-2">
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-300">
                     <span className="material-symbols-outlined text-sm text-purple-400">task_alt</span>
-                    <span>Dosud zadané údaje</span>
+                    <span>
+                      {wizardValues.__originalIndex !== undefined || wizardValues.__optionIndex !== undefined
+                        ? 'Nastavené údaje záznamu'
+                        : 'Dosud zadané údaje'}
+                    </span>
                     <span className="text-[10px] text-gray-500 font-mono">
-                      ({wizardStepIndex} z {wizardItem.wizard?.steps.length})
+                      ({wizardStepIndex + 1} z {wizardItem.wizard?.steps.length})
                     </span>
                   </div>
                   <span className="text-[10px] text-gray-500 font-mono">
-                    kliknutím upravit
+                    kliknutím přejít na krok
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                  {wizardItem.wizard?.steps.slice(0, wizardStepIndex).map((st, stIdx) => {
+                  {(wizardValues.__originalIndex !== undefined || wizardValues.__optionIndex !== undefined
+                    ? wizardItem.wizard?.steps || []
+                    : wizardItem.wizard?.steps.slice(0, wizardStepIndex) || []
+                  ).map((st, stIdx) => {
                     const val = wizardValues[st.id];
+                    const isCurrentCard = stIdx === wizardStepIndex;
                     let displayVal = '—';
                     let badgeColor = undefined;
                     let badgeIcon = undefined;
@@ -5651,16 +6233,28 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                       } else {
                         displayVal = String(val ?? '—');
                       }
+                    } else if (st.dynamicOption === 'source-item-options') {
+                      const optsCount = Array.isArray(wizardValues.__options) ? wizardValues.__options.length : 0;
+                      displayVal = optsCount > 0 ? `Počet podpoložek: ${optsCount}` : 'Žádné podpoložky (0)';
+                      badgeIcon = 'account_tree';
+                      badgeColor = optsCount > 0 ? '#a855f7' : '#9ca3af';
                     } else if (st.dynamicOption === 'clipboard') {
-                      if (val && typeof val === 'string' && (val.startsWith('data:image') || val.length > 5)) {
-                        displayVal = 'Snímek připojen';
-                        const matchedOpt = wizardDynamicOptions.find((o) => o.value === val);
-                        imagePreview = matchedOpt?.imagePreview || (val.startsWith('data:image') ? val : undefined);
-                        badgeIcon = matchedOpt ? getWizardOptionIcon(st, matchedOpt) : 'image';
+                      const isImageStep = st.settings === 'screens' || st.settings === 'images';
+                      if (isImageStep) {
+                        if (val && typeof val === 'string' && (val.startsWith('data:image') || val.length > 5)) {
+                          displayVal = 'Snímek připojen';
+                          const matchedOpt = wizardDynamicOptions.find((o) => o.value === val);
+                          imagePreview = matchedOpt?.imagePreview || (val.startsWith('data:image') ? val : undefined);
+                          badgeIcon = matchedOpt ? getWizardOptionIcon(st, matchedOpt) : 'image';
+                        } else {
+                          displayVal = 'Nevybráno';
+                          badgeColor = '#9ca3af';
+                          badgeIcon = 'block';
+                        }
                       } else {
-                        displayVal = 'Nevybráno';
-                        badgeColor = '#9ca3af';
-                        badgeIcon = 'block';
+                        displayVal = val !== undefined && val !== null && String(val) !== ''
+                          ? String(val).replace(/\r?\n/g, ' ↵ ')
+                          : '—';
                       }
                     } else if (st.dynamicOption === 'github-owners') {
                       const rawOwner = String(val ?? '');
@@ -5685,15 +6279,21 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                         badgeIcon = getWizardOptionIcon(st);
                       }
                     } else {
-                      displayVal = val ? String(val) : '—';
+                      displayVal = val !== undefined && val !== null && String(val) !== ''
+                        ? String(val).replace(/\r?\n/g, ' ↵ ')
+                        : '—';
                     }
 
                     return (
                       <div
                         key={st.id}
                         onClick={() => goToWizardStep(stIdx)}
-                        title={`Kliknutím se vrátíte ke kroku „${st.title}“`}
-                        className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-black/30 hover:bg-white/[0.06] text-gray-300 transition cursor-pointer min-w-0"
+                        title={`Kliknutím přejdete ke kroku „${st.title}“`}
+                        className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl transition cursor-pointer min-w-0 ${
+                          isCurrentCard
+                            ? 'bg-purple-500/20 ring-1 ring-purple-400/40 text-white'
+                            : 'bg-black/30 hover:bg-white/[0.06] text-gray-300'
+                        }`}
                       >
                         <span className="text-[11px] text-gray-400 truncate shrink-0 max-w-[45%] select-none font-medium flex items-center gap-1">
                           <span className="material-symbols-outlined text-[13px]">{getWizardStepIcon(st, wizardItem?.icon || undefined)}</span>

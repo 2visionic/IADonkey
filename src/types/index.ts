@@ -165,6 +165,7 @@ export interface MagicPlanSettings {
   userColumns?: string[];
   currentUserColumn?: string;
   unassignedColumn?: string;
+  authorFilter?: string;
   pollIntervalMinutes?: number;
   notifyNewTasks?: boolean;
   notifyCompletedTasks?: boolean;
