@@ -519,4 +519,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('feedback-refresh', handler);
     return () => ipcRenderer.removeListener('feedback-refresh', handler);
   },
+
+  // Source management
+  saveSourceItem: (params: { sourceId: string; item: any; originalIndex?: number }): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('source-save-item', params),
+  deleteSourceItem: (params: { sourceId: string; itemIndex?: number; itemName?: string }): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('source-delete-item', params),
+  deleteSource: (sourceId: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('source-delete', sourceId),
+  createSource: (source: any): Promise<{ ok: boolean; source?: any; error?: string }> =>
+    ipcRenderer.invoke('source-create', source),
 });

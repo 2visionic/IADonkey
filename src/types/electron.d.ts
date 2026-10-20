@@ -388,6 +388,12 @@ declare global {
       getClipboardImage?: () => Promise<string | null>;
       onFeedbackModeChanged?: (callback: (mode: 'user' | 'dev') => void) => () => void;
       onFeedbackRefresh?: (callback: () => void) => () => void;
+
+      // Sources management
+      saveSourceItem?: (params: { sourceId: string; item: any; originalIndex?: number }) => Promise<{ ok: boolean; error?: string }>;
+      deleteSourceItem?: (params: { sourceId: string; itemIndex?: number; itemName?: string }) => Promise<{ ok: boolean; error?: string }>;
+      deleteSource?: (sourceId: string) => Promise<{ ok: boolean; error?: string }>;
+      createSource?: (source: any) => Promise<{ ok: boolean; source?: any; error?: string }>;
     };
   }
 }

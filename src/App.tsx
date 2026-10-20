@@ -853,6 +853,7 @@ export const App: React.FC = () => {
           syncProgress={syncProgress}
           lastSyncTime={config.lastSyncTime}
           snippets={config.snippets}
+          sources={config.sources}
         />
       )}
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DISPLAY_APP_VERSION, IS_DEV } from '../changelog';
-import { LauncherItem, LauncherAction, SyncProgress, SnippetsConfig, ColorMasterSettings, QuickCapSettings, FastSnapSettings, ScreenRulerSettings, EasyClipSettings, EasyClipItem, ColorPalette, AppConfig, MagicPlanSettings, MagicPlanData, PlanTaskItem, LauncherWizard, WizardStep, WizardOption, SsmsSettings } from '../types';
+import { LauncherItem, LauncherAction, SyncProgress, SnippetsConfig, ColorMasterSettings, QuickCapSettings, FastSnapSettings, ScreenRulerSettings, EasyClipSettings, EasyClipItem, ColorPalette, AppConfig, MagicPlanSettings, MagicPlanData, PlanTaskItem, LauncherWizard, WizardStep, WizardOption, SsmsSettings, DataSource, FileSource, ApiSource, StaticSource } from '../types';
 import { MaterialIcon } from './MaterialIcon';
 import { evaluateExpression } from '../utils/calculator';
 import { detectUrl } from '../utils/urlHelper';
@@ -19,6 +19,95 @@ import {
 } from '../utils/colorMaster';
 import { applyPrimaryColor, applyActionsColor } from '../utils/theme';
 import { isTaskForUser } from './MagicPlanWindow';
+
+export const SOURCE_ITEM_WIZARD_DEFINITION: LauncherWizard = {
+  action: 'savesourceitem',
+  steps: [
+    {
+      id: 'name',
+      title: 'Název záznamu',
+      placeholder: 'Zadejte název položky (např. Dynamiclist, Můj skript)...',
+      icon: 'edit',
+      required: true,
+      type: 'text',
+    },
+    {
+      id: 'action',
+      title: 'Typ akce',
+      placeholder: 'Vyberte akci při spuštění položky (šipky ↑/↓ a Enter)...',
+      icon: 'touch_app',
+      required: true,
+      type: 'select',
+      options: [
+        { text: 'Zkopírovat do schránky (kód / text)', value: 'copy', icon: 'content_copy', color: '#10b981', description: 'Vhodné pro code snippety, šablony a texty' },
+        { text: 'Otevřít odkaz nebo soubor', value: 'open', icon: 'open_in_new', color: '#0ea5e9', description: 'Otevře webovou adresu nebo spustí soubor na disku' },
+        { text: 'Otevřít ve VS Code', value: 'vscode', icon: 'code', color: '#38bdf8', description: 'Otevře složku nebo soubor ve Visual Studio Code' },
+      ],
+    },
+    {
+      id: 'location',
+      title: 'Obsah / Cíl / Odkaz',
+      placeholder: 'Zadejte text, kód, URL nebo vyberte ze schránky...',
+      icon: 'link',
+      required: true,
+      type: 'text',
+      dynamicOption: 'clipboard',
+    },
+    {
+      id: 'icon',
+      title: 'Ikona',
+      placeholder: 'Zvolte ikonu pro zobrazení...',
+      icon: 'star',
+      required: false,
+      type: 'select',
+      options: [
+        { text: 'Kód (code)', value: 'code', icon: 'code', color: '#38bdf8' },
+        { text: 'Text / Šablona (description)', value: 'description', icon: 'description', color: '#a855f7' },
+        { text: 'Odkaz (link)', value: 'link', icon: 'link', color: '#0ea5e9' },
+        { text: 'Terminál (terminal)', value: 'terminal', icon: 'terminal', color: '#10b981' },
+        { text: 'Složka (folder)', value: 'folder', icon: 'folder', color: '#f59e0b' },
+        { text: 'Databáze (database)', value: 'database', icon: 'database', color: '#ec4899' },
+        { text: 'Záložka (bookmark)', value: 'bookmark', icon: 'bookmark', color: '#eab308' },
+        { text: 'Hvězda (star)', value: 'star', icon: 'star', color: '#f97316' },
+      ],
+    },
+  ],
+};
+
+export const SOURCE_CREATE_WIZARD_DEFINITION: LauncherWizard = {
+  action: 'createsource',
+  steps: [
+    {
+      id: 'type',
+      title: 'Typ nového zdroje',
+      placeholder: 'Zvolte typ datového zdroje (šipky ↑/↓ a Enter)...',
+      icon: 'category',
+      required: true,
+      type: 'select',
+      options: [
+        { text: 'Lokální JSON soubor', value: 'file', icon: 'description', color: '#38bdf8', description: 'Ukládá a čte položky ze souboru na disku' },
+        { text: 'Statický interní seznam', value: 'static', icon: 'database', color: '#10b981', description: 'Ukládá položky přímo do konfigurace IADonkey' },
+        { text: 'Vzdálené REST API', value: 'api', icon: 'cloud', color: '#a855f7', description: 'Stahuje položky z HTTP endpointu (read-only)' },
+      ],
+    },
+    {
+      id: 'name',
+      title: 'Název zdroje',
+      placeholder: 'Zadejte název zdroje (např. MW Code Snippet, Osobní zkratky)...',
+      icon: 'edit',
+      required: true,
+      type: 'text',
+    },
+    {
+      id: 'pathOrUrl',
+      title: 'Cesta k souboru nebo URL adresa',
+      placeholder: 'Zadejte absolutní cestu k .json souboru nebo URL adresu...',
+      icon: 'link',
+      required: true,
+      type: 'text',
+    },
+  ],
+};
 
 export const FEEDBACK_WIZARD_DEFINITION: LauncherWizard = {
   action: 'createfeedback',
@@ -282,6 +371,7 @@ interface SearchSpotlightProps {
   syncProgress?: SyncProgress | null;
   lastSyncTime?: string | null;
   snippets?: SnippetsConfig;
+  sources?: DataSource[];
 }
 
 const INFO_ITEMS_PER_PAGE = 4; // 2x2 grid (2 columns x 2 rows)
@@ -319,6 +409,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   syncProgress,
   lastSyncTime,
   snippets,
+  sources = [],
 }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -576,6 +667,43 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           }
         }
 
+        // 3. Text from clipboard / EasyClip text if step is not for screens/images
+        if (step.settings !== 'screens' && step.settings !== 'images') {
+          try {
+            if (navigator.clipboard?.readText) {
+              const clipText = await navigator.clipboard.readText();
+              if (clipText && clipText.trim()) {
+                const preview = clipText.trim().replace(/\s+/g, ' ').slice(0, 45);
+                opts.unshift({
+                  text: `Vložit ze schránky: „${preview}“`,
+                  value: clipText.trim(),
+                  icon: 'content_paste',
+                  color: '#10b981',
+                  description: `${clipText.length} znaků ze schránky`,
+                });
+              }
+            }
+          } catch {}
+
+          if (window.electronAPI?.getEasyClipItems) {
+            const easyClipItems = await window.electronAPI.getEasyClipItems();
+            if (Array.isArray(easyClipItems)) {
+              const textItems = easyClipItems.filter((it) => it && it.type === 'text' && it.content?.trim());
+              textItems.slice(0, 5).forEach((it) => {
+                const preview = it.content.trim().replace(/\s+/g, ' ').slice(0, 45);
+                if (opts.some((o) => o.value === it.content)) return;
+                opts.push({
+                  text: `Text z EasyClipu: „${preview}“`,
+                  value: it.content,
+                  icon: 'history',
+                  color: '#0ea5e9',
+                  description: new Date(it.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                });
+              });
+            }
+          }
+        }
+
         setWizardDynamicOptions(opts);
       } catch (err) {
         console.error('Failed to load dynamic clipboard options:', err);
@@ -627,7 +755,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   const startWizard = async (item: LauncherItem) => {
     if (!item?.wizard || !Array.isArray(item.wizard.steps) || item.wizard.steps.length === 0) return;
 
-    const initialValues: Record<string, any> = {};
+    const initialValues: Record<string, any> = {
+      ...((item as any).__wizardInitialValues || {}),
+    };
     if (item.wizard.action === 'creategithubrepo') {
       const ghMatch = query.trim().match(/^\/(?:github|gh|repo)\s+(.+)$/i);
       if (ghMatch && ghMatch[1]?.trim()) {
@@ -646,7 +776,15 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     setWizardSelectedOptionIndex(0);
     setWizardError(null);
     setIsSubmittingWizard(false);
-    setQuery('');
+
+    const firstStep = item.wizard.steps[0];
+    const firstVal = initialValues[firstStep.id];
+    if (typeof firstVal === 'string' && !firstStep.options && !firstStep.dynamicOption) {
+      setQuery(firstVal);
+    } else {
+      setQuery('');
+    }
+
     loadStepDynamicOptions(item.wizard.steps[0]);
     setTimeout(() => {
       inputRef.current?.focus();
@@ -832,6 +970,68 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             sourceId: 'github',
           });
         }
+      } else if (wizard.action === 'savesourceitem') {
+        const sourceId = values.__sourceId;
+        const originalIndex = typeof values.__originalIndex === 'number' ? values.__originalIndex : undefined;
+        const itemToSave: LauncherItem = {
+          name: String(values.name || '').trim(),
+          action: values.action || 'open',
+          location: values.location ? String(values.location).trim() : null,
+          icon: values.icon || 'star',
+          priority: values.priority !== undefined ? Number(values.priority) : 0,
+        };
+        if (!sourceId) {
+          setWizardError('Chybí identifikátor cílového zdroje.');
+          return;
+        }
+        if (!itemToSave.name) {
+          setWizardError('Název položky je povinný.');
+          return;
+        }
+        if (window.electronAPI?.saveSourceItem) {
+          const res = await window.electronAPI.saveSourceItem({
+            sourceId,
+            item: itemToSave,
+            originalIndex,
+          });
+          if (!res?.ok) {
+            setWizardError(res?.error || 'Uložení položky do zdroje selhalo.');
+            return;
+          }
+        }
+        exitWizard();
+        return;
+      } else if (wizard.action === 'createsource') {
+        const type = values.type || 'file';
+        const name = String(values.name || '').trim();
+        const pathOrUrl = String(values.pathOrUrl || '').trim();
+        if (!name) {
+          setWizardError('Název zdroje je povinný.');
+          return;
+        }
+        const newSource: any = {
+          id: `source-${Date.now()}`,
+          name,
+          type,
+          enabled: true,
+        };
+        if (type === 'file') {
+          newSource.path = pathOrUrl;
+        } else if (type === 'api') {
+          newSource.url = pathOrUrl;
+          newSource.authType = 'none';
+        } else {
+          newSource.items = [];
+        }
+        if (window.electronAPI?.createSource) {
+          const res = await window.electronAPI.createSource(newSource);
+          if (!res?.ok) {
+            setWizardError(res?.error || 'Vytvoření nového zdroje selhalo.');
+            return;
+          }
+        }
+        exitWizard();
+        return;
       } else {
         console.warn('Neznámá akce wizardu:', wizard.action, values);
         exitWizard();
@@ -2353,6 +2553,227 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       });
     }
 
+    // Special `/source ` interactive command mode
+    const sourceModeMatch = rawTrimmedStart.match(/^\/(?:source|sources|zdroj|zdroje)(.*)$/i);
+    if (sourceModeMatch) {
+      const rawAfter = sourceModeMatch[1].trim();
+
+      const addSourceItem: LauncherItem = {
+        id: 'source-add-command',
+        name: '➕ Přidat nový zdroj...',
+        location: 'Spustit průvodce pro vytvoření nového lokálního, statického nebo API zdroje',
+        action: 'create-source-wizard',
+        icon: 'add_circle',
+        priority: 9999,
+        sourceId: 'source-manager',
+        wizard: SOURCE_CREATE_WIZARD_DEFINITION,
+      };
+
+      // 1. /source add
+      if (rawAfter.toLowerCase() === 'add') {
+        return [addSourceItem];
+      }
+
+      // 2. /source (empty after) -> list all sources + addSourceItem
+      if (!rawAfter) {
+        const srcCards: LauncherItem[] = sources.map((s): LauncherItem => {
+          const sItemsCount = items.filter((it) => it.sourceId === s.id).length;
+          const typeLabel =
+            s.type === 'file'
+              ? 'Lokální JSON soubor'
+              : s.type === 'api'
+              ? 'REST API endpoint'
+              : 'Statický interní seznam';
+          const pathOrUrl =
+            s.type === 'file'
+              ? (s as FileSource).path
+              : s.type === 'api'
+              ? (s as ApiSource).url
+              : `${sItemsCount} položek`;
+
+          return {
+            id: `source-card-${s.id}`,
+            name: s.name,
+            location: `${typeLabel} • ${pathOrUrl} (${sItemsCount} položek)`,
+            action: 'enter-source-mode',
+            icon: s.type === 'file' ? 'description' : s.type === 'api' ? 'cloud' : 'database',
+            priority: -1.2,
+            sourceId: 'source-manager',
+            actions: [
+              {
+                name: `Otevřít zdroj „${s.name}“`,
+                action: 'enter-source-mode',
+                location: s.name,
+                icon: 'folder_open',
+              },
+              {
+                name: `Smazat zdroj „${s.name}“`,
+                action: 'delete-source',
+                location: s.id,
+                icon: 'delete',
+              },
+            ],
+          };
+        });
+        return [...srcCards, addSourceItem];
+      }
+
+      // 3. /source <sourcename> ...
+      let matchedSource: DataSource | null = null;
+      let queryRemainder = '';
+
+      const quotedMatch = rawAfter.match(/^"([^"]+)"(?:\s+(.*))?$/);
+      if (quotedMatch) {
+        const targetName = quotedMatch[1].trim().toLowerCase();
+        queryRemainder = quotedMatch[2] ? quotedMatch[2].trim() : '';
+        matchedSource =
+          sources.find((s) => s.name.toLowerCase() === targetName) ||
+          sources.find((s) => s.name.toLowerCase().includes(targetName)) ||
+          null;
+      } else {
+        for (const s of sources) {
+          const sNameLower = s.name.toLowerCase();
+          if (rawAfter.toLowerCase() === sNameLower) {
+            matchedSource = s;
+            queryRemainder = '';
+            break;
+          }
+          if (rawAfter.toLowerCase().startsWith(sNameLower + ' ')) {
+            matchedSource = s;
+            queryRemainder = rawAfter.slice(sNameLower.length).trim();
+            break;
+          }
+        }
+        if (!matchedSource) {
+          matchedSource =
+            sources.find((s) => s.name.toLowerCase().includes(rawAfter.toLowerCase())) || null;
+          if (matchedSource) {
+            queryRemainder = '';
+          }
+        }
+      }
+
+      if (!matchedSource) {
+        const normAfter = removeDiacritics(rawAfter).toLowerCase();
+        const matchedSources = sources.filter((s) =>
+          removeDiacritics(s.name).toLowerCase().includes(normAfter)
+        );
+        const filteredSrcCards = matchedSources.map((s): LauncherItem => {
+          const sItemsCount = items.filter((it) => it.sourceId === s.id).length;
+          const typeLabel =
+            s.type === 'file'
+              ? 'Lokální JSON soubor'
+              : s.type === 'api'
+              ? 'REST API endpoint'
+              : 'Statický interní seznam';
+          return {
+            id: `source-card-${s.id}`,
+            name: s.name,
+            location: `${typeLabel} • ${sItemsCount} položek`,
+            action: 'enter-source-mode',
+            icon: s.type === 'file' ? 'description' : s.type === 'api' ? 'cloud' : 'database',
+            priority: -1.2,
+            sourceId: 'source-manager',
+            actions: [
+              {
+                name: `Otevřít zdroj „${s.name}“`,
+                action: 'enter-source-mode',
+                location: s.name,
+                icon: 'folder_open',
+              },
+              {
+                name: `Smazat zdroj „${s.name}“`,
+                action: 'delete-source',
+                location: s.id,
+                icon: 'delete',
+              },
+            ],
+          };
+        });
+        return [...filteredSrcCards, addSourceItem];
+      }
+
+      // 3a. /source "<source>" delete
+      if (queryRemainder.toLowerCase() === 'delete') {
+        return [
+          {
+            id: `delete-source-confirm-${matchedSource.id}`,
+            name: `🗑️ Smazat zdroj dat „${matchedSource.name}“?`,
+            location: `Stiskněte Enter pro potvrzení odstranění zdroje (${matchedSource.type})`,
+            action: 'delete-source-confirmed',
+            icon: 'delete_forever',
+            priority: -2,
+            sourceId: matchedSource.id,
+          },
+        ];
+      }
+
+      // 3b. /source "<source>" add
+      const isReadOnlyApi = matchedSource.type === 'api';
+      const addItemToSourceCard: LauncherItem = {
+        id: `add-item-to-${matchedSource.id}`,
+        name: `➕ Přidat záznam do zdroje „${matchedSource.name}“...`,
+        location: isReadOnlyApi
+          ? 'API zdroje jsou pouze pro čtení – záznamy nelze přidávat'
+          : `Spustit průvodce pro vytvoření nového záznamu ve zdroji ${matchedSource.name}`,
+        action: isReadOnlyApi ? 'none' : 'add-source-item-wizard',
+        icon: isReadOnlyApi ? 'block' : 'add_circle',
+        priority: 9999,
+        sourceId: 'source-manager',
+        wizard: isReadOnlyApi ? undefined : SOURCE_ITEM_WIZARD_DEFINITION,
+      };
+      (addItemToSourceCard as any).__wizardInitialValues = {
+        __sourceId: matchedSource.id,
+      };
+
+      if (queryRemainder.toLowerCase() === 'add') {
+        return [addItemToSourceCard];
+      }
+
+      // 3c. List and filter items of matchedSource
+      let sourceItems = items.filter((it) => it.sourceId === matchedSource!.id);
+
+      if (queryRemainder) {
+        const cleanQ = removeDiacritics(queryRemainder).toLowerCase();
+        sourceItems = sourceItems.filter((it) => {
+          const cleanName = removeDiacritics(it.name || '').toLowerCase();
+          const cleanLoc = removeDiacritics(it.location || '').toLowerCase();
+          return cleanName.includes(cleanQ) || cleanLoc.includes(cleanQ);
+        });
+      }
+
+      // Enhance source items with edit/delete actions if not API
+      const enhancedItems: LauncherItem[] = sourceItems.map((it) => {
+        if (isReadOnlyApi) {
+          return it;
+        }
+        const itemActions: LauncherAction[] = it.actions ? [...it.actions] : [];
+        if (!itemActions.some((a) => a.action === 'edit-source-item')) {
+          itemActions.push({
+            name: `Upravit záznam „${it.name}“`,
+            action: 'edit-source-item',
+            icon: 'edit',
+          });
+        }
+        if (!itemActions.some((a) => a.action === 'delete-source-item')) {
+          itemActions.push({
+            name: `Smazat záznam „${it.name}“`,
+            action: 'delete-source-item',
+            icon: 'delete',
+          });
+        }
+        return {
+          ...it,
+          actions: itemActions,
+        };
+      });
+
+      if (!isReadOnlyApi) {
+        return [...enhancedItems, addItemToSourceCard];
+      }
+      return enhancedItems;
+    }
+
     // Special slash commands: DonkeyTools, MagicPlan, SSMS (/db) & MagicGate FTP (/ftp)
     // Commands are ONLY shown when query starts with a slash
     if (trimmed.startsWith('/')) {
@@ -2510,9 +2931,29 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             wizard: GITHUB_CREATE_REPO_WIZARD_DEFINITION,
           });
         }
+      const sourceCommands: LauncherItem[] = [];
+      const srcShortcuts = ['/source', '/sources', '/zdroje', '/zdroj'];
+      if (
+        slashCmd === '' ||
+        'source'.includes(slashCmd) ||
+        'sources'.includes(slashCmd) ||
+        'zdroje'.includes(slashCmd) ||
+        'zdroj'.includes(slashCmd) ||
+        srcShortcuts.some((s) => s.replace(/^\//, '').includes(slashCmd))
+      ) {
+        sourceCommands.push({
+          id: 'source-overview-command',
+          name: 'Zdroje dat – Procházení a správa',
+          location: 'Vypsat nakonfigurované zdroje dat, filtrovat položky nebo spustit průvodce přidáním',
+          action: 'enter-source-mode',
+          icon: 'database',
+          priority: -1.13,
+          sourceId: 'source-manager',
+          shortcuts: srcShortcuts,
+        });
       }
 
-      const allSlash = [...ssmsAndFtpCommands, ...dtCommands, ...planCommands, ...githubCommands, ...feedbackCommands];
+      const allSlash = [...ssmsAndFtpCommands, ...dtCommands, ...planCommands, ...githubCommands, ...feedbackCommands, ...sourceCommands];
       if (allSlash.length > 0) {
         return allSlash;
       }
@@ -3236,6 +3677,25 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       return;
     }
 
+    if (item.action === 'enter-source-mode') {
+      const srcName = item.actions?.find((a) => a.action === 'enter-source-mode')?.location || item.name;
+      setQuery(`/source "${srcName}" `);
+      setSelectedIndex(0);
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+      return;
+    }
+
+    if (item.action === 'delete-source-confirmed') {
+      const sId = item.sourceId || item.location;
+      if (sId && window.electronAPI?.deleteSource) {
+        await window.electronAPI.deleteSource(sId);
+        setQuery('/source');
+      }
+      return;
+    }
+
     if (item.action === 'ssms-query') {
       const targetSpec =
         item.actions?.find((a) => a.action === 'ssms-query')?.location || item.location || '';
@@ -3652,6 +4112,57 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       return;
     }
 
+    if (actionType === 'enter-source-mode') {
+      exitActions();
+      setQuery(`/source "${actionItem.location || parent.name}" `);
+      setSelectedIndex(0);
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+      return;
+    }
+
+    if (actionType === 'delete-source') {
+      exitActions();
+      const sId = actionItem.location || parent.id?.replace('source-card-', '');
+      if (sId && window.confirm(`Opravdu chcete smazat zdroj dat „${parent.name}“ ze seznamu?`)) {
+        if (window.electronAPI?.deleteSource) {
+          await window.electronAPI.deleteSource(sId);
+          setQuery('/source');
+        }
+      }
+      return;
+    }
+
+    if (actionType === 'edit-source-item') {
+      exitActions();
+      const wizardItem: LauncherItem = {
+        name: `Upravit: ${parent.name}`,
+        wizard: SOURCE_ITEM_WIZARD_DEFINITION,
+      };
+      (wizardItem as any).__wizardInitialValues = {
+        __sourceId: parent.sourceId,
+        name: parent.name,
+        action: parent.action || 'open',
+        location: parent.location || '',
+        icon: parent.icon || 'star',
+        priority: parent.priority !== undefined ? parent.priority : 0,
+      };
+      startWizard(wizardItem);
+      return;
+    }
+
+    if (actionType === 'delete-source-item') {
+      exitActions();
+      const sId = parent.sourceId;
+      if (sId && window.confirm(`Opravdu chcete smazat záznam „${parent.name}“ ze zdroje?`)) {
+        if (window.electronAPI?.deleteSourceItem) {
+          await window.electronAPI.deleteSourceItem({ sourceId: sId, itemName: parent.name });
+        }
+      }
+      return;
+    }
+
     // Default / 'open' action
     if (actionType === 'open' || !actionType) {
       exitActions();
@@ -4009,7 +4520,43 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       return;
     }
 
-    // Tab or ArrowRight at end of input -> apply predictive ghost-text autocomplete (or expand /db and /ftp commands)
+    // F2 -> Edit source item
+    if (e.key === 'F2') {
+      const currentItem = results[selectedIndex];
+      if (currentItem?.actions?.some((a) => a.action === 'edit-source-item')) {
+        e.preventDefault();
+        const wizardItem: LauncherItem = {
+          name: `Upravit: ${currentItem.name}`,
+          wizard: SOURCE_ITEM_WIZARD_DEFINITION,
+        };
+        (wizardItem as any).__wizardInitialValues = {
+          __sourceId: currentItem.sourceId,
+          name: currentItem.name,
+          action: currentItem.action || 'open',
+          location: currentItem.location || '',
+          icon: currentItem.icon || 'star',
+          priority: currentItem.priority !== undefined ? currentItem.priority : 0,
+        };
+        startWizard(wizardItem);
+        return;
+      }
+    }
+
+    // Shift+Delete -> Delete source item
+    if (e.key === 'Delete' && e.shiftKey) {
+      const currentItem = results[selectedIndex];
+      if (currentItem?.actions?.some((a) => a.action === 'delete-source-item')) {
+        e.preventDefault();
+        if (window.confirm(`Opravdu chcete smazat záznam „${currentItem.name}“ ze zdroje?`)) {
+          if (currentItem.sourceId && window.electronAPI?.deleteSourceItem) {
+            window.electronAPI.deleteSourceItem({ sourceId: currentItem.sourceId, itemName: currentItem.name });
+          }
+        }
+        return;
+      }
+    }
+
+    // Tab or ArrowRight at end of input -> apply predictive ghost-text autocomplete (or expand /db, /ftp, /source commands)
     if (e.key === 'Tab') {
       if (ghostAutocomplete) {
         e.preventDefault();
@@ -4027,6 +4574,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       if (currentItem?.action === 'enter-ftp-mode') {
         e.preventDefault();
         setQuery('/ftp ');
+        setSelectedIndex(0);
+        return;
+      }
+      if (currentItem?.action === 'enter-source-mode') {
+        e.preventDefault();
+        const srcName = currentItem.actions?.find((a) => a.action === 'enter-source-mode')?.location || currentItem.name;
+        setQuery(`/source "${srcName}" `);
         setSelectedIndex(0);
         return;
       }
@@ -4120,13 +4674,17 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     const ftpMatch = !dbMatch && ftpEnabled
       ? query.match(allowFtpNoSlash ? /^(\s*\/?ftp\s+)(.+)$/i : /^(\s*\/ftp\s+)(.+)$/i)
       : null;
+    const sourceMatch = !dbMatch && !ftpMatch
+      ? query.match(/^(\s*\/(?:source|sources|zdroj|zdroje)\s+)(.+)$/i)
+      : null;
 
-    const activeMatch = dbMatch || ftpMatch;
+    const activeMatch = dbMatch || ftpMatch || sourceMatch;
     if (!activeMatch) return null;
 
     const prefix = activeMatch[1];
-    const typedArg = activeMatch[2];
-    if (!typedArg || /\s$/.test(typedArg)) return null;
+    const rawTypedArg = activeMatch[2];
+    const typedArg = rawTypedArg.replace(/^["']/, '');
+    if (!typedArg || /\s$/.test(rawTypedArg)) return null;
 
     const currentItem = results[selectedIndex] || results[0];
     if (!currentItem || !currentItem.name) return null;
@@ -4136,9 +4694,12 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       candidate.toLowerCase().startsWith(typedArg.toLowerCase()) &&
       candidate.length > typedArg.length
     ) {
+      const fullCompletion = sourceMatch
+        ? `${prefix}"${candidate}" `
+        : `${prefix}${candidate}`;
       return {
         ghostSuffix: candidate.slice(typedArg.length),
-        fullCompletion: `${prefix}${candidate}`,
+        fullCompletion,
       };
     }
     return null;

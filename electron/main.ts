@@ -39,6 +39,7 @@ import { MagicPlanService } from './magicPlanService';
 import { windowDragService } from './windowDragService';
 import { feedbackService } from './feedbackService';
 import { feedbackNotificationService } from './feedbackNotificationService';
+import { SourceManagerService } from './sourceManagerService';
 import {
   detectDefaultSsmsPath,
   fetchLocalDatabases,
@@ -88,6 +89,7 @@ let syncManager: DataSyncManager;
 let updateChecker: UpdateChecker;
 let windowManager: WindowManager;
 let appScanner: AppScanner;
+let sourceManagerService: SourceManagerService;
 let currentHotkey = 'Ctrl+Alt+Space';
 let syncIntervalTimer: NodeJS.Timeout | null = null;
 let updateIntervalTimer: NodeJS.Timeout | null = null;
@@ -2890,6 +2892,22 @@ function setupIpcHandlers() {
     return res;
   });
 
+  ipcMain.handle('source-save-item', async (_event, params: { sourceId: string; item: any; originalIndex?: number }) => {
+    return await sourceManagerService.saveSourceItem(params);
+  });
+
+  ipcMain.handle('source-delete-item', async (_event, params: { sourceId: string; itemIndex?: number; itemName?: string }) => {
+    return await sourceManagerService.deleteSourceItem(params);
+  });
+
+  ipcMain.handle('source-delete', async (_event, sourceId: string) => {
+    return await sourceManagerService.deleteSource(sourceId);
+  });
+
+  ipcMain.handle('source-create', async (_event, source: any) => {
+    return await sourceManagerService.createSource(source);
+  });
+
   ipcMain.handle('open-external', async (_event, url: string) => {
     if (url) {
       const fullUrl = /^https?:\/\//i.test(url) ? url : `https://${url}`;
@@ -3671,6 +3689,14 @@ app.whenReady().then(async () => {
   syncManager = new DataSyncManager(store);
   updateChecker = new UpdateChecker(store);
   appScanner = new AppScanner();
+  sourceManagerService = new SourceManagerService(store, syncManager, () => {
+    const updatedConfig = store.getConfig();
+    const allItems = getCombinedItems();
+    windowManager.getMainWindow()?.webContents.send('config-updated', updatedConfig);
+    windowManager.getSettingsWindow()?.webContents.send('config-updated', updatedConfig);
+    windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
+    windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
+  });
 
   const initialConfig = store.getConfig();
   windowDragService.init();
