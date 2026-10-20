@@ -37,3 +37,5 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 ---
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
+
+- [x] **Aktualizace aplikace: Automatická kontrola na pozadí každých 10 minut a při odemčení PC**: Zkrácení intervalu automatické kontroly nové verze z 24 hodin na 10 minut + kontrola při odemčení obrazovky / probuzení PC (`unlock-screen`, `resume`). Notifikace ve Windows (Toast) a záznam v Logu akcí se pro nově zjištěnou verzi vypíše vždy pouze jednou (`lastNotifiedUpdateVersion`), přičemž dialog aktualizace (`UpdateDialog`) se rovnou připraví do Spotlightu (a otevře po kliknutí na notifikaci nebo při příštím vyvolání Spotlightu).

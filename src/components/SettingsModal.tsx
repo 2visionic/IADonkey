@@ -12106,7 +12106,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Systém a aktualizace aplikace
                 </h3>
                 <p className="text-[13px] text-gray-400 mt-1">
-                  IADonkey automaticky kontroluje nové verze každých 24 hodin na pozadí. Zde můžete provést ruční kontrolu a spravovat chybové protokoly.
+                  IADonkey automaticky kontroluje nové verze každých 10 minut na pozadí (a při odemčení PC). Zde můžete provést ruční kontrolu a spravovat chybové protokoly.
                 </p>
               </div>
 

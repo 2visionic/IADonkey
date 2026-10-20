@@ -91,6 +91,8 @@ let appScanner: AppScanner;
 let currentHotkey = 'Ctrl+Alt+Space';
 let syncIntervalTimer: NodeJS.Timeout | null = null;
 let updateIntervalTimer: NodeJS.Timeout | null = null;
+let lastNotifiedUpdateVersion: string | null = null;
+let isScreenLockedForUpdate = false;
 let magicPlanService: MagicPlanService;
 
 function getCombinedItems(): LauncherItem[] {
@@ -3599,25 +3601,29 @@ function startBackgroundTasks() {
     }
   }, intervalMs);
 
-  // 2. Periodic update check (run once at startup after 5s, then every 24h)
+  // 2. Periodic update check (run once at startup after 5s, every 10 min, and on PC unlock/resume)
   const checkUpdateSilently = async () => {
+    if (isScreenLockedForUpdate) return;
     try {
       const updateInfo = await updateChecker.checkForUpdates(false);
       if (updateInfo.hasUpdate) {
-        diagnosticsService.logAction({
-          type: 'action',
-          title: `Nalezena nová aktualizace na pozadí (v${updateInfo.latestVersion})`,
-          details: `Aktuální verze: v${updateInfo.currentVersion} → Nová verze: v${updateInfo.latestVersion}`,
-          status: 'info',
-        });
-        notificationService.show({
-          type: 'update',
-          title: `Nová verze v${updateInfo.latestVersion}`,
-          body: `Byla nalezena nová aktualizace aplikace. Kliknutím zobrazíte podrobnosti.`,
-          onClick: () => {
-            windowManager.showSpotlight();
-          },
-        });
+        if (lastNotifiedUpdateVersion !== updateInfo.latestVersion) {
+          lastNotifiedUpdateVersion = updateInfo.latestVersion;
+          diagnosticsService.logAction({
+            type: 'action',
+            title: `Nalezena nová aktualizace na pozadí (v${updateInfo.latestVersion})`,
+            details: `Aktuální verze: v${updateInfo.currentVersion} → Nová verze: v${updateInfo.latestVersion}`,
+            status: 'info',
+          });
+          notificationService.show({
+            type: 'update',
+            title: `Nová verze v${updateInfo.latestVersion}`,
+            body: `Byla nalezena nová aktualizace aplikace. Kliknutím zobrazíte podrobnosti.`,
+            onClick: () => {
+              windowManager.showSpotlight();
+            },
+          });
+        }
 
         const win = windowManager.getMainWindow();
         if (win && !win.isDestroyed()) {
@@ -3627,6 +3633,8 @@ function startBackgroundTasks() {
         if (settingsWin && !settingsWin.isDestroyed()) {
           settingsWin.webContents.send('update-available', updateInfo);
         }
+      } else {
+        lastNotifiedUpdateVersion = null;
       }
     } catch (err) {
       // silent catch for background checks
@@ -3634,7 +3642,26 @@ function startBackgroundTasks() {
   };
 
   setTimeout(checkUpdateSilently, 5000);
-  updateIntervalTimer = setInterval(checkUpdateSilently, 24 * 60 * 60 * 1000);
+  updateIntervalTimer = setInterval(checkUpdateSilently, 10 * 60 * 1000);
+
+  try {
+    powerMonitor.on('lock-screen', () => {
+      isScreenLockedForUpdate = true;
+    });
+    powerMonitor.on('suspend', () => {
+      isScreenLockedForUpdate = true;
+    });
+    powerMonitor.on('unlock-screen', () => {
+      isScreenLockedForUpdate = false;
+      setTimeout(checkUpdateSilently, 3000);
+    });
+    powerMonitor.on('resume', () => {
+      isScreenLockedForUpdate = false;
+      setTimeout(checkUpdateSilently, 3000);
+    });
+  } catch (err) {
+    console.warn('[Main] Failed to register powerMonitor update listeners:', err);
+  }
 }
 
 // App lifecycle
