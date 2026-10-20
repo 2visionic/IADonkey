@@ -2733,6 +2733,69 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       // 3c. List and filter items of matchedSource
       let sourceItems = items.filter((it) => it.sourceId === matchedSource!.id);
 
+      // Direct item subcommands: /source "<source>" <item> delete | /source "<source>" <item> edit
+      if (!isReadOnlyApi && queryRemainder) {
+        const itemDeleteMatch = queryRemainder.match(/^(.*?)\s+(?:delete|smazat|remove)$/i);
+        if (itemDeleteMatch) {
+          const itemTarget = itemDeleteMatch[1].trim();
+          const targetItem = sourceItems.find(
+            (it) =>
+              removeDiacritics(it.name || '').toLowerCase() === removeDiacritics(itemTarget).toLowerCase() ||
+              removeDiacritics(it.name || '').toLowerCase().includes(removeDiacritics(itemTarget).toLowerCase())
+          );
+          if (targetItem) {
+            return [
+              {
+                id: `delete-source-item-confirm-${targetItem.id || targetItem.name}`,
+                name: `🗑️ Smazat záznam „${targetItem.name}“ ze zdroje „${matchedSource.name}“?`,
+                location: 'Stiskněte Enter pro potvrzení trvalého odstranění záznamu ze zdroje',
+                action: 'delete-source-item-confirmed',
+                icon: 'delete_forever',
+                priority: -2,
+                sourceId: matchedSource.id,
+                info: {
+                  'Položka': targetItem.name,
+                  'Zdroj': matchedSource.name,
+                },
+              },
+            ];
+          }
+        }
+
+        const itemEditMatch = queryRemainder.match(/^(.*?)\s+(?:edit|upravit)$/i);
+        if (itemEditMatch) {
+          const itemTarget = itemEditMatch[1].trim();
+          const targetItem = sourceItems.find(
+            (it) =>
+              removeDiacritics(it.name || '').toLowerCase() === removeDiacritics(itemTarget).toLowerCase() ||
+              removeDiacritics(it.name || '').toLowerCase().includes(removeDiacritics(itemTarget).toLowerCase())
+          );
+          if (targetItem) {
+            const origIdx = items.findIndex((orig) => orig.sourceId === matchedSource!.id && orig.name === targetItem.name);
+            const editItemCard: LauncherItem = {
+              id: `edit-item-${targetItem.id || targetItem.name}`,
+              name: `✏️ Upravit záznam „${targetItem.name}“ (${matchedSource.name})`,
+              location: 'Stiskněte Enter pro spuštění průvodce úpravou záznamu',
+              action: 'edit-source-item',
+              icon: 'edit',
+              priority: -2,
+              sourceId: matchedSource.id,
+              wizard: SOURCE_ITEM_WIZARD_DEFINITION,
+            };
+            (editItemCard as any).__wizardInitialValues = {
+              __sourceId: matchedSource.id,
+              __originalIndex: origIdx >= 0 ? origIdx : undefined,
+              name: targetItem.name,
+              action: (targetItem as any).__originalAction || targetItem.action || 'open',
+              location: (targetItem as any).__originalLocation !== undefined ? (targetItem as any).__originalLocation : (targetItem.location || ''),
+              icon: targetItem.icon || 'star',
+              priority: targetItem.priority !== undefined ? targetItem.priority : 0,
+            };
+            return [editItemCard];
+          }
+        }
+      }
+
       if (queryRemainder) {
         const cleanQ = removeDiacritics(queryRemainder).toLowerCase();
         sourceItems = sourceItems.filter((it) => {
@@ -2743,29 +2806,60 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
 
       // Enhance source items with edit/delete actions if not API
-      const enhancedItems: LauncherItem[] = sourceItems.map((it) => {
+      const enhancedItems: LauncherItem[] = sourceItems.map((it, idx) => {
         if (isReadOnlyApi) {
           return it;
         }
-        const itemActions: LauncherAction[] = it.actions ? [...it.actions] : [];
-        if (!itemActions.some((a) => a.action === 'edit-source-item')) {
-          itemActions.push({
+        const origIdx = items.findIndex((orig) => orig.sourceId === matchedSource!.id && orig.name === it.name);
+        const itemActions: LauncherAction[] = [
+          {
             name: `Upravit záznam „${it.name}“`,
             action: 'edit-source-item',
             icon: 'edit',
-          });
-        }
-        if (!itemActions.some((a) => a.action === 'delete-source-item')) {
-          itemActions.push({
+          },
+          {
             name: `Smazat záznam „${it.name}“`,
             action: 'delete-source-item',
             icon: 'delete',
+          },
+          ...(it.actions ? it.actions : []),
+        ];
+
+        if (it.action === 'copy' && !itemActions.some((a) => a.action === 'copy')) {
+          itemActions.push({
+            name: `Zkopírovat obsah do schránky`,
+            action: 'copy',
+            location: it.location || it.name,
+            icon: 'content_copy',
+          });
+        } else if ((it.action === 'open' || !it.action) && !itemActions.some((a) => a.action === 'open')) {
+          itemActions.push({
+            name: `Otevřít položku`,
+            action: 'open',
+            location: it.location || it.name,
+            icon: 'open_in_new',
           });
         }
-        return {
+
+        const editCard: LauncherItem = {
           ...it,
+          location: `${it.action ? `[${it.action}] ` : ''}${it.location || '—'} • Enter: Upravit, Ctrl+Enter: Spustit, Shift+Enter: Akce`,
+          action: 'edit-source-item',
+          wizard: SOURCE_ITEM_WIZARD_DEFINITION,
           actions: itemActions,
         };
+        (editCard as any).__originalAction = it.action || 'open';
+        (editCard as any).__originalLocation = it.location || '';
+        (editCard as any).__wizardInitialValues = {
+          __sourceId: matchedSource!.id,
+          __originalIndex: origIdx >= 0 ? origIdx : idx,
+          name: it.name,
+          action: it.action || 'open',
+          location: it.location || '',
+          icon: it.icon || 'star',
+          priority: it.priority !== undefined ? it.priority : 0,
+        };
+        return editCard;
       });
 
       if (!isReadOnlyApi) {
@@ -3678,8 +3772,12 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
 
     if (item.action === 'enter-source-mode') {
-      const srcName = item.actions?.find((a) => a.action === 'enter-source-mode')?.location || item.name;
-      setQuery(`/source "${srcName}" `);
+      if (item.id === 'source-overview-command') {
+        setQuery('/source ');
+      } else {
+        const srcName = item.actions?.find((a) => a.action === 'enter-source-mode')?.location || item.name;
+        setQuery(`/source "${srcName}" `);
+      }
       setSelectedIndex(0);
       requestAnimationFrame(() => {
         inputRef.current?.focus();
@@ -3692,6 +3790,21 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       if (sId && window.electronAPI?.deleteSource) {
         await window.electronAPI.deleteSource(sId);
         setQuery('/source');
+      }
+      return;
+    }
+
+    if (item.action === 'delete-source-item-confirmed') {
+      const sId = item.sourceId;
+      const itemName = item.info?.['Položka'] || (item as any).__itemName;
+      if (sId && itemName && window.electronAPI?.deleteSourceItem) {
+        await window.electronAPI.deleteSourceItem({ sourceId: sId, itemName });
+        const srcName = item.info?.['Zdroj'];
+        if (srcName) {
+          setQuery(`/source "${srcName}" `);
+        } else {
+          setQuery('/source');
+        }
       }
       return;
     }
@@ -4136,15 +4249,17 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
     if (actionType === 'edit-source-item') {
       exitActions();
+      const origIdx = items.findIndex((orig) => orig.sourceId === parent.sourceId && orig.name === parent.name);
       const wizardItem: LauncherItem = {
         name: `Upravit: ${parent.name}`,
         wizard: SOURCE_ITEM_WIZARD_DEFINITION,
       };
       (wizardItem as any).__wizardInitialValues = {
         __sourceId: parent.sourceId,
+        __originalIndex: origIdx >= 0 ? origIdx : undefined,
         name: parent.name,
-        action: parent.action || 'open',
-        location: parent.location || '',
+        action: (parent as any).__originalAction || parent.action || 'open',
+        location: (parent as any).__originalLocation !== undefined ? (parent as any).__originalLocation : (parent.location || ''),
         icon: parent.icon || 'star',
         priority: parent.priority !== undefined ? parent.priority : 0,
       };
@@ -4523,17 +4638,19 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     // F2 -> Edit source item
     if (e.key === 'F2') {
       const currentItem = results[selectedIndex];
-      if (currentItem?.actions?.some((a) => a.action === 'edit-source-item')) {
+      if (currentItem?.actions?.some((a) => a.action === 'edit-source-item') || currentItem?.action === 'edit-source-item') {
         e.preventDefault();
+        const origIdx = items.findIndex((orig) => orig.sourceId === currentItem.sourceId && orig.name === currentItem.name);
         const wizardItem: LauncherItem = {
           name: `Upravit: ${currentItem.name}`,
           wizard: SOURCE_ITEM_WIZARD_DEFINITION,
         };
         (wizardItem as any).__wizardInitialValues = {
           __sourceId: currentItem.sourceId,
+          __originalIndex: origIdx >= 0 ? origIdx : undefined,
           name: currentItem.name,
-          action: currentItem.action || 'open',
-          location: currentItem.location || '',
+          action: (currentItem as any).__originalAction || currentItem.action || 'open',
+          location: (currentItem as any).__originalLocation !== undefined ? (currentItem as any).__originalLocation : (currentItem.location || ''),
           icon: currentItem.icon || 'star',
           priority: currentItem.priority !== undefined ? currentItem.priority : 0,
         };
@@ -4626,10 +4743,16 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         return;
       }
 
-      // 2. Ctrl + Enter -> Directly execute 1st subitem
+      // 2. Ctrl + Enter -> Directly execute 1st subitem or original action
       if (e.ctrlKey) {
         if (currentItem.options && currentItem.options.length > 0) {
           handleExecute(currentItem.options[0]);
+          return;
+        }
+        const origAction = currentItem.actions?.find((a) => a.action !== 'edit-source-item' && a.action !== 'delete-source-item');
+        if (origAction) {
+          handleExecuteAction(currentItem, origAction);
+          return;
         }
         return;
       }
