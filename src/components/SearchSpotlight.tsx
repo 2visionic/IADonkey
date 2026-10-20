@@ -607,8 +607,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     setWizardSelectedOptionIndex(0);
     setWizardDynamicOptions([]);
     setWizardError(null);
-    setIsSubmittingWizard(false);
-    setQuery('');
+    if (!query.trimStart().match(/^\/(?:source|sources|zdroj|zdroje)/i)) {
+      setQuery('');
+    }
     setSelectedIndex(0);
     setIsRevealed(true);
     setTimeout(() => {
@@ -3744,6 +3745,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     if (!item) return;
 
     const isCalculator = item.id === 'calculator-result' || item.icon === 'calculate';
+    const isSourceCommandMode = Boolean(query.trimStart().match(/^\/(?:source|sources|zdroj|zdroje)/i)) || item.sourceId === 'source-manager';
 
     window.electronAPI?.logAction?.({
       type: 'action',
@@ -3804,6 +3806,34 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           setQuery(`/source "${srcName}" `);
         } else {
           setQuery('/source');
+        }
+      }
+      return;
+    }
+
+    if (item.action === 'edit-source-item') {
+      const origIdx = items.findIndex((orig) => orig.sourceId === item.sourceId && orig.name === item.name);
+      const wizardItem: LauncherItem = {
+        name: `Upravit: ${item.name}`,
+        wizard: SOURCE_ITEM_WIZARD_DEFINITION,
+      };
+      (wizardItem as any).__wizardInitialValues = {
+        __sourceId: item.sourceId,
+        __originalIndex: origIdx >= 0 ? origIdx : undefined,
+        name: item.name,
+        action: (item as any).__originalAction || item.action || 'open',
+        location: (item as any).__originalLocation !== undefined ? (item as any).__originalLocation : (item.location || ''),
+        icon: item.icon || 'star',
+        priority: item.priority !== undefined ? item.priority : 0,
+      };
+      startWizard(wizardItem);
+      return;
+    }
+
+    if (item.action === 'delete-source-item') {
+      if (item.sourceId && window.electronAPI?.deleteSourceItem) {
+        if (window.confirm(`Opravdu chcete smazat záznam „${item.name}“ ze zdroje?`)) {
+          await window.electronAPI.deleteSourceItem({ sourceId: item.sourceId, itemName: item.name });
         }
       }
       return;
@@ -3951,7 +3981,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           console.error('Clipboard copy error:', err);
         }
       }
-      if (!isSnippet) {
+      if (!isSnippet && !isSourceCommandMode) {
         handleClose();
       }
       return;
@@ -4002,7 +4032,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
     }
 
-    handleClose();
+    if (!isSourceCommandMode) {
+      handleClose();
+    }
   };
 
   // Execute action from actions mode
