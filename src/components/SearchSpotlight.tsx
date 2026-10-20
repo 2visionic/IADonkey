@@ -585,6 +585,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }, 90);
   };
 
+  const preWizardQueryRef = useRef<string | null>(null);
+
   // Resetuje stav Spotlightu a vyvolá jeho zavření (pokud není předáno closeWindow = false)
   const resetSpotlightState = (closeWindow = true) => {
     setIsDonkeyToolsOpen(false);
@@ -605,6 +607,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     setSelectedEasyClipIds(new Set());
     savedParentItemRef.current = null;
     restoringIndexRef.current = null;
+    preWizardQueryRef.current = null;
     isEyedropperRef.current = false;
     if (closeWindow) {
       handleClose();
@@ -612,6 +615,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   };
 
   const exitWizard = () => {
+    const activeSourceId = wizardValues?.__sourceId;
+    const savedQ = preWizardQueryRef.current;
+    preWizardQueryRef.current = null;
     setIsDonkeyToolsOpen(false);
     setWizardItem(null);
     setWizardStepIndex(0);
@@ -619,7 +625,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     setWizardSelectedOptionIndex(0);
     setWizardDynamicOptions([]);
     setWizardError(null);
-    if (!query.trimStart().match(/^\/(?:source|sources|zdroj|zdroje)/i)) {
+    setIsSubmittingWizard(false);
+    if (activeSourceId) {
+      const src = sources.find((s) => s.id === activeSourceId);
+      setQuery(src ? `/source "${src.name}" ` : '/source ');
+    } else if (savedQ && /^\/(?:source|sources|zdroj|zdroje)/i.test(savedQ.trimStart())) {
+      setQuery('/source ');
+    } else if (!query.trimStart().match(/^\/(?:source|sources|zdroj|zdroje)/i)) {
       setQuery('');
     }
     setSelectedIndex(0);
@@ -768,6 +780,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   const startWizard = async (item: LauncherItem) => {
     if (!item?.wizard || !Array.isArray(item.wizard.steps) || item.wizard.steps.length === 0) return;
 
+    preWizardQueryRef.current = query;
     const initialValues: Record<string, any> = {
       ...((item as any).__wizardInitialValues || {}),
     };
@@ -1721,6 +1734,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       inputRef.current?.focus();
     });
     const handleFocus = () => {
+      setIsRevealed(true);
       inputRef.current?.focus();
     };
     window.addEventListener('focus', handleFocus);
@@ -2744,7 +2758,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
 
       // 3c. List and filter items of matchedSource
-      let sourceItems = items.filter((it) => it.sourceId === matchedSource!.id);
+      const allSourceItems = items.filter((it) => it.sourceId === matchedSource!.id);
+      let sourceItems = allSourceItems;
 
       // Direct item subcommands: /source "<source>" <item> delete | /source "<source>" <item> edit
       if (!isReadOnlyApi && queryRemainder) {
@@ -2784,7 +2799,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               removeDiacritics(it.name || '').toLowerCase().includes(removeDiacritics(itemTarget).toLowerCase())
           );
           if (targetItem) {
-            const origIdx = items.findIndex((orig) => orig.sourceId === matchedSource!.id && orig.name === targetItem.name);
+            const origIdx = allSourceItems.findIndex((orig) => orig.name === targetItem.name);
             const editItemCard: LauncherItem = {
               id: `edit-item-${targetItem.id || targetItem.name}`,
               name: `✏️ Upravit záznam „${targetItem.name}“ (${matchedSource.name})`,
@@ -2823,7 +2838,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         if (isReadOnlyApi) {
           return it;
         }
-        const origIdx = items.findIndex((orig) => orig.sourceId === matchedSource!.id && orig.name === it.name);
+        const origIdx = allSourceItems.findIndex((orig) => orig.name === it.name);
         const itemActions: LauncherAction[] = [
           {
             name: `Upravit záznam „${it.name}“`,
@@ -3038,6 +3053,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             wizard: GITHUB_CREATE_REPO_WIZARD_DEFINITION,
           });
         }
+      }
+
       const sourceCommands: LauncherItem[] = [];
       const srcShortcuts = ['/source', '/sources', '/zdroje', '/zdroj'];
       if (
@@ -3816,7 +3833,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
 
     if (item.action === 'edit-source-item') {
-      const origIdx = items.findIndex((orig) => orig.sourceId === item.sourceId && orig.name === item.name);
+      if (item.wizard && (item as any).__wizardInitialValues) {
+        startWizard(item);
+        return;
+      }
+      const origIdx = items
+        .filter((orig) => orig.sourceId === item.sourceId)
+        .findIndex((orig) => orig.name === item.name);
       const wizardItem: LauncherItem = {
         name: `Upravit: ${item.name}`,
         wizard: SOURCE_ITEM_WIZARD_DEFINITION,
@@ -4288,7 +4311,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
     if (actionType === 'edit-source-item') {
       exitActions();
-      const origIdx = items.findIndex((orig) => orig.sourceId === parent.sourceId && orig.name === parent.name);
+      if (parent.wizard && (parent as any).__wizardInitialValues) {
+        startWizard(parent);
+        return;
+      }
+      const origIdx = items
+        .filter((orig) => orig.sourceId === parent.sourceId)
+        .findIndex((orig) => orig.name === parent.name);
       const wizardItem: LauncherItem = {
         name: `Upravit: ${parent.name}`,
         wizard: SOURCE_ITEM_WIZARD_DEFINITION,
