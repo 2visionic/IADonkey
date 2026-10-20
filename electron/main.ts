@@ -2699,8 +2699,8 @@ function setupIpcHandlers() {
     });
   });
 
-  ipcMain.handle('execute-action', async (_event, data: { action: string; location: string; settings?: string | null; autoPaste?: boolean; sourceId?: string }) => {
-    const { action, location, settings, autoPaste, sourceId } = data;
+  ipcMain.handle('execute-action', async (_event, data: { action: string; location: string; settings?: string | null; autoPaste?: boolean; sourceId?: string; skipHide?: boolean; preserveSpotlight?: boolean }) => {
+    const { action, location, settings, autoPaste, sourceId, skipHide, preserveSpotlight } = data;
     if (!location) return;
 
     diagnosticsService.logAction({
@@ -2731,7 +2731,9 @@ function setupIpcHandlers() {
           title: 'Zkopírováno do schránky',
           body: `Text "${truncated}" byl úspěšně zkopírován do schránky.`,
         });
-        windowManager.hideImmediately();
+        if (!skipHide && !preserveSpotlight && sourceId !== 'source-manager') {
+          windowManager.hideImmediately();
+        }
         if (autoPaste || sourceId === 'snippet' || action === 'paste') {
           const hwnd = windowManager.getMainWindowHandle();
           pasteService.simulatePaste(80, hwnd);

@@ -287,7 +287,6 @@ export class WindowManager {
   public hideSpotlight(): void {
     if (!this.mainWindow || !this.mainWindow.isVisible()) return;
     this.mainWindow.webContents.send('window-hide-request');
-    this.mainWindow.webContents.send('reset-spotlight');
     setTimeout(() => {
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         try {
@@ -302,7 +301,6 @@ export class WindowManager {
   public hideImmediately(): void {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
     this.mainWindow.webContents.send('window-hide-request');
-    this.mainWindow.webContents.send('reset-spotlight');
     try {
       this.mainWindow.setAlwaysOnTop(false);
       this.mainWindow.blur();
@@ -311,6 +309,9 @@ export class WindowManager {
   }
 
   public resetAndHideSpotlight(): void {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('reset-spotlight');
+    }
     this.hideImmediately();
   }
 

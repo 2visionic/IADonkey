@@ -576,8 +576,17 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
   };
 
-  const resetSpotlightState = () => {
+  // Smooth close helper - fades out in CSS before hiding native window
+  // POUZE zavře okno, NIKDY neresetuje stav!
+  const handleClose = () => {
     setIsRevealed(false);
+    setTimeout(() => {
+      window.electronAPI?.hideWindow?.();
+    }, 90);
+  };
+
+  // Resetuje stav Spotlightu a vyvolá jeho zavření (pokud není předáno closeWindow = false)
+  const resetSpotlightState = (closeWindow = true) => {
     setIsDonkeyToolsOpen(false);
     setParentItem(null);
     setActionsParentItem(null);
@@ -597,6 +606,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     savedParentItemRef.current = null;
     restoringIndexRef.current = null;
     isEyedropperRef.current = false;
+    if (closeWindow) {
+      handleClose();
+    }
   };
 
   const exitWizard = () => {
@@ -1726,16 +1738,16 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     });
 
     const cleanupHide = window.electronAPI?.onWindowHideRequest?.(() => {
-      resetSpotlightState();
+      setIsRevealed(false);
     });
 
     const cleanupReset = window.electronAPI?.onResetSpotlight?.(() => {
-      resetSpotlightState();
+      resetSpotlightState(false);
       inputRef.current?.blur();
     });
 
     const cleanupResetAndFocus = window.electronAPI?.onResetAndFocusSpotlight?.(() => {
-      resetSpotlightState();
+      resetSpotlightState(false);
       setIsRevealed(true);
       inputRef.current?.focus();
       inputRef.current?.select();
@@ -3732,14 +3744,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     wizardSelectedOptionIndex,
   ]);
 
-  // Smooth close helper - fades out in CSS before hiding native window
-  const handleClose = () => {
-    resetSpotlightState();
-    setTimeout(() => {
-      window.electronAPI?.hideWindow?.();
-    }, 90);
-  };
-
   // Execute selected item
   const handleExecute = async (item: LauncherItem) => {
     if (!item) return;
@@ -3970,6 +3974,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             settings: item.settings,
             sourceId: item.sourceId,
             autoPaste: isSnippet,
+            preserveSpotlight: isSourceCommandMode,
           });
         } catch (err) {
           console.error('Clipboard copy error via electronAPI:', err);
@@ -4043,6 +4048,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     const effectiveSettings = actionItem.settings || parent.settings;
     const isCalculatorParent = parent.id === 'calculator-result' || parent.icon === 'calculate';
     const effectiveLocation = actionItem.location || (isCalculatorParent ? parent.name : parent.location) || '';
+    const isSourceCommandMode = Boolean(query.trimStart().match(/^\/(?:source|sources|zdroj|zdroje)/i)) || parent.sourceId === 'source-manager';
 
     window.electronAPI?.logAction?.({
       type: 'action',
@@ -4053,9 +4059,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
     if (actionType === 'close') {
       exitActions();
-      setQuery('');
-      setSelectedIndex(0);
-      handleClose();
+      resetSpotlightState();
       return;
     }
 
@@ -4147,6 +4151,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             action: 'copy',
             location: effectiveLocation,
             settings: effectiveSettings,
+            preserveSpotlight: isSourceCommandMode,
           });
         } catch (err) {
           console.error('Clipboard copy error via electronAPI:', err);
@@ -4155,7 +4160,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         await navigator.clipboard.writeText(effectiveLocation);
       }
       exitActions();
-      handleClose();
+      if (!isSourceCommandMode) {
+        handleClose();
+      }
       return;
     }
 
@@ -4328,10 +4335,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         action: actionType,
         location: effectiveLocation,
         settings: effectiveSettings,
+        preserveSpotlight: isSourceCommandMode,
       });
     }
     exitActions();
-    handleClose();
+    if (!isSourceCommandMode) {
+      handleClose();
+    }
   };
 
   // Keyboard navigation
@@ -4806,7 +4816,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       } else if (parentItem) {
         exitSubitems();
       } else {
-        handleClose();
+        resetSpotlightState();
       }
     }
   };

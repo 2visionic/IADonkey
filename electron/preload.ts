@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectXmlFile: (defaultPath?: string): Promise<string | null> => ipcRenderer.invoke('select-xml-file', defaultPath),
   inspectSource: (source: any): Promise<{ keys: string[]; sample: any }> =>
     ipcRenderer.invoke('inspect-source', source),
-  executeAction: (data: { action: string; location: string; settings?: string | null; autoPaste?: boolean; sourceId?: string }): Promise<void> =>
+  executeAction: (data: { action: string; location: string; settings?: string | null; autoPaste?: boolean; sourceId?: string; skipHide?: boolean; preserveSpotlight?: boolean }): Promise<void> =>
     ipcRenderer.invoke('execute-action', data),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open-external', url),
   openPath: (path: string): Promise<void> => ipcRenderer.invoke('open-path', path),
