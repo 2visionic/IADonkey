@@ -1648,6 +1648,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   // Dynamically resolve actions for an item, inserting either 'Otevřít v Android Studiu' or 'Otevřít ve VS Code' (never both!)
   const getItemActions = (item?: LauncherItem | null): LauncherAction[] => {
     if (!item) return [];
+    // Explicit empty actions array means no actions desired for this item
+    if (Array.isArray(item.actions) && item.actions.length === 0) {
+      return [];
+    }
     let baseActions = item.actions ? [...item.actions] : [];
 
     // Filter out redundant recursive clone actions (handled by checkbox in clone modal)
@@ -1846,38 +1850,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
   const hasItemActions = (item?: LauncherItem | null): boolean => {
     if (!item) return false;
-    if (item.sourceId === 'ssms-db' || item.sourceId === 'magicgate-ftp') {
-      return Boolean(item.actions && item.actions.length > 0);
-    }
-    const isMg = isMagicGateItem(item);
-    if (isMg) {
-      if (!canAccessMagicGateExtras) return false;
-      if (isSsmsActive && item.info?.['Databáze']?.trim()) return true;
-      if (ftpEnabled && item.info?.['FTP']?.trim()) return true;
-      if (instanceSourceCodesPath?.trim()) return true;
-      if (vscodeEnabled && getLocalRepoPath(item)) return true;
-      if (
-        item.actions?.some(
-          (a) =>
-            a.action !== 'clonerecursive' &&
-            a.action !== 'mgclonerecursive' &&
-            (canCloneGit || (a.action !== 'clone' && a.action !== 'mgclone'))
-        )
-      ) {
-        return true;
-      }
-      return false;
-    }
-    if ((vscodeEnabled || androidStudioEnabled) && getLocalRepoPath(item)) {
-      return true;
-    }
-    if (!item.actions || item.actions.length === 0) return false;
-    return item.actions.some(
-      (a) =>
-        a.action !== 'clonerecursive' &&
-        a.action !== 'mgclonerecursive' &&
-        (canCloneGit || (a.action !== 'clone' && a.action !== 'mgclone'))
-    );
+    if (isMagicGateItem(item) && !canAccessMagicGateExtras) return false;
+    return getItemActions(item).length > 0;
   };
 
   const hasItemInfo = (item?: LauncherItem | null) => {
@@ -5425,7 +5399,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             <div className="flex items-center gap-2">
               {hasItemActions(actionsParentItem) && (
                 <span className="rounded-full px-2.5 py-0.5 bg-white/[0.04] text-gray-400 font-mono text-[11px]">
-                  {actionsParentItem.actions!.length} akcí
+                  {getItemActions(actionsParentItem).length} akcí
                 </span>
               )}
             </div>

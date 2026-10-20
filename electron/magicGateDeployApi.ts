@@ -132,16 +132,28 @@ function extractPreferredKeywords(adminUrls: string[], instanceName: string = ''
     'intranet',
     'extranet',
     'iscontent',
-    'istour',
+    'magicware',
+    'magic',
+    'test',
+    'dev',
+    'stage',
   ]);
 
   const addKw = (raw: string) => {
     const clean = raw.trim().toLowerCase();
     if (!clean || clean.length < 2 || genericLabels.has(clean)) return;
     if (!keywords.includes(clean)) keywords.push(clean);
+    const noHyphen = clean.replace(/[-_.\s]/g, '');
+    if (noHyphen && noHyphen.length >= 2 && !genericLabels.has(noHyphen) && !keywords.includes(noHyphen)) {
+      keywords.push(noHyphen);
+    }
     const stripped = clean.replace(/^(?:test|dev|stage)[-_]?/i, '').replace(/[-_]?test$/i, '');
     if (stripped && stripped.length >= 2 && !genericLabels.has(stripped) && !keywords.includes(stripped)) {
       keywords.push(stripped);
+      const strippedNoHyphen = stripped.replace(/[-_.\s]/g, '');
+      if (strippedNoHyphen && strippedNoHyphen.length >= 2 && !genericLabels.has(strippedNoHyphen) && !keywords.includes(strippedNoHyphen)) {
+        keywords.push(strippedNoHyphen);
+      }
     }
   };
 
@@ -162,10 +174,27 @@ function extractPreferredKeywords(adminUrls: string[], instanceName: string = ''
 }
 
 /**
+ * Returns tier rank for domain classification:
+ * 0: Real public customer domains (e.g. .cz, .sk, .eu, .com, .travel, .pl)
+ * 1: MagicWare dev / staging (.magicware.cz, .magic.cz)
+ * 2: Internal IS Tour backoffice / dashboard (*.istour.cz)
+ * 3: Technical CMSinFS content storage (*.iscontent.cz)
+ */
+function getDomainTier(cleanHost: string): number {
+  const host = cleanHost.toLowerCase();
+  if (host.endsWith('.iscontent.cz')) return 3;
+  if (host.endsWith('.istour.cz')) return 2;
+  if (host.endsWith('.magicware.cz') || host.endsWith('.magic.cz')) return 1;
+  return 0;
+}
+
+/**
  * Sorts MagicGate API web URLs so that:
- * 1) Domain families matching the adminUrl / instance keyword (e.g. "atis" from atis.istour.cz) are prioritized first.
- * 2) 2nd-level domains (e.g. atis.cz, firotour.cz) are placed at the top of their family,
- *    immediately followed by their paired 3rd+ level domains (e.g. atis.neco.cz, prodej.atis.cz, firotour.neco.cz).
+ * 1) Real public customer domains (Tier 0) are ALWAYS prioritized over dev (Tier 1), internal (Tier 2), and iscontent (Tier 3).
+ * 2) Domain families matching the adminUrl / instance keyword (normalized, ignoring hyphens/underscores) come first.
+ * 3) 2nd-level domains (e.g. atis.cz, firotour.cz) are placed at the top of their family,
+ *    immediately followed by their paired 3rd+ level domains (e.g. atis.neco.cz, prodej.atis.cz).
+ * 4) www.<domain> and <domain> are paired together, with www.<domain> first.
  */
 export function sortMagicGateWebUrls(
   urls: string[],
@@ -173,6 +202,7 @@ export function sortMagicGateWebUrls(
   instanceName: string = ''
 ): string[] {
   const preferredKeywords = extractPreferredKeywords(adminUrls, instanceName);
+  const normalizeForMatch = (str: string) => str.toLowerCase().replace(/[-_.\s]/g, '');
 
   interface ParsedDomainEntry {
     url: string;
@@ -181,9 +211,10 @@ export function sortMagicGateWebUrls(
     rawParts: string[];
     cleanParts: string[];
     isWww: boolean;
-    isContent: boolean;
+    tier: number;
     tld: string;
     familyKey: string;
+    normFamily: string;
     subRank: number;
   }
 
@@ -200,10 +231,10 @@ export function sortMagicGateWebUrls(
     const isWww = rawParts[0] === 'www';
     const cleanParts = isWww ? rawParts.slice(1) : rawParts;
     const cleanHost = cleanParts.join('.');
-    const isContent = cleanHost.endsWith('.iscontent.cz');
+    const tier = getDomainTier(cleanHost);
     const tld = cleanParts[cleanParts.length - 1] || '';
 
-    if (cleanParts.length === 2 && !isContent) {
+    if (cleanParts.length === 2 && tier === 0) {
       secondLevelBases.add(cleanParts[0]);
     }
 
@@ -214,14 +245,14 @@ export function sortMagicGateWebUrls(
       rawParts,
       cleanParts,
       isWww,
-      isContent,
+      tier,
       tld,
     };
   });
 
   const sortedBasesByLen = Array.from(secondLevelBases).sort((a, b) => b.length - a.length);
 
-  const resolveFamilyForThirdLevel = (cleanParts: string[], isContent: boolean): string => {
+  const resolveFamilyForThirdLevel = (cleanParts: string[], tier: number): string => {
     const first = cleanParts[0] || '';
     const sld = cleanParts[cleanParts.length - 2] || '';
     const innerLabels = cleanParts.slice(0, -1);
@@ -237,7 +268,16 @@ export function sortMagicGateWebUrls(
       if (secondLevelBases.has(lbl)) return lbl;
     }
 
-    // 4. Prefix match against known 2nd-level bases (e.g. atis23.iscontent.cz -> atis, firo.iscontent.cz -> firotour)
+    // 4. Normalized matches without hyphens (e.g. marco-polo.cz -> marcopolo, snail-travel.cz -> snailtravel)
+    const normFirst = normalizeForMatch(first);
+    const normSld = normalizeForMatch(sld);
+    for (const base of sortedBasesByLen) {
+      const normBase = normalizeForMatch(base);
+      if (normBase === normFirst || normBase === normSld) return base;
+      if (normBase.length >= 3 && (normFirst.startsWith(normBase) || normSld.startsWith(normBase))) return base;
+    }
+
+    // 5. Prefix match against known 2nd-level bases (e.g. atis23.iscontent.cz -> atis, firo.iscontent.cz -> firotour)
     for (const base of sortedBasesByLen) {
       if (base.length >= 3 && first.startsWith(base)) {
         return base;
@@ -251,28 +291,32 @@ export function sortMagicGateWebUrls(
       }
     }
 
-    // 5. Match against preferred admin keyword
+    // 6. Match against preferred admin keyword
     for (const kw of preferredKeywords) {
+      const normKw = normalizeForMatch(kw);
+      if (normFirst === normKw || normSld === normKw || normFirst.startsWith(normKw) || normSld.startsWith(normKw)) {
+        return kw;
+      }
       if (first === kw || sld === kw || first.startsWith(kw)) {
         return kw;
       }
     }
 
-    return isContent ? first : (sld || first);
+    return tier === 3 ? first : (sld || first);
   };
 
   const entries: ParsedDomainEntry[] = initial.map((item) => {
     let familyKey = '';
     let subRank = 2;
 
-    if (item.cleanParts.length === 2 && !item.isContent) {
+    if (item.cleanParts.length === 2 && item.tier === 0) {
       familyKey = item.cleanParts[0];
       subRank = 0; // Both www.atis.cz and atis.cz are top-level family domains
     } else {
-      familyKey = resolveFamilyForThirdLevel(item.cleanParts, item.isContent);
-      if (item.isContent) {
+      familyKey = resolveFamilyForThirdLevel(item.cleanParts, item.tier);
+      if (item.tier === 3) {
         subRank = 3;
-      } else if (item.cleanParts[0] === familyKey) {
+      } else if (item.cleanParts[0] === familyKey || normalizeForMatch(item.cleanParts[0]) === normalizeForMatch(familyKey)) {
         subRank = 1; // e.g. atis.neco.cz right under www.atis.cz / atis.cz
       } else {
         subRank = 2; // e.g. prodej.atis.cz, dashboard.atis.istour.cz
@@ -282,24 +326,31 @@ export function sortMagicGateWebUrls(
     return {
       ...item,
       familyKey,
+      normFamily: normalizeForMatch(familyKey),
       subRank,
     };
   });
 
-  const getFamilyAdminRank = (familyKey: string): number => {
+  const getFamilyAdminRank = (normFamily: string): number => {
     for (let i = 0; i < preferredKeywords.length; i++) {
-      const kw = preferredKeywords[i];
-      if (familyKey === kw) return i * 3;
-      if (familyKey.startsWith(kw)) return i * 3 + 1;
-      if (familyKey.includes(kw)) return i * 3 + 2;
+      const normKw = normalizeForMatch(preferredKeywords[i]);
+      if (normFamily === normKw) return i * 4;
+      if (normFamily.startsWith(normKw) || normKw.startsWith(normFamily)) return i * 4 + 1;
+      if (normFamily.includes(normKw) || normKw.includes(normFamily)) return i * 4 + 2;
     }
     return 100;
   };
 
   entries.sort((a, b) => {
-    if (a.familyKey !== b.familyKey) {
-      const adminRankA = getFamilyAdminRank(a.familyKey);
-      const adminRankB = getFamilyAdminRank(b.familyKey);
+    // 1. Tier: Real public customer domains (0) always before dev (1), internal (2), content (3)
+    if (a.tier !== b.tier) {
+      return a.tier - b.tier;
+    }
+
+    // 2. Family matching the instance keyword
+    if (a.normFamily !== b.normFamily) {
+      const adminRankA = getFamilyAdminRank(a.normFamily);
+      const adminRankB = getFamilyAdminRank(b.normFamily);
       if (adminRankA !== adminRankB) return adminRankA - adminRankB;
 
       const has2ndA = secondLevelBases.has(a.familyKey) ? 0 : 1;
@@ -310,22 +361,24 @@ export function sortMagicGateWebUrls(
       if (famCmp !== 0) return famCmp;
     }
 
+    // 3. SubRank (2nd level domain first, then subdomains)
     if (a.subRank !== b.subRank) {
       return a.subRank - b.subRank;
     }
 
-    // For 2nd-level domains of the same family (e.g. firotour.cz vs firotour.eu), prefer .cz first
+    // 4. For 2nd-level domains of the same family (e.g. firotour.cz vs firotour.eu), prefer .cz first
     if (a.subRank === 0) {
-      const isCzA = a.tld === 'cz' ? 0 : 1;
-      const isCzB = b.tld === 'cz' ? 0 : 1;
-      if (isCzA !== isCzB) return isCzA - isCzB;
+      const tldOrder: Record<string, number> = { cz: 0, sk: 1, eu: 2, com: 3 };
+      const rankTldA = tldOrder[a.tld] ?? 10;
+      const rankTldB = tldOrder[b.tld] ?? 10;
+      if (rankTldA !== rankTldB) return rankTldA - rankTldB;
     }
 
     if (a.cleanParts.length !== b.cleanParts.length) {
       return a.cleanParts.length - b.cleanParts.length;
     }
 
-    // Pair www.<domain> and <domain> together, always prioritizing www.<domain> first
+    // 5. Pair www.<domain> and <domain> together, always prioritizing www.<domain> first
     if (a.cleanHost !== b.cleanHost) {
       const cleanCmp = a.cleanHost.localeCompare(b.cleanHost, 'cs');
       if (cleanCmp !== 0) return cleanCmp;
