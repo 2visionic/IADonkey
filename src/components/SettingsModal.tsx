@@ -13188,9 +13188,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => setShowWhatsNew(true)}
+                    onClick={() => {
+                      if (window.electronAPI?.openReleaseNotesWindow) {
+                        window.electronAPI.openReleaseNotesWindow();
+                      } else {
+                        setShowWhatsNew(true);
+                      }
+                    }}
                     className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer"
-                    title="Otevře okno Co je nového s přehledem změn aktuální verze"
+                    title="Otevře samostatné okno Co je nového s přehledem změn aktuální verze"
                   >
                     <span className="material-symbols-outlined text-base text-indigo-400">auto_awesome</span>
                     <span>Zobrazit Release notes</span>

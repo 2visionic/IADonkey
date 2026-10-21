@@ -3051,6 +3051,26 @@ function setupIpcHandlers() {
     windowManager.closePowerWindow();
   });
 
+  ipcMain.handle('open-update-window', (_event, updateInfo?: any) => {
+    windowManager.openUpdateWindow(updateInfo);
+  });
+
+  ipcMain.handle('close-update-window', () => {
+    windowManager.closeUpdateWindow();
+  });
+
+  ipcMain.handle('get-update-window-data', () => {
+    return windowManager.getLastUpdateInfo();
+  });
+
+  ipcMain.handle('open-release-notes-window', () => {
+    windowManager.openReleaseNotesWindow();
+  });
+
+  ipcMain.handle('close-release-notes-window', () => {
+    windowManager.closeReleaseNotesWindow();
+  });
+
   ipcMain.handle('restart-app', () => {
     windowManager.prepareForQuitOrRestart();
     globalShortcut.unregisterAll();
@@ -3094,6 +3114,7 @@ function setupIpcHandlers() {
     const pathRes = await updateChecker.downloadUpdate(downloadUrl, (progress) => {
       windowManager.getMainWindow()?.webContents.send('update-download-progress', progress);
       windowManager.getSettingsWindow()?.webContents.send('update-download-progress', progress);
+      windowManager.getUpdateWindow()?.webContents.send('update-download-progress', progress);
     });
     diagnosticsService.logAction({
       type: 'action',
@@ -3755,9 +3776,10 @@ function startBackgroundTasks() {
             title: `Nová verze v${updateInfo.latestVersion}`,
             body: `Byla nalezena nová aktualizace aplikace. Kliknutím zobrazíte podrobnosti.`,
             onClick: () => {
-              windowManager.showSpotlight();
+              windowManager.openUpdateWindow(updateInfo);
             },
           });
+          windowManager.openUpdateWindow(updateInfo);
         }
 
         const win = windowManager.getMainWindow();
@@ -3767,6 +3789,10 @@ function startBackgroundTasks() {
         const settingsWin = windowManager.getSettingsWindow();
         if (settingsWin && !settingsWin.isDestroyed()) {
           settingsWin.webContents.send('update-available', updateInfo);
+        }
+        const updateWin = windowManager.getUpdateWindow();
+        if (updateWin && !updateWin.isDestroyed()) {
+          updateWin.webContents.send('update-window-data', updateInfo);
         }
       } else {
         lastNotifiedUpdateVersion = null;

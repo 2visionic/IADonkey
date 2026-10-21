@@ -48,3 +48,5 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
   - Backendová služba `SourceManagerService` s atomickým zápisem souborů, automatickými `.bak` zálohami, detekcí obalovacích struktur (`data`, `items`, atd.) a automatickým spuštěním synchronizace.
 
 
+
+

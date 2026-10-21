@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.21';
+export const CURRENT_APP_VERSION = '2.1.22';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,15 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.22',
+    date: '21. 10. 2026',
+    title: 'Samostatná okna pro Aktualizaci a Release notes s možností přesouvání a minimalizace',
+    highlights: [
+      'Okno aktualizace (IADonkey - Aktualizace) – Samostatné okno bez černého backdropu: Dialog s dostupnou aktualizací se nyní otevírá jako plnohodnotné samostatné okno s ikonou a titulkem v horní liště, které lze volně přesouvat po obrazovce, minimalizovat na hlavní panel nebo zavřít, aniž by blokovalo Spotlight či Nastavení.',
+      'Okno Release notes (IADonkey - Release notes) – Samostatné okno s přehledem novinek: Stejně jako aktualizace se i přehled novinek po povýšení verze (nebo při otevření z Nastavení) zobrazuje v samostatném okně s horní lištou, podporou přesouvání, minimalizace a zavření bez tmavého překryvu pozadí.',
+    ],
+  },
   {
     version: '2.1.21',
     date: '21. 10. 2026',

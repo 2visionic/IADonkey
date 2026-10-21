@@ -20,6 +20,12 @@ declare global {
       openSettingsWindow: (tab?: string) => Promise<void>;
       openPowerWindow: () => Promise<void>;
       closePowerWindow: () => Promise<void>;
+      openUpdateWindow: (updateInfo?: UpdateInfo) => Promise<void>;
+      closeUpdateWindow: () => Promise<void>;
+      getUpdateWindowData: () => Promise<UpdateInfo | null>;
+      onUpdateWindowData: (callback: (info: UpdateInfo) => void) => () => void;
+      openReleaseNotesWindow: () => Promise<void>;
+      closeReleaseNotesWindow: () => Promise<void>;
       restartApp: () => Promise<void>;
       quitApp: () => Promise<void>;
       openGitCloneWindow: (params: {

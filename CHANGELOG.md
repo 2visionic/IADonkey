@@ -4,6 +4,11 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.22] - 21. 10. 2026
+### Samostatná okna pro Aktualizaci a Release notes s možností přesouvání a minimalizace
+- **Okno aktualizace (`IADonkey - Aktualizace`) – Samostatné okno bez černého backdropu**: Dialog s dostupnou aktualizací se nyní otevírá jako plnohodnotné samostatné okno s ikonou a titulkem v horní liště, které lze volně přesouvat po obrazovce, minimalizovat na hlavní panel nebo zavřít, aniž by blokovalo Spotlight či Nastavení.
+- **Okno Release notes (`IADonkey - Release notes`) – Samostatné okno s přehledem novinek**: Stejně jako aktualizace se i přehled novinek po povýšení verze (nebo při otevření z Nastavení) zobrazuje v samostatném okně s horní lištou, podporou přesouvání, minimalizace a zavření bez tmavého překryvu pozadí.
+
 ## [2.1.21] - 21. 10. 2026
 ### Podpora české klávesnice pro zkratky (Ctrl+~ / Ctrl+;) a spolehlivá synchronizace vzdálených statických souborů
 - **Klávesové zkratky – Plná podpora české klávesnice pro `Ctrl+~` (`Ctrl+;`) a ostatní speciální klávesy**: Klávesa pod `Esc` (`;`/`°` na české klávesnici, `~`/`` ` `` na US klávesnici) i další české znakové klávesy (`ů`, `ú`, `)`, `§`, `¨`) se nyní při nahrávání v Nastavení i při registraci v systému správně namapují na příslušnou fyzickou klávesu.

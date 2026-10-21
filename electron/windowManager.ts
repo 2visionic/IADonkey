@@ -77,6 +77,9 @@ export class WindowManager {
   private paletteDetailWindow: BrowserWindow | null = null;
   private magicPlanWindow: BrowserWindow | null = null;
   private feedbackWindow: BrowserWindow | null = null;
+  private updateWindow: BrowserWindow | null = null;
+  private lastUpdateInfo: any = null;
+  private releaseNotesWindow: BrowserWindow | null = null;
   private snipperWindow: BrowserWindow | null = null;
   private rulerWindow: BrowserWindow | null = null;
   private splashWindow: BrowserWindow | null = null;
@@ -543,6 +546,170 @@ export class WindowManager {
     });
 
     return this.powerWindow;
+  }
+
+  public getUpdateWindow(): BrowserWindow | null {
+    return this.updateWindow;
+  }
+
+  public getLastUpdateInfo(): any {
+    return this.lastUpdateInfo;
+  }
+
+  public closeUpdateWindow(): void {
+    if (this.updateWindow && !this.updateWindow.isDestroyed()) {
+      this.updateWindow.close();
+    }
+  }
+
+  public openUpdateWindow(updateInfo?: any): BrowserWindow {
+    if (updateInfo !== undefined) {
+      this.lastUpdateInfo = updateInfo;
+    }
+
+    if (this.updateWindow && !this.updateWindow.isDestroyed()) {
+      if (this.updateWindow.isMinimized()) this.updateWindow.restore();
+      if (this.lastUpdateInfo) {
+        this.updateWindow.webContents.send('update-window-data', this.lastUpdateInfo);
+      }
+      this.updateWindow.show();
+      this.updateWindow.focus();
+      return this.updateWindow;
+    }
+
+    const preloadPath = fs.existsSync(path.join(__dirname, 'preload.cjs'))
+      ? path.join(__dirname, 'preload.cjs')
+      : fs.existsSync(path.join(__dirname, 'preload.mjs'))
+      ? path.join(__dirname, 'preload.mjs')
+      : path.join(__dirname, 'preload.js');
+
+    this.updateWindow = new BrowserWindow({
+      width: 520,
+      height: 390,
+      minWidth: 480,
+      minHeight: 350,
+      maxWidth: 560,
+      maxHeight: 460,
+      resizable: false,
+      title: isDevMode ? 'IADonkey [DEV] - Aktualizace' : 'IADonkey - Aktualizace',
+      icon: getAppIcon(),
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: true,
+      show: false,
+      skipTaskbar: false,
+      webPreferences: {
+        preload: preloadPath,
+        sandbox: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+
+    try {
+      this.updateWindow.removeMenu();
+    } catch {
+      // Ignore
+    }
+    this.registerCrashHandlers(this.updateWindow, 'Aktualizace');
+
+    if (process.env.VITE_DEV_SERVER_URL) {
+      this.updateWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#update`);
+    } else {
+      this.updateWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: 'update' });
+    }
+
+    this.updateWindow.once('ready-to-show', () => {
+      if (this.updateWindow && !this.updateWindow.isDestroyed()) {
+        if (this.lastUpdateInfo) {
+          this.updateWindow.webContents.send('update-window-data', this.lastUpdateInfo);
+        }
+        this.updateWindow.show();
+        this.updateWindow.focus();
+      }
+    });
+
+    this.updateWindow.on('closed', () => {
+      this.updateWindow = null;
+    });
+
+    return this.updateWindow;
+  }
+
+  public getReleaseNotesWindow(): BrowserWindow | null {
+    return this.releaseNotesWindow;
+  }
+
+  public closeReleaseNotesWindow(): void {
+    if (this.releaseNotesWindow && !this.releaseNotesWindow.isDestroyed()) {
+      this.releaseNotesWindow.close();
+    }
+  }
+
+  public openReleaseNotesWindow(): BrowserWindow {
+    if (this.releaseNotesWindow && !this.releaseNotesWindow.isDestroyed()) {
+      if (this.releaseNotesWindow.isMinimized()) this.releaseNotesWindow.restore();
+      this.releaseNotesWindow.show();
+      this.releaseNotesWindow.focus();
+      return this.releaseNotesWindow;
+    }
+
+    const preloadPath = fs.existsSync(path.join(__dirname, 'preload.cjs'))
+      ? path.join(__dirname, 'preload.cjs')
+      : fs.existsSync(path.join(__dirname, 'preload.mjs'))
+      ? path.join(__dirname, 'preload.mjs')
+      : path.join(__dirname, 'preload.js');
+
+    this.releaseNotesWindow = new BrowserWindow({
+      width: 580,
+      height: 520,
+      minWidth: 500,
+      minHeight: 420,
+      maxWidth: 640,
+      maxHeight: 620,
+      resizable: false,
+      title: isDevMode ? 'IADonkey [DEV] - Release notes' : 'IADonkey - Release notes',
+      icon: getAppIcon(),
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: true,
+      show: false,
+      skipTaskbar: false,
+      webPreferences: {
+        preload: preloadPath,
+        sandbox: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+
+    try {
+      this.releaseNotesWindow.removeMenu();
+    } catch {
+      // Ignore
+    }
+    this.registerCrashHandlers(this.releaseNotesWindow, 'Release notes');
+
+    if (process.env.VITE_DEV_SERVER_URL) {
+      this.releaseNotesWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#release-notes`);
+    } else {
+      this.releaseNotesWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: 'release-notes' });
+    }
+
+    this.releaseNotesWindow.once('ready-to-show', () => {
+      if (this.releaseNotesWindow && !this.releaseNotesWindow.isDestroyed()) {
+        this.releaseNotesWindow.show();
+        this.releaseNotesWindow.focus();
+      }
+    });
+
+    this.releaseNotesWindow.on('closed', () => {
+      this.releaseNotesWindow = null;
+    });
+
+    return this.releaseNotesWindow;
   }
 
   public getGitCloneWindow(): BrowserWindow | null {
@@ -2061,6 +2228,18 @@ export class WindowManager {
       if (this.powerWindow && !this.powerWindow.isDestroyed()) {
         this.powerWindow.destroy();
         this.powerWindow = null;
+      }
+    } catch {}
+    try {
+      if (this.updateWindow && !this.updateWindow.isDestroyed()) {
+        this.updateWindow.destroy();
+        this.updateWindow = null;
+      }
+    } catch {}
+    try {
+      if (this.releaseNotesWindow && !this.releaseNotesWindow.isDestroyed()) {
+        this.releaseNotesWindow.destroy();
+        this.releaseNotesWindow = null;
       }
     } catch {}
     try {

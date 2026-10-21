@@ -115,6 +115,18 @@ export const App: React.FC = () => {
     return window.location.hash.startsWith('#power') || window.location.search.includes('window=power');
   });
 
+  const [isUpdateView, setIsUpdateView] = useState(() => {
+    return window.location.hash.startsWith('#update') || window.location.search.includes('window=update');
+  });
+
+  const [isReleaseNotesView, setIsReleaseNotesView] = useState(() => {
+    return (
+      window.location.hash.startsWith('#release-notes') ||
+      window.location.hash.startsWith('#whats-new') ||
+      window.location.search.includes('window=release-notes')
+    );
+  });
+
   const [isTuneColorView, setIsTuneColorView] = useState(() => {
     return window.location.hash.startsWith('#tune-color') || window.location.search.includes('window=tune-color');
   });
@@ -268,6 +280,12 @@ export const App: React.FC = () => {
       setIsCmsDownloadView(window.location.hash.startsWith('#cms-download') || window.location.search.includes('window=cms-download'));
       setIsTuneColorView(window.location.hash.startsWith('#tune-color') || window.location.search.includes('window=tune-color'));
       setIsFeedbackView(window.location.hash.startsWith('#feedback') || window.location.search.includes('window=feedback'));
+      setIsUpdateView(window.location.hash.startsWith('#update') || window.location.search.includes('window=update'));
+      setIsReleaseNotesView(
+        window.location.hash.startsWith('#release-notes') ||
+          window.location.hash.startsWith('#whats-new') ||
+          window.location.search.includes('window=release-notes')
+      );
     };
     window.addEventListener('hashchange', handleHash);
     return () => window.removeEventListener('hashchange', handleHash);
@@ -340,8 +358,19 @@ export const App: React.FC = () => {
             setConfig(effectiveCfg);
             applyPrimaryColor(effectiveCfg.primaryColor);
             applyActionsColor(effectiveCfg.actionsColor);
-            if (!isSettingsView && effectiveCfg.lastSeenVersion !== CURRENT_APP_VERSION) {
-              setShowWhatsNew(true);
+            const isMainSpotlightWindow = !window.location.hash && !window.location.search;
+            if (isMainSpotlightWindow && effectiveCfg.lastSeenVersion !== CURRENT_APP_VERSION) {
+              if (window.electronAPI?.openReleaseNotesWindow) {
+                window.electronAPI.openReleaseNotesWindow();
+              } else {
+                setShowWhatsNew(true);
+              }
+            }
+          }
+          if (window.location.hash.startsWith('#update') || window.location.search.includes('window=update')) {
+            const initUpdateInfo = await window.electronAPI.getUpdateWindowData?.();
+            if (initUpdateInfo) {
+              setUpdateInfo(initUpdateInfo);
             }
           }
           const cachedItems = await window.electronAPI.getItems();
@@ -375,6 +404,10 @@ export const App: React.FC = () => {
       setUpdateInfo(info);
     });
 
+    const cleanupUpdateWindowDataListener = window.electronAPI?.onUpdateWindowData?.((info: UpdateInfo) => {
+      if (info) setUpdateInfo(info);
+    });
+
     const cleanupProgressListener = window.electronAPI?.onSyncProgress?.((prog: SyncProgress) => {
       setSyncProgress(prog);
       if (prog.isComplete) {
@@ -387,6 +420,7 @@ export const App: React.FC = () => {
       cleanupConfigListener?.();
       cleanupSettingsListener?.();
       cleanupUpdateListener?.();
+      cleanupUpdateWindowDataListener?.();
       cleanupProgressListener?.();
     };
   }, []);
@@ -446,6 +480,7 @@ export const App: React.FC = () => {
           }));
           setUpdateInfo(info);
           setUpdateStatusMessage(`K dispozici nová verze: ${info.latestVersion}`);
+          window.electronAPI.openUpdateWindow?.(info);
         } else {
           setUpdateStatusMessage(`Máte aktuální verzi (${info.currentVersion}).`);
           setTimeout(() => setUpdateStatusMessage(null), 4000);
@@ -470,14 +505,18 @@ export const App: React.FC = () => {
       details: `Simulace přechodu z v${CURRENT_APP_VERSION} na v1.2.0`,
       status: 'info',
     });
-    setUpdateInfo({
+    const simulatedInfo: UpdateInfo = {
       hasUpdate: true,
       latestVersion: '1.2.0 (Simulace)',
       currentVersion: CURRENT_APP_VERSION,
       releaseNotes: '• Nový vylepšený design systém\n• Rychlejší vyhledávání v repozitářích\n• Opravy drobných chyb a vylepšení stability',
       downloadUrl: 'https://example.com/simulated-update.exe',
       isSimulated: true,
-    });
+    };
+    setUpdateInfo(simulatedInfo);
+    if (window.electronAPI?.openUpdateWindow) {
+      window.electronAPI.openUpdateWindow(simulatedInfo);
+    }
   };
 
   const handleDeclineUpdate = async () => {
@@ -491,6 +530,13 @@ export const App: React.FC = () => {
       setConfig(updatedConfig);
     }
     setUpdateInfo(null);
+    if (isUpdateView) {
+      if (window.electronAPI?.closeUpdateWindow) {
+        await window.electronAPI.closeUpdateWindow();
+      } else {
+        window.close();
+      }
+    }
   };
 
   const handleDismissWhatsNew = async () => {
@@ -502,6 +548,13 @@ export const App: React.FC = () => {
       };
       setConfig(updatedConfig);
       await window.electronAPI.saveConfig(updatedConfig);
+    }
+    if (isReleaseNotesView) {
+      if (window.electronAPI?.closeReleaseNotesWindow) {
+        await window.electronAPI.closeReleaseNotesWindow();
+      } else {
+        window.close();
+      }
     }
   };
 
@@ -587,14 +640,6 @@ export const App: React.FC = () => {
               onSimulateUpdate={handleSimulateUpdate}
             />
           </ErrorBoundary>
-          {/* Update Dialog in settings view if simulated */}
-          {updateInfo && (
-            <UpdateDialog
-              updateInfo={updateInfo}
-              onAccept={handleAcceptUpdate}
-              onDecline={handleDeclineUpdate}
-            />
-          )}
         </main>
       </WindowFrame>
     );
@@ -682,6 +727,46 @@ export const App: React.FC = () => {
         onClose={() => window.electronAPI?.closePowerWindow?.()}
       >
         <PowerManagementModal onClose={() => window.electronAPI?.closePowerWindow?.()} />
+      </WindowFrame>
+    );
+  }
+
+  // Dedicated Update Window mode
+  if (isUpdateView) {
+    const activeUpdateInfo: UpdateInfo = updateInfo || {
+      hasUpdate: true,
+      latestVersion: CURRENT_APP_VERSION,
+      currentVersion: CURRENT_APP_VERSION,
+    };
+    return (
+      <WindowFrame
+        title="IADonkey - Aktualizace"
+        allowMinimize={true}
+        allowMaximize={false}
+        onClose={handleDeclineUpdate}
+      >
+        <UpdateDialog
+          updateInfo={activeUpdateInfo}
+          onAccept={handleAcceptUpdate}
+          onDecline={handleDeclineUpdate}
+        />
+      </WindowFrame>
+    );
+  }
+
+  // Dedicated Release Notes Window mode
+  if (isReleaseNotesView) {
+    return (
+      <WindowFrame
+        title="IADonkey - Release notes"
+        allowMinimize={true}
+        allowMaximize={false}
+        onClose={handleDismissWhatsNew}
+      >
+        <WhatsNewModal
+          release={getLatestRelease()}
+          onDismiss={handleDismissWhatsNew}
+        />
       </WindowFrame>
     );
   }
@@ -813,7 +898,7 @@ export const App: React.FC = () => {
       className="w-full h-screen p-6 sm:p-7 flex flex-col justify-start select-none bg-transparent"
     >
       {/* Search Bar & Autocomplete list */}
-      {!showWhatsNew && !showChangelog && !updateInfo && !showSettings && (
+      {!showChangelog && !showSettings && (
         <SearchSpotlight
           items={visibleItems}
           mlogBaseUrl={config?.extensions?.mlog ? config?.mlog?.baseUrl : undefined}
@@ -877,24 +962,6 @@ export const App: React.FC = () => {
             onSimulateUpdate={handleSimulateUpdate}
           />
         </ErrorBoundary>
-      )}
-
-      {/* Update Dialog */}
-      {updateInfo && (
-        <UpdateDialog
-          updateInfo={updateInfo}
-          onAccept={handleAcceptUpdate}
-          onDecline={handleDeclineUpdate}
-        />
-      )}
-
-      {/* What's New Dialog on first launch after update */}
-      {showWhatsNew && (
-        <WhatsNewModal
-          release={getLatestRelease()}
-          onDismiss={handleDismissWhatsNew}
-          onOpenFullChangelog={() => setShowChangelog(true)}
-        />
       )}
 
       {/* Complete Changelog Modal */}

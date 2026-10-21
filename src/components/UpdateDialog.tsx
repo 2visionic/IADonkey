@@ -118,9 +118,8 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 window-modal-overlay">
-      <div className="m3-surface-main modal-card rounded-[28px] shadow-2xl w-full max-w-lg p-6 flex flex-col gap-4 text-gray-200 select-none">
-        
+    <main className="w-full h-full bg-[#14151b] p-6 flex flex-col justify-between gap-4 text-gray-200 select-none overflow-y-auto">
+      <div className="flex flex-col gap-4">
         {/* Header section based on state */}
         {downloadState === 'completed' ? (
           <div className="flex items-center gap-3.5">
@@ -233,8 +232,9 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
             </p>
           </div>
         )}
+      </div>
 
-        {/* Footer actions based on state */}
+      {/* Footer actions based on state */}
         <div className="flex items-center justify-end gap-2.5 pt-2">
           {downloadState === 'idle' && (
             <>
@@ -305,8 +305,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
             </>
           )}
         </div>
-      </div>
-    </div>
+    </main>
   );
 };
 

@@ -21,6 +21,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openSettingsWindow: (tab?: string): Promise<void> => ipcRenderer.invoke('open-settings-window', tab),
   openPowerWindow: (): Promise<void> => ipcRenderer.invoke('open-power-window'),
   closePowerWindow: (): Promise<void> => ipcRenderer.invoke('close-power-window'),
+  openUpdateWindow: (updateInfo?: UpdateInfo): Promise<void> => ipcRenderer.invoke('open-update-window', updateInfo),
+  closeUpdateWindow: (): Promise<void> => ipcRenderer.invoke('close-update-window'),
+  getUpdateWindowData: (): Promise<UpdateInfo | null> => ipcRenderer.invoke('get-update-window-data'),
+  onUpdateWindowData: (callback: (info: UpdateInfo) => void) => {
+    const handler = (_event: any, info: UpdateInfo) => callback(info);
+    ipcRenderer.on('update-window-data', handler);
+    return () => ipcRenderer.removeListener('update-window-data', handler);
+  },
+  openReleaseNotesWindow: (): Promise<void> => ipcRenderer.invoke('open-release-notes-window'),
+  closeReleaseNotesWindow: (): Promise<void> => ipcRenderer.invoke('close-release-notes-window'),
   restartApp: (): Promise<void> => ipcRenderer.invoke('restart-app'),
   quitApp: (): Promise<void> => ipcRenderer.invoke('quit-app'),
   openGitCloneWindow: (params: { repoName: string; repoUrl?: string; initialRecursive?: boolean; isInstanceMode?: boolean; adminUrl?: string; targetDir?: string; repoLanguage?: string }): Promise<void> =>
