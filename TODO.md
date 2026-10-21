@@ -38,7 +38,6 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-- [x] **Spotlight: Ošetření pádu v okně akcí a automatické ignorování akcí u položek bez akcí**: Opraven pád aplikace na `actionsParentItem.actions!.length` v patičce detailu akcí. Funkce `hasItemActions` byla přímo navázána na `getItemActions(item).length > 0`. Pokud tedy položka nemá žádné dostupné akce (např. statické MagicGate položky v JSONu bez git repa, DB, FTP či admin URL), akce se automaticky ignorují a v launcheru se vůbec nenabízí proklik do akcí (`Shift+Enter Akce`), aniž by bylo nutné v JSONu psát `"actions": []`. Pokud je v JSONu `"actions": []` explicitně uvedeno, je také plně respektováno.
 - [x] **Spotlight: Příkazový režim `/source`, průvodce (wizard) pro přidání/úpravu položek a správa zdrojů**:
   - Implementován příkaz `/source` (a aliasy `/sources`, `/zdroj`, `/zdroje`) pro okamžitý přehled všech nakonfigurovaných zdrojů dat s možností interaktivního výběru nebo přímého zadání (`/source "<název zdroje>"`, `/source add`).
   - Inteligentní doplňování (ghost text a Tab klávesa) s automatickým uzavíráním do uvozovek.

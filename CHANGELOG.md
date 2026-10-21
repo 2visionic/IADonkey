@@ -4,6 +4,12 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.21] - 21. 10. 2026
+### Podpora české klávesnice pro zkratky (Ctrl+~ / Ctrl+;) a spolehlivá synchronizace vzdálených statických souborů
+- **Klávesové zkratky – Plná podpora české klávesnice pro `Ctrl+~` (`Ctrl+;`) a ostatní speciální klávesy**: Klávesa pod `Esc` (`;`/`°` na české klávesnici, `~`/`` ` `` na US klávesnici) i další české znakové klávesy (`ů`, `ú`, `)`, `§`, `¨`) se nyní při nahrávání v Nastavení i při registraci v systému správně namapují na příslušnou fyzickou klávesu.
+- **Synchronizace zdrojů – Odstranění zamrzání u vzdálených a statických souborů**: Synchronní kontroly souborů byly nahrazeny asynchronním čtením s časovým limitem (takže nedostupná síťová cesta nebo VPN nezablokuje aplikaci), souborové zdroje nově podporují i přímé HTTP/HTTPS URL adresy a parsování vzdálených JSON souborů si poradí s UTF-8 BOM, kódováním Windows-1250, čárkami na konci i společnými parametry `sharedParams`.
+- **Nastavení zdrojů – Okamžité uložení před synchronizací a plynulý průběh progress baru**: Při přidání, úpravě, přepnutí nebo smazání zdroje se konfigurace uloží okamžitě před spuštěním synchronizace a progress bar vyčkává na dokončení všech kroků včetně MagicGate a GitHubu.
+
 ## [2.1.20] - 20. 10. 2026
 ### Zadavatel a dovolené v MagicPlanu, zachování stavu Spotlightu, vylepšení nástrojů obrazovky, MagicGate domény a Feedback
 - **Spotlight – Zachování rozpracovaného stavu a plynulý reset po dokončení akce**: Zavření okna Spotlightu mimo finální akce zachová rozpracovaný stav (např. uprostřed průvodce či vyhledávání), zatímco po otevření odkazu nebo zkopírování do schránky se stav plynule vyresetuje před skrytím okna bez probliknutí při dalším vyvolání.

@@ -1,6 +1,6 @@
 {
-  "version": "2.1.20",
-  "releaseNotes": "• Spotlight – Zachování rozpracovaného stavu a plynulý reset po dokončení akce bez probliku.\n• Nástroje obrazovky (QuickCap, ColorMaster, ScreenRuler) – Zachování otevřeného Spotlightu při spuštění zkratkou a zobrazení akcí po výřezu.\n• MagicPlan – Výběr zadavatele v Nastavení, chytré filtrování notifikací a detekce dovolené (Vacation, 1ks = 1h).\n• MagicGate, Aktualizace & Feedback – Priorita klientských domén, kontrola aktualizací každých 10 min a oprava fokusu polí ve Feedbacku.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.20/IADonkey-Setup-2.1.20.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.20/IADonkey-2.1.20.zip"
+  "version": "2.1.21",
+  "releaseNotes": "• Klávesové zkratky – Plná podpora české klávesnice pro Ctrl+~ (Ctrl+;) pod klávesou Esc a ostatní speciální klávesy.\n• Synchronizace zdrojů – Odstranění zamrzání při synchronizaci vzdálených a statických JSON souborů, asynchronní čtení s timeoutem a podpora přímých HTTP/HTTPS URL.\n• Nastavení zdrojů – Okamžité uložení změn zdroje před spuštěním synchronizace a přesný průběh progress baru.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.21/IADonkey-Setup-2.1.21.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.21/IADonkey-2.1.21.zip"
 }

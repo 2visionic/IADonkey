@@ -107,13 +107,69 @@ function getCombinedItems(): LauncherItem[] {
   return customItems;
 }
 
+function normalizeElectronAccelerator(rawHotkey: string): string {
+  if (!rawHotkey || !rawHotkey.trim()) return '';
+  const parts = rawHotkey
+    .trim()
+    .split('+')
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  // Handle trailing '+' key (e.g. "Ctrl++")
+  if (rawHotkey.trim().endsWith('++')) {
+    parts.push('+');
+  }
+
+  const czToElectronKeyMap: Record<string, string> = {
+    '~': '`',
+    '°': '`',
+    ';': '`',
+    'ů': ';',
+    'ú': '[',
+    ')': ']',
+    '§': "'",
+    '¨': '\\',
+    '´': '/',
+    'ˇ': '/',
+    'Dead': '/',
+    '+': '1',
+    'ě': '2',
+    'š': '3',
+    'č': '4',
+    'ř': '5',
+    'ž': '6',
+    'ý': '7',
+    'á': '8',
+    'í': '9',
+    'é': '0',
+  };
+
+  const normalized = parts.map((token) => {
+    const lower = token.toLowerCase();
+    if (lower === 'ctrl' || lower === 'control') return 'Ctrl';
+    if (lower === 'alt' || lower === 'altgraph') return 'Alt';
+    if (lower === 'shift') return 'Shift';
+    if (lower === 'super' || lower === 'meta' || lower === 'cmd' || lower === 'command') return 'Super';
+    if (czToElectronKeyMap[token] !== undefined) {
+      return czToElectronKeyMap[token];
+    }
+    if (czToElectronKeyMap[lower] !== undefined) {
+      return czToElectronKeyMap[lower];
+    }
+    return token;
+  });
+
+  return normalized.join('+');
+}
+
 let lastHotkeyToggle = 0;
 function registerGlobalHotkey(hotkey: string) {
   try {
     if (currentHotkey) {
       globalShortcut.unregister(currentHotkey);
     }
-    const registered = globalShortcut.register(hotkey, () => {
+    const cleanHotkey = normalizeElectronAccelerator(hotkey) || hotkey.trim();
+    const registered = globalShortcut.register(cleanHotkey, () => {
       const now = Date.now();
       if (now - lastHotkeyToggle < 300) {
         return;
@@ -122,7 +178,7 @@ function registerGlobalHotkey(hotkey: string) {
 
       diagnosticsService.logAction({
         type: 'shortcut',
-        title: `Zkratka launcheru: ${hotkey}`,
+        title: `Zkratka launcheru: ${cleanHotkey}`,
         details: 'Přepnutí zobrazení vyhledávacího okna Spotlight',
         status: 'info',
       });
@@ -136,11 +192,11 @@ function registerGlobalHotkey(hotkey: string) {
     });
 
     if (!registered) {
-      console.warn(`[Main] Failed to register global shortcut: ${hotkey}`);
+      console.warn(`[Main] Failed to register global shortcut: ${cleanHotkey} (raw: ${hotkey})`);
     } else {
-      currentHotkey = hotkey;
-      windowManager?.updateTrayTooltip(hotkey);
-      console.log(`[Main] Successfully registered shortcut: ${hotkey}`);
+      currentHotkey = cleanHotkey;
+      windowManager?.updateTrayTooltip(cleanHotkey);
+      console.log(`[Main] Successfully registered shortcut: ${cleanHotkey}`);
     }
   } catch (err) {
     console.error(`[Main] Error registering shortcut ${hotkey}:`, err);
@@ -498,7 +554,7 @@ function registerColorMasterHotkey(hotkey?: string) {
     if (!isEnabled || !hotkey || !hotkey.trim()) {
       return;
     }
-    const cleanHotkey = hotkey.trim();
+    const cleanHotkey = normalizeElectronAccelerator(hotkey) || hotkey.trim();
     const registered = globalShortcut.register(cleanHotkey, async () => {
       try {
         console.log('[Main] ColorMaster hotkey triggered, opening screen color picker...');
@@ -540,7 +596,7 @@ function registerQuickCapHotkey(hotkey?: string) {
     if (!isEnabled || !targetHotkey || !targetHotkey.trim()) {
       return;
     }
-    const cleanHotkey = targetHotkey.trim();
+    const cleanHotkey = normalizeElectronAccelerator(targetHotkey) || targetHotkey.trim();
     const registered = globalShortcut.register(cleanHotkey, async () => {
       try {
         console.log('[Main] QuickCap hotkey triggered');
@@ -585,7 +641,7 @@ function registerScreenRulerHotkey(hotkey?: string) {
     if (!isEnabled || !targetHotkey || !targetHotkey.trim()) {
       return;
     }
-    const cleanHotkey = targetHotkey.trim();
+    const cleanHotkey = normalizeElectronAccelerator(targetHotkey) || targetHotkey.trim();
     const registered = globalShortcut.register(cleanHotkey, async () => {
       try {
         console.log('[Main] ScreenRuler hotkey triggered');
@@ -626,7 +682,7 @@ function registerEasyClipHotkey(hotkey?: string) {
     if (!isEnabled || !targetHotkey || !targetHotkey.trim()) {
       return;
     }
-    const cleanHotkey = targetHotkey.trim();
+    const cleanHotkey = normalizeElectronAccelerator(targetHotkey) || targetHotkey.trim();
     const registered = globalShortcut.register(cleanHotkey, async () => {
       try {
         console.log('[Main] EasyClip hotkey triggered');
@@ -668,7 +724,7 @@ function registerPaletteMasterHotkey(hotkey?: string) {
   if (!isEnabled) return;
   const targetHotkey = hotkey !== undefined ? hotkey : config?.donkeyTools?.colorMaster?.paletteHotkey;
   if (!targetHotkey || !targetHotkey.trim()) return;
-  const cleanHotkey = targetHotkey.trim();
+  const cleanHotkey = normalizeElectronAccelerator(targetHotkey) || targetHotkey.trim();
 
   try {
     const registered = globalShortcut.register(cleanHotkey, async () => {

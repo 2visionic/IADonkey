@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.20';
+export const CURRENT_APP_VERSION = '2.1.21';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,16 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.21',
+    date: '21. 10. 2026',
+    title: 'Podpora české klávesnice pro zkratky (Ctrl+~ / Ctrl+;) a spolehlivá synchronizace vzdálených statických souborů',
+    highlights: [
+      'Klávesové zkratky – Plná podpora české klávesnice pro Ctrl+~ (Ctrl+;) a ostatní speciální klávesy: Klávesa pod Esc (`;`/`°` na české klávesnici, `~`/`` ` `` na US klávesnici) i další české znakové klávesy (`ů`, `ú`, `)`, `§`, `¨`) se nyní při nahrávání v Nastavení i při registraci v systému správně namapují na příslušnou fyzickou klávesu.',
+      'Synchronizace zdrojů – Odstranění zamrzání u vzdálených a statických souborů: Synchronní kontroly souborů byly nahrazeny asynchronním čtením s časovým limitem (takže nedostupná síťová cesta nebo VPN nezablokuje aplikaci), souborové zdroje nově podporují i přímé HTTP/HTTPS URL adresy a parsování vzdálených JSON souborů si poradí s UTF-8 BOM, kódováním Windows-1250, čárkami na konci i společnými parametry sharedParams.',
+      'Nastavení zdrojů – Okamžité uložení před synchronizací a plynulý průběh progress baru: Při přidání, úpravě, přepnutí nebo smazání zdroje se konfigurace uloží okamžitě před spuštěním synchronizace a progress bar vyčkává na dokončení všech kroků včetně MagicGate a GitHubu.',
+    ],
+  },
   {
     version: '2.1.20',
     date: '20. 10. 2026',

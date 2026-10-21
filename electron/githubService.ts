@@ -268,7 +268,7 @@ export async function fetchGitHubRepos(settings?: GithubSettings): Promise<Launc
   // Fetch page 1 (and 2 if needed) of user repos (including orgs membership)
   try {
     const userReposUrl = `${base}/user/repos?per_page=100&affiliation=owner,collaborator,organization_member&sort=updated`;
-    const res = await fetch(userReposUrl, { headers });
+    const res = await fetch(userReposUrl, { headers, signal: AbortSignal.timeout(15000) });
     if (res.ok) {
       const data = (await res.json()) as RawGitHubRepo[];
       if (Array.isArray(data)) {
@@ -290,7 +290,7 @@ export async function fetchGitHubRepos(settings?: GithubSettings): Promise<Launc
   if (specificUser) {
     try {
       const userUrl = `${base}/users/${encodeURIComponent(specificUser)}/repos?per_page=100&sort=updated`;
-      const res = await fetch(userUrl, { headers });
+      const res = await fetch(userUrl, { headers, signal: AbortSignal.timeout(15000) });
       if (res.ok) {
         const data = (await res.json()) as RawGitHubRepo[];
         if (Array.isArray(data)) {
@@ -311,7 +311,7 @@ export async function fetchGitHubRepos(settings?: GithubSettings): Promise<Launc
   if (specificOrg) {
     try {
       const orgReposUrl = `${base}/orgs/${encodeURIComponent(specificOrg)}/repos?per_page=100&sort=updated`;
-      const res = await fetch(orgReposUrl, { headers });
+      const res = await fetch(orgReposUrl, { headers, signal: AbortSignal.timeout(15000) });
       if (res.ok) {
         const data = (await res.json()) as RawGitHubRepo[];
         if (Array.isArray(data)) {

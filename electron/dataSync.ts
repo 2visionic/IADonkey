@@ -19,8 +19,36 @@ function isItemBanned(item: LauncherItem, banlist?: BannedItem[]): boolean {
   });
 }
 
+async function readFileWithTimeout(filePath: string, timeoutMs: number = 12000): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Vypršel časový limit (${Math.round(timeoutMs / 1000)} s) při čtení souboru: ${filePath}`));
+    }, timeoutMs);
+
+    fs.promises
+      .readFile(filePath)
+      .then((buf) => {
+        clearTimeout(timer);
+        resolve(buf);
+      })
+      .catch((err: any) => {
+        clearTimeout(timer);
+        if (err?.code === 'ENOENT') {
+          reject(new Error(`Soubor nebyl nalezen na cestě: ${filePath}`));
+        } else {
+          reject(err);
+        }
+      });
+  });
+}
+
 export class DataSyncManager {
   private store: AppStore;
+  private activeSyncPromise: Promise<LauncherItem[]> | null = null;
+  private pendingResync: boolean = false;
+  private pendingProgressCallbacks: Array<
+    (progress: { total: number; current: number; percentage: number; sourceName?: string; isComplete: boolean }) => void
+  > = [];
 
   constructor(store: AppStore) {
     this.store = store;
@@ -106,21 +134,145 @@ export class DataSyncManager {
   public async syncAll(
     onProgress?: (progress: { total: number; current: number; percentage: number; sourceName?: string; isComplete: boolean }) => void
   ): Promise<LauncherItem[]> {
+    if (onProgress) {
+      this.pendingProgressCallbacks.push(onProgress);
+    }
+
+    if (this.activeSyncPromise) {
+      this.pendingResync = true;
+      return this.activeSyncPromise;
+    }
+
+    const runLoop = async (): Promise<LauncherItem[]> => {
+      let lastResult: LauncherItem[] = [];
+      do {
+        this.pendingResync = false;
+        lastResult = await this.executeSyncAll((progress) => {
+          for (const cb of this.pendingProgressCallbacks) {
+            try {
+              cb(progress);
+            } catch {}
+          }
+        });
+      } while (this.pendingResync);
+      return lastResult;
+    };
+
+    this.activeSyncPromise = runLoop().finally(() => {
+      this.activeSyncPromise = null;
+      this.pendingProgressCallbacks = [];
+    });
+
+    return this.activeSyncPromise;
+  }
+
+  private async executeSyncAll(
+    onProgress?: (progress: { total: number; current: number; percentage: number; sourceName?: string; isComplete: boolean }) => void
+  ): Promise<LauncherItem[]> {
     const config = this.store.getConfig();
-    const sources = config.sources;
+    const sources = config.sources || [];
     const allItems: LauncherItem[] = [];
     const updatedSources = [...sources];
 
     const enabledSources = updatedSources.filter((s) => s.enabled);
     const totalCount = enabledSources.length;
+    const hasMagicGateStep = config.extensions?.magicgate !== false && Boolean(config.magicgate);
+    const activeGhToken = getActiveGitHubToken(config.github);
+    const hasGitHubStep = config.extensions?.github !== false && Boolean(activeGhToken);
+    const totalSteps = Math.max(1, totalCount + (hasMagicGateStep ? 1 : 0) + (hasGitHubStep ? 1 : 0));
+    let completedSteps = 0;
 
-    if (totalCount === 0) {
+    onProgress?.({
+      total: totalSteps,
+      current: 0,
+      percentage: 0,
+      isComplete: false,
+    });
+
+    try {
+      for (let i = 0; i < updatedSources.length; i++) {
+        const src = updatedSources[i];
+        if (!src.enabled) continue;
+
+        onProgress?.({
+          total: totalSteps,
+          current: completedSteps,
+          percentage: Math.min(90, Math.round((completedSteps / totalSteps) * 90)),
+          sourceName: src.name,
+          isComplete: false,
+        });
+
+        try {
+          let items: LauncherItem[] = [];
+          if (src.type === 'file') {
+            items = await this.syncFileSource(src as FileSource);
+          } else if (src.type === 'api') {
+            items = await this.syncApiSource(src as ApiSource);
+          } else if (src.type === 'static') {
+            items = this.syncStaticSource(src as StaticSource);
+          }
+
+          // Tag items with source reference and apply mapping if configured
+          const normalized = items.map((it, idx) => this.normalizeItem(it, src.id, idx, src.mapping));
+          allItems.push(...normalized);
+
+          updatedSources[i] = {
+            ...src,
+            lastSync: new Date().toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            itemCount: normalized.length,
+            error: undefined,
+          };
+        } catch (err: any) {
+          console.error(`[DataSync] Error syncing source "${src.name}":`, err);
+          const errMsg = err?.message || 'Chyba při stahování dat';
+          updatedSources[i] = {
+            ...src,
+            error: errMsg,
+          };
+          diagnosticsService.logAction({
+            type: 'sync',
+            title: `Chyba synchronizace zdroje: ${src.name}`,
+            details: errMsg,
+            status: 'error',
+          });
+        }
+
+        completedSteps++;
+        onProgress?.({
+          total: totalSteps,
+          current: completedSteps,
+          percentage: Math.min(92, Math.round((completedSteps / totalSteps) * 90)),
+          sourceName: src.name,
+          isComplete: false,
+        });
+      }
+
+      // Load MagicGate items (XML or Deploy API) if configured and enabled
+      if (hasMagicGateStep) {
+        onProgress?.({
+          total: totalSteps,
+          current: completedSteps,
+          percentage: Math.min(94, Math.round((completedSteps / totalSteps) * 92)),
+          sourceName: 'MagicGate',
+          isComplete: false,
+        });
+      }
       const mgItems = await this.syncMagicGateItems(config);
       allItems.push(...mgItems);
+      if (hasMagicGateStep) {
+        completedSteps++;
+      }
 
+      // Load GitHub repositories if configured and enabled
       let ghCount = 0;
-      const activeGhToken = getActiveGitHubToken(config.github);
-      if (config.extensions?.github !== false && activeGhToken) {
+      if (hasGitHubStep) {
+        onProgress?.({
+          total: totalSteps,
+          current: completedSteps,
+          percentage: Math.min(96, Math.round((completedSteps / totalSteps) * 95)),
+          sourceName: 'GitHub',
+          isComplete: false,
+        });
         try {
           const ghItems = await fetchGitHubRepos(config.github);
           ghCount = ghItems.length;
@@ -141,148 +293,52 @@ export class DataSyncManager {
             status: 'error',
           });
         }
+        completedSteps++;
       }
 
-      onProgress?.({
-        total: 0,
-        current: 0,
-        percentage: 100,
-        isComplete: true,
-      });
       const nowIso = new Date().toISOString();
       const latestConfig = this.store.getConfig();
-      this.store.saveConfig({ ...latestConfig, sources: updatedSources, lastSyncTime: nowIso });
+
+      // Merge updated source statistics by ID into latestConfig.sources so concurrent additions/edits/toggles are never overwritten
+      const statsById = new Map(
+        updatedSources.map((s) => [s.id, { lastSync: s.lastSync, itemCount: s.itemCount, error: s.error }])
+      );
+      const mergedSources = (latestConfig.sources || []).map((s) => {
+        const st = statsById.get(s.id);
+        return st ? { ...s, ...st } : s;
+      });
+
+      this.store.saveConfig({ ...latestConfig, sources: mergedSources, lastSyncTime: nowIso });
+
+      // Filter out banned items before saving into local cache
       const filteredItems = allItems.filter((it) => !isItemBanned(it, latestConfig.banlist));
       this.store.saveItems(filteredItems);
 
       diagnosticsService.logAction({
         type: 'sync',
-        title: 'Synchronizace dat dokončena',
-        details: `Celkem položek: ${filteredItems.length} (MagicGate: ${mgItems.length}${ghCount > 0 ? `, GitHub: ${ghCount}` : ''})`,
+        title: totalCount > 0 ? 'Kompletní synchronizace dokončena' : 'Synchronizace dat dokončena',
+        details: `Celkem položek: ${filteredItems.length} (${totalCount > 0 ? `Vlastní zdroje: ${totalCount}, ` : ''}MagicGate: ${mgItems.length}${ghCount > 0 ? `, GitHub: ${ghCount}` : ''})`,
         status: 'success',
       });
 
       return filteredItems;
-    }
-
-    onProgress?.({
-      total: totalCount,
-      current: 0,
-      percentage: 0,
-      isComplete: false,
-    });
-
-    let completedCount = 0;
-
-    for (let i = 0; i < updatedSources.length; i++) {
-      const src = updatedSources[i];
-      if (!src.enabled) continue;
-
-      try {
-        let items: LauncherItem[] = [];
-        if (src.type === 'file') {
-          items = await this.syncFileSource(src as FileSource);
-        } else if (src.type === 'api') {
-          items = await this.syncApiSource(src as ApiSource);
-        } else if (src.type === 'static') {
-          items = this.syncStaticSource(src as StaticSource);
-        }
-
-        // Tag items with source reference and apply mapping if configured
-        const normalized = items.map((it, idx) => this.normalizeItem(it, src.id, idx, src.mapping));
-        allItems.push(...normalized);
-
-        updatedSources[i] = {
-          ...src,
-          lastSync: new Date().toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          itemCount: normalized.length,
-          error: undefined,
-        };
-      } catch (err: any) {
-        console.error(`[DataSync] Error syncing source "${src.name}":`, err);
-        const errMsg = err?.message || 'Chyba při stahování dat';
-        updatedSources[i] = {
-          ...src,
-          error: errMsg,
-        };
-        diagnosticsService.logAction({
-          type: 'sync',
-          title: `Chyba synchronizace zdroje: ${src.name}`,
-          details: errMsg,
-          status: 'error',
-        });
-      }
-
-      completedCount++;
-      const percentage = Math.round((completedCount / totalCount) * 100);
-      onProgress?.({
-        total: totalCount,
-        current: completedCount,
-        percentage,
-        sourceName: src.name,
-        isComplete: completedCount === totalCount,
-      });
-    }
-
-    // Load MagicGate items (XML or Deploy API) if configured and enabled
-    const mgItems = await this.syncMagicGateItems(config);
-    allItems.push(...mgItems);
-
-    // Load GitHub repositories if configured and enabled
-    let ghCount = 0;
-    const activeGhTokenEnd = getActiveGitHubToken(config.github);
-    if (config.extensions?.github !== false && activeGhTokenEnd) {
-      try {
-        const ghItems = await fetchGitHubRepos(config.github);
-        ghCount = ghItems.length;
-        allItems.push(...ghItems);
-        diagnosticsService.logAction({
-          type: 'sync',
-          title: 'Synchronizace GitHub repozitářů',
-          details: `Načteno ${ghItems.length} repozitářů.`,
-          status: 'success',
-        });
-        faviconService.fetchFaviconForUrl('https://github.com').catch(() => {});
-      } catch (err: any) {
-        console.error('[DataSync] Error loading GitHub repos:', err);
-        diagnosticsService.logAction({
-          type: 'sync',
-          title: 'Chyba synchronizace GitHub repozitářů',
-          details: err?.message || String(err),
-          status: 'error',
+    } finally {
+      if (!this.pendingResync) {
+        onProgress?.({
+          total: totalSteps,
+          current: totalSteps,
+          percentage: 100,
+          isComplete: true,
         });
       }
     }
-
-    const nowIso = new Date().toISOString();
-    const latestConfig = this.store.getConfig();
-
-    // Save updated source statistics and global sync timestamp into config
-    this.store.saveConfig({ ...latestConfig, sources: updatedSources, lastSyncTime: nowIso });
-
-    // Filter out banned items before saving into local cache
-    const filteredItems = allItems.filter((it) => !isItemBanned(it, latestConfig.banlist));
-    this.store.saveItems(filteredItems);
-
-    diagnosticsService.logAction({
-      type: 'sync',
-      title: 'Kompletní synchronizace dokončena',
-      details: `Celkem položek: ${filteredItems.length} (Vlastní zdroje: ${totalCount}, MagicGate: ${mgItems.length}${ghCount > 0 ? `, GitHub: ${ghCount}` : ''})`,
-      status: 'success',
-    });
-
-    return filteredItems;
   }
 
   /**
-   * Reads a local JSON file with BOM stripping, UTF-16 fallback and array unwrapping
+   * Parses a JSON buffer with BOM stripping, UTF-16LE / Windows-1250 fallback, trailing comma tolerance,
+   * array unwrapping, and optional root sharedParams merging.
    */
-  private async syncFileSource(src: FileSource): Promise<LauncherItem[]> {
-    if (!src.path || !fs.existsSync(src.path)) {
-      throw new Error(`Soubor nebyl nalezen na cestě: ${src.path}`);
-    }
-
-    const buf = await fs.promises.readFile(src.path);
+  private parseItemsFromBuffer(buf: Buffer, sourceLabel: string): LauncherItem[] {
     let raw = buf.toString('utf-8').replace(/^\uFEFF/, '').trim();
 
     // If UTF-8 produced replacement characters \uFFFD, try Windows-1250 / ANSI
@@ -313,7 +369,7 @@ export class DataSyncManager {
             const stripped = raw.replace(/,\s*([}\]])/g, '$1');
             parsed = JSON.parse(stripped);
           } catch {
-            throw new Error(`Neplatný formát JSON souboru: ${err?.message || err}`);
+            throw new Error(`Neplatný formát JSON (${sourceLabel}): ${err?.message || err}`);
           }
         }
       }
@@ -321,9 +377,14 @@ export class DataSyncManager {
 
     // Unwrap array if root object has data, items, results, etc.
     let itemsArray: any[] | null = null;
+    let rootSharedParams: Record<string, any> | null = null;
+
     if (Array.isArray(parsed)) {
       itemsArray = parsed;
     } else if (parsed && typeof parsed === 'object') {
+      if (parsed.sharedParams && typeof parsed.sharedParams === 'object' && !Array.isArray(parsed.sharedParams)) {
+        rootSharedParams = parsed.sharedParams;
+      }
       if (Array.isArray(parsed.data)) itemsArray = parsed.data;
       else if (Array.isArray(parsed.items)) itemsArray = parsed.items;
       else if (Array.isArray(parsed.results)) itemsArray = parsed.results;
@@ -340,22 +401,77 @@ export class DataSyncManager {
     }
 
     if (!itemsArray) {
-      throw new Error('Soubor neobsahuje pole JSON objektů [{ ... }]');
+      throw new Error(`Zdroj (${sourceLabel}) neobsahuje pole JSON objektů [{ ... }]`);
+    }
+
+    if (rootSharedParams) {
+      return itemsArray.map((item) => {
+        if (!item || typeof item !== 'object') return item;
+        const merged: any = { ...item };
+        for (const [k, v] of Object.entries(rootSharedParams!)) {
+          if (v !== undefined && v !== '' && (merged[k] === undefined || merged[k] === '' || merged[k] === null)) {
+            merged[k] = k === 'priority' ? Number(v) : v;
+          }
+        }
+        return merged as LauncherItem;
+      });
     }
 
     return itemsArray;
   }
 
   /**
-   * Fetches data from remote API, handling getToken auth if required
+   * Reads a local/network JSON file (or remote HTTP/HTTPS static JSON URL) with timeout, BOM stripping, UTF-16 fallback and array unwrapping
+   */
+  private async syncFileSource(src: FileSource): Promise<LauncherItem[]> {
+    const targetPath = (src.path || '').trim();
+    if (!targetPath) {
+      throw new Error('Chybí cesta k JSON souboru');
+    }
+
+    // Support remote HTTP/HTTPS URLs entered into FileSource
+    if (/^https?:\/\//i.test(targetPath)) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const response = await fetch(targetPath, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'User-Agent': 'IADonkey-Launcher/1.0',
+          },
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Vzdálený soubor vrátil HTTP ${response.status}: ${response.statusText}`);
+        }
+        const arrayBuf = await response.arrayBuffer();
+        return this.parseItemsFromBuffer(Buffer.from(arrayBuf), src.name || targetPath);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          throw new Error(`Vypršel časový limit (15 s) při stahování souboru: ${targetPath}`);
+        }
+        throw err;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    const buf = await readFileWithTimeout(targetPath, 12000);
+    return this.parseItemsFromBuffer(buf, src.name || targetPath);
+  }
+
+  /**
+   * Fetches data from remote API or remote static JSON URL, handling getToken auth if required
    */
   private async syncApiSource(src: ApiSource): Promise<LauncherItem[]> {
-    if (!src.url) {
+    const targetUrl = (src.url || '').trim();
+    if (!targetUrl) {
       throw new Error('Chybí URL adresa API');
     }
 
     const headers: Record<string, string> = {
-      'Accept': 'application/json',
+      'Accept': 'application/json, text/plain, */*',
       'User-Agent': 'IADonkey-Launcher/1.0',
     };
 
@@ -367,44 +483,29 @@ export class DataSyncManager {
       }
     }
 
-    // Perform GET request
-    const response = await fetch(src.url, {
-      method: 'GET',
-      headers,
-      signal: AbortSignal.timeout(30000),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch(targetUrl, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      throw new Error(`API vrátilo kód ${response.status}: ${response.statusText}`);
-    }
-
-    const parsed = await response.json();
-
-    // Handle response if wrapped in data or directly an array
-    let itemsArray: any[] | null = null;
-    if (Array.isArray(parsed)) {
-      itemsArray = parsed;
-    } else if (parsed && typeof parsed === 'object') {
-      if (Array.isArray(parsed.data)) itemsArray = parsed.data;
-      else if (Array.isArray(parsed.items)) itemsArray = parsed.items;
-      else if (Array.isArray(parsed.results)) itemsArray = parsed.results;
-      else if (Array.isArray(parsed.records)) itemsArray = parsed.records;
-      else if (Array.isArray(parsed.values)) itemsArray = parsed.values;
-      else {
-        for (const val of Object.values(parsed)) {
-          if (Array.isArray(val)) {
-            itemsArray = val;
-            break;
-          }
-        }
+      if (!response.ok) {
+        throw new Error(`API vrátilo kód ${response.status}: ${response.statusText}`);
       }
-    }
 
-    if (!itemsArray) {
-      throw new Error('API nevrátilo pole objektů [{ ... }]');
+      const arrayBuf = await response.arrayBuffer();
+      return this.parseItemsFromBuffer(Buffer.from(arrayBuf), src.name || targetUrl);
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        throw new Error(`Vypršel časový limit (20 s) při stahování z URL: ${targetUrl}`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    return itemsArray;
   }
 
   /**

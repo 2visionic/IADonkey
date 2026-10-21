@@ -1895,13 +1895,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (isSyncing) {
         // While backend is still syncing:
         // Progress smoothly advances towards either real percentage or up to 88% over MIN_SYNC_DURATION_MS
-        const realPercent = syncProgress?.percentage ?? 0;
+        const realPercent = Math.min(syncProgress?.percentage ?? 0, 95);
         const timePercent = Math.min((elapsed / MIN_SYNC_DURATION_MS) * 85, 88);
         const targetPercent = Math.max(realPercent, timePercent, 8);
 
         const prev = visualProgressFloatRef.current;
         const step = Math.max((targetPercent - prev) * 0.15, 0.5);
-        const next = Math.min(prev + step, targetPercent);
+        const next = Math.max(prev, Math.min(prev + step, targetPercent, 95));
         visualProgressFloatRef.current = next;
         const nextRounded = Math.round(next);
         setVisualProgress((curr) => (Math.round(curr) === nextRounded ? curr : nextRounded));
@@ -2492,7 +2492,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     { key: 'settings', label: 'Speciální nastavení (settings)', placeholder: 'např. magicgate', defaultHint: 'Výchozí: žádné' },
   ];
 
-  const handleSaveSource = (source: DataSource) => {
+  const handleSaveSource = async (source: DataSource) => {
     let updatedSources: DataSource[];
     const exists = formData.sources.some((s) => s.id === source.id);
     if (exists) {
@@ -2504,31 +2504,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const updatedConfig = { ...formData, sources: updatedSources };
     setFormData(updatedConfig);
     handleCloseSourceForm();
-    handleSave(updatedConfig);
-    onTriggerSync();
+    handleSave(updatedConfig, true);
+    await onTriggerSync();
   };
 
-  const handleDeleteSource = (id: string) => {
+  const handleDeleteSource = async (id: string) => {
     const updatedSources = formData.sources.filter((s) => s.id !== id);
     const updatedConfig = { ...formData, sources: updatedSources };
     setFormData(updatedConfig);
-    handleSave(updatedConfig);
-    onTriggerSync();
+    handleSave(updatedConfig, true);
+    await onTriggerSync();
   };
 
-  const handleToggleSource = (id: string) => {
+  const handleToggleSource = async (id: string) => {
     const updatedSources = formData.sources.map((s) =>
       s.id === id ? { ...s, enabled: !s.enabled } : s
     );
     const updatedConfig = { ...formData, sources: updatedSources };
     setFormData(updatedConfig);
-    handleSave(updatedConfig);
-    onTriggerSync();
+    handleSave(updatedConfig, true);
+    await onTriggerSync();
   };
 
   const normalizeHotkeyKeyFromEvent = (e: React.KeyboardEvent<HTMLInputElement>): string => {
     const rawKey = e.key;
     const code = e.code || '';
+    const keyCode = e.keyCode || e.which || 0;
 
     if (rawKey === 'Control') return 'Ctrl';
     if (rawKey === 'Alt' || rawKey === 'AltGraph') return 'Alt';
@@ -2540,12 +2541,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (rawKey === 'ArrowLeft') return 'Left';
     if (rawKey === 'ArrowRight') return 'Right';
 
+    // Key under Esc (Backquote / VK_OEM_3: `;` or `°` on Czech layout, `` ` `` or `~` on US layout)
+    if (code === 'Backquote' || keyCode === 192) {
+      return '`';
+    }
+
     // Standard ASCII letter a-z -> uppercase (preserves QWERTZ Y/Z when not transformed by AltGr)
     if (/^[a-z]$/i.test(rawKey)) {
       return rawKey.toUpperCase();
     }
 
-    // Physical letter key KeyA..KeyZ when e.key was transformed by Ctrl+Alt (AltGr) into e.g. '@' (Ctrl+Alt+V), '&' (Ctrl+Alt+C), '#' (Ctrl+Alt+X), etc.
+    // Windows Virtual-Key letter A..Z (preserves QWERTZ Y/Z even when Ctrl+Alt/AltGr transforms e.key into '@', '#', '&', etc.)
+    if (keyCode >= 65 && keyCode <= 90) {
+      return String.fromCharCode(keyCode);
+    }
+
+    // Fallback physical letter key KeyA..KeyZ
     const keyCodeMatch = code.match(/^Key([A-Z])$/i);
     if (keyCodeMatch) {
       return keyCodeMatch[1].toUpperCase();
@@ -2557,10 +2568,62 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return digitMatch[1];
     }
 
-    // Numpad digits
+    // Numpad digits & operators
     const numpadMatch = code.match(/^Numpad([0-9])$/i);
     if (numpadMatch) {
       return `num${numpadMatch[1]}`;
+    }
+    const numpadOpMap: Record<string, string> = {
+      NumpadAdd: 'numadd',
+      NumpadSubtract: 'numsub',
+      NumpadMultiply: 'nummult',
+      NumpadDivide: 'numdiv',
+      NumpadDecimal: 'numdec',
+    };
+    if (numpadOpMap[code]) {
+      return numpadOpMap[code];
+    }
+
+    // Function keys F1..F24
+    if (/^F([1-9]|1[0-9]|2[0-4])$/i.test(code)) {
+      return code.toUpperCase();
+    }
+
+    // Windows VK_OEM_* mapping to Electron Accelerator symbols (ensures 1:1 match with RegisterHotKey on CZ/SK/US layouts)
+    const vkOemMap: Record<number, string> = {
+      186: ';',  // VK_OEM_1 (CZ: ů)
+      187: '=',  // VK_OEM_PLUS (CZ: =)
+      188: ',',  // VK_OEM_COMMA (CZ: ,)
+      189: '-',  // VK_OEM_MINUS (CZ: -)
+      190: '.',  // VK_OEM_PERIOD (CZ: .)
+      191: '/',  // VK_OEM_2 (CZ: ´/ˇ)
+      192: '`',  // VK_OEM_3 (CZ: ;/° under Esc)
+      219: '[',  // VK_OEM_4 (CZ: ú)
+      220: '\\', // VK_OEM_5 (CZ: ¨)
+      221: ']',  // VK_OEM_6 (CZ: ))
+      222: "'",  // VK_OEM_7 (CZ: §)
+      226: '\\', // VK_OEM_102 (ISO backslash next to Left Shift)
+    };
+    if (vkOemMap[keyCode]) {
+      return vkOemMap[keyCode];
+    }
+
+    // Fallback by physical OEM code
+    const oemCodeMap: Record<string, string> = {
+      Minus: '-',
+      Equal: '=',
+      BracketLeft: '[',
+      BracketRight: ']',
+      Backslash: '\\',
+      IntlBackslash: '\\',
+      Semicolon: ';',
+      Quote: "'",
+      Comma: ',',
+      Period: '.',
+      Slash: '/',
+    };
+    if (oemCodeMap[code]) {
+      return oemCodeMap[code];
     }
 
     return rawKey;
