@@ -212,7 +212,7 @@ export class WindowManager {
 
     // Hide window when it loses focus (unless devtools is active or during initial reveal / reactivation)
     this.mainWindow.on('blur', () => {
-      if (Date.now() - this.lastShowTime < 800) {
+      if (Date.now() - this.lastShowTime < 150) {
         return;
       }
       if (
@@ -321,7 +321,7 @@ export class WindowManager {
         } catch {}
         this.mainWindow.hide();
       }
-    }, 135);
+    }, 210);
   }
 
   public hideImmediately(): void {
@@ -338,10 +338,10 @@ export class WindowManager {
   }
 
   public resetAndHideSpotlight(): void {
+    this.hideSpotlight();
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send('reset-spotlight');
     }
-    this.hideSpotlight();
   }
 
   public getMainWindowHandle(): number {
@@ -1074,7 +1074,12 @@ export class WindowManager {
     }
   }
 
-  public openPaletteBarWindow(paletteId: string, paletteName: string): BrowserWindow {
+  public openPaletteBarWindow(
+    paletteId: string,
+    paletteName: string,
+    slotIndex?: number,
+    autoPick?: boolean
+  ): BrowserWindow {
     const primaryDisplay = screen.getPrimaryDisplay();
     const bounds = primaryDisplay.workArea;
     const barWidth = 960;
@@ -1082,18 +1087,25 @@ export class WindowManager {
     const x = Math.round(bounds.x + (bounds.width - barWidth) / 2);
     const y = Math.round(bounds.y + 20);
 
-    const query = new URLSearchParams({
+    const queryObj: Record<string, string> = {
       window: 'palette-bar',
       paletteId: paletteId || '',
       paletteName: paletteName || '',
-    }).toString();
+    };
+    if (typeof slotIndex === 'number') {
+      queryObj.slotIndex = String(slotIndex);
+    }
+    if (autoPick) {
+      queryObj.autoPick = '1';
+    }
+    const query = new URLSearchParams(queryObj).toString();
 
     if (this.paletteBarWindow && !this.paletteBarWindow.isDestroyed()) {
       this.paletteBarWindow.setBounds({ x, y, width: barWidth, height: barHeight });
       if (this.paletteBarWindow.isMinimized()) this.paletteBarWindow.restore();
       this.paletteBarWindow.show();
       this.paletteBarWindow.focus();
-      this.paletteBarWindow.webContents.send('palette-bar-init', { paletteId, paletteName });
+      this.paletteBarWindow.webContents.send('palette-bar-init', { paletteId, paletteName, slotIndex, autoPick });
       return this.paletteBarWindow;
     }
 

@@ -20,6 +20,49 @@ import {
 import { applyPrimaryColor, applyActionsColor } from '../utils/theme';
 import { isTaskForUser } from './MagicPlanWindow';
 
+export const SOURCE_WIZARD_ICON_OPTIONS: WizardOption[] = [
+  { text: 'Web / Glóbus (public)', value: 'public', icon: 'public', color: '#06b6d4' },
+  { text: 'Zeměkoule / Web (language)', value: 'language', icon: 'language', color: '#3b82f6' },
+  { text: 'Kód (code)', value: 'code', icon: 'code', color: '#38bdf8' },
+  { text: 'Text / Šablona (description)', value: 'description', icon: 'description', color: '#a855f7' },
+  { text: 'Odkaz (link)', value: 'link', icon: 'link', color: '#0ea5e9' },
+  { text: 'Terminál (terminal)', value: 'terminal', icon: 'terminal', color: '#10b981' },
+  { text: 'Složka (folder)', value: 'folder', icon: 'folder', color: '#f59e0b' },
+  { text: 'Databáze (database)', value: 'database', icon: 'database', color: '#ec4899' },
+  { text: 'Záložka (bookmark)', value: 'bookmark', icon: 'bookmark', color: '#eab308' },
+  { text: 'Hvězda (star)', value: 'star', icon: 'star', color: '#f97316' },
+];
+
+export const SOURCE_DELETE_WIZARD_DEFINITION: LauncherWizard = {
+  action: 'deletesourceentity',
+  steps: [
+    {
+      id: 'confirm',
+      title: 'Potvrdit trvalé odstranění',
+      placeholder: 'Vyberte Ano nebo Ne (šipky ↑/↓ a Enter, případně Esc pro zrušení)...',
+      icon: 'delete_forever',
+      required: true,
+      type: 'select',
+      options: [
+        {
+          text: 'Ano, trvale smazat',
+          value: 'yes',
+          icon: 'delete_forever',
+          color: '#f43f5e',
+          description: 'Trvale odstranit vybranou položku ze zdroje dat',
+        },
+        {
+          text: 'Ne, zachovat a vrátit se zpět',
+          value: 'no',
+          icon: 'close',
+          color: '#9ca3af',
+          description: 'Zrušit mazání a vrátit se zpět (Esc)',
+        },
+      ],
+    },
+  ],
+};
+
 export const SOURCE_ITEM_WIZARD_DEFINITION: LauncherWizard = {
   action: 'savesourceitem',
   steps: [
@@ -47,38 +90,19 @@ export const SOURCE_ITEM_WIZARD_DEFINITION: LauncherWizard = {
     {
       id: 'location',
       title: 'Obsah / Cíl / Odkaz',
-      placeholder: 'Zadejte text, kód, URL nebo vyberte ze schránky...',
+      placeholder: 'Zadejte text, kód, URL nebo cestu k souboru...',
       icon: 'link',
       required: true,
       type: 'text',
-      dynamicOption: 'clipboard',
     },
     {
       id: 'icon',
       title: 'Ikona',
-      placeholder: 'Zvolte ikonu pro zobrazení...',
+      placeholder: 'Zvolte ikonu pro zobrazení (šipky ↑/↓ a Enter)...',
       icon: 'star',
-      required: false,
-      type: 'select',
-      options: [
-        { text: 'Kód (code)', value: 'code', icon: 'code', color: '#38bdf8' },
-        { text: 'Text / Šablona (description)', value: 'description', icon: 'description', color: '#a855f7' },
-        { text: 'Odkaz (link)', value: 'link', icon: 'link', color: '#0ea5e9' },
-        { text: 'Terminál (terminal)', value: 'terminal', icon: 'terminal', color: '#10b981' },
-        { text: 'Složka (folder)', value: 'folder', icon: 'folder', color: '#f59e0b' },
-        { text: 'Databáze (database)', value: 'database', icon: 'database', color: '#ec4899' },
-        { text: 'Záložka (bookmark)', value: 'bookmark', icon: 'bookmark', color: '#eab308' },
-        { text: 'Hvězda (star)', value: 'star', icon: 'star', color: '#f97316' },
-      ],
-    },
-    {
-      id: 'optionsAction',
-      title: 'Podpoložky (options)',
-      placeholder: 'Zvolte uložení záznamu nebo správu jeho podpoložek (options)...',
-      icon: 'account_tree',
       required: true,
       type: 'select',
-      dynamicOption: 'source-item-options',
+      options: SOURCE_WIZARD_ICON_OPTIONS,
     },
   ],
 };
@@ -110,42 +134,63 @@ export const SOURCE_SUBITEM_WIZARD_DEFINITION: LauncherWizard = {
     {
       id: 'location',
       title: 'Obsah / Cíl / Odkaz podpoložky',
-      placeholder: 'Upravte obsah/URL nahoře nebo vyberte ze seznamu níže...',
+      placeholder: 'Zadejte obsah, URL nebo cestu k souboru...',
       icon: 'link',
       required: true,
       type: 'text',
-      dynamicOption: 'clipboard',
     },
     {
       id: 'icon',
       title: 'Ikona podpoložky',
-      placeholder: 'Zvolte ikonu podpoložky (nebo Ponechat výchozí)...',
+      placeholder: 'Zvolte ikonu podpoložky (šipky ↑/↓ a Enter)...',
       icon: 'star',
-      required: false,
+      required: true,
       type: 'select',
-      options: [
-        { text: 'Kód (code)', value: 'code', icon: 'code', color: '#38bdf8' },
-        { text: 'Text / Šablona (description)', value: 'description', icon: 'description', color: '#a855f7' },
-        { text: 'Odkaz (link)', value: 'link', color: '#0ea5e9' },
-        { text: 'Terminál (terminal)', value: 'terminal', color: '#10b981' },
-        { text: 'Složka (folder)', value: 'folder', color: '#f59e0b' },
-        { text: 'Databáze (database)', value: 'database', color: '#ec4899' },
-        { text: 'Záložka (bookmark)', value: 'bookmark', icon: 'bookmark', color: '#eab308' },
-        { text: 'Hvězda (star)', value: 'star', icon: 'star', color: '#f97316' },
-      ],
+      options: SOURCE_WIZARD_ICON_OPTIONS,
+    },
+  ],
+};
+
+export const SOURCE_ACTION_WIZARD_DEFINITION: LauncherWizard = {
+  action: 'savesourceaction',
+  steps: [
+    {
+      id: 'name',
+      title: 'Název akce',
+      placeholder: 'Zadejte název akce (např. Otevřít dokumentaci, Zkopírovat token)...',
+      icon: 'edit',
+      required: true,
+      type: 'text',
     },
     {
-      id: 'afterSubitemAction',
-      title: 'Dokončení podpoložky',
-      placeholder: 'Co udělat po uložení podpoložky...',
-      icon: 'task_alt',
+      id: 'action',
+      title: 'Typ akce',
+      placeholder: 'Vyberte typ akce při spuštění (šipky ↑/↓ a Enter)...',
+      icon: 'touch_app',
       required: true,
       type: 'select',
       options: [
-        { text: 'Uložit a zobrazit podpoložky záznamu', value: 'browse-options', icon: 'account_tree', color: '#10b981', description: 'Vrátí se do seznamu podpoložek (options) tohoto záznamu' },
-        { text: 'Uložit a přidat další podpoložku...', value: 'add-another', icon: 'add', color: '#a855f7', description: 'Rovnou otevře průvodce pro přidání další podpoložky' },
-        { text: 'Uložit a vrátit se do výpisu zdroje', value: 'back-to-source', icon: 'arrow_back', color: '#38bdf8', description: 'Vrátí se na hlavní seznam položek zdroje' },
+        { text: 'Zkopírovat do schránky (kód / text)', value: 'copy', icon: 'content_copy', color: '#10b981', description: 'Vhodné pro code snippety, šablony a texty' },
+        { text: 'Otevřít odkaz nebo soubor', value: 'open', icon: 'open_in_new', color: '#0ea5e9', description: 'Otevře webovou adresu nebo spustí soubor na disku' },
+        { text: 'Otevřít ve VS Code', value: 'vscode', icon: 'code', color: '#38bdf8', description: 'Otevře složku nebo soubor ve Visual Studio Code' },
       ],
+    },
+    {
+      id: 'location',
+      title: 'Obsah / Cíl / Odkaz akce',
+      placeholder: 'Zadejte obsah, URL nebo cestu k souboru...',
+      icon: 'link',
+      required: true,
+      type: 'text',
+    },
+    {
+      id: 'icon',
+      title: 'Ikona akce',
+      placeholder: 'Zvolte ikonu akce (šipky ↑/↓ a Enter)...',
+      icon: 'star',
+      required: true,
+      type: 'select',
+      options: SOURCE_WIZARD_ICON_OPTIONS,
     },
   ],
 };
@@ -652,17 +697,29 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
   };
 
+  const hideResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revealRafRef = useRef<number | null>(null);
+  const isHidingRef = useRef<boolean>(false);
+
   // Smooth close helper - fades out in CSS before hiding native window
   // POUZE zavře okno, NIKDY neresetuje stav!
   const handleClose = () => {
+    isHidingRef.current = true;
+    if (revealRafRef.current !== null) {
+      cancelAnimationFrame(revealRafRef.current);
+      revealRafRef.current = null;
+    }
     setIsRevealed(false);
     window.electronAPI?.hideWindow?.();
   };
 
   const preWizardQueryRef = useRef<string | null>(null);
 
-  // Resetuje stav Spotlightu a vyvolá jeho zavření (pokud není předáno closeWindow = false)
-  const resetSpotlightState = (closeWindow = true) => {
+  const clearSpotlightFields = () => {
+    if (hideResetTimerRef.current) {
+      clearTimeout(hideResetTimerRef.current);
+      hideResetTimerRef.current = null;
+    }
     setIsDonkeyToolsOpen(false);
     setParentItem(null);
     setActionsParentItem(null);
@@ -683,14 +740,29 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     restoringIndexRef.current = null;
     preWizardQueryRef.current = null;
     isEyedropperRef.current = false;
+  };
+
+  // Resetuje stav Spotlightu a vyvolá jeho zavření (pokud není předáno closeWindow = false)
+  const resetSpotlightState = (closeWindow = true) => {
     if (closeWindow) {
       handleClose();
+      if (hideResetTimerRef.current) {
+        clearTimeout(hideResetTimerRef.current);
+      }
+      hideResetTimerRef.current = setTimeout(() => {
+        hideResetTimerRef.current = null;
+        clearSpotlightFields();
+      }, 150);
+    } else {
+      clearSpotlightFields();
     }
   };
 
   const exitWizard = (overrideQuery?: string) => {
     const activeSourceId = wizardValues?.__sourceId;
     const activeParentItem = wizardValues?.__parentItem;
+    const activeWizardAction = wizardItem?.wizard?.action;
+    const activeDeleteType = wizardValues?.__deleteType;
     const savedQ = preWizardQueryRef.current;
     preWizardQueryRef.current = null;
     setIsDonkeyToolsOpen(false);
@@ -705,10 +777,21 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       setQuery(overrideQuery);
     } else if (activeSourceId) {
       const src = sources.find((s) => s.id === activeSourceId);
-      if (src && activeParentItem?.name) {
+      if (activeDeleteType === 'source') {
+        setQuery('/source ');
+      } else if (
+        src &&
+        activeParentItem?.name &&
+        activeWizardAction !== 'savesourceaction' &&
+        activeDeleteType !== 'action'
+      ) {
         setQuery(`/source "${src.name}" "${activeParentItem.name}" options`);
       } else {
         setQuery(src ? `/source "${src.name}" ` : '/source ');
+      }
+      if ((activeWizardAction === 'savesourceaction' || activeDeleteType === 'action') && activeParentItem) {
+        setActionsParentItem(activeParentItem);
+        setSelectedActionIndex(0);
       }
     } else if (savedQ && /^\/(?:source|sources|zdroj|zdroje)/i.test(savedQ.trimStart())) {
       setQuery('/source ');
@@ -725,59 +808,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   const loadStepDynamicOptions = async (step?: WizardStep, currentValues?: Record<string, any>) => {
     if (!step) return;
     const vals = currentValues || wizardValues;
-    if (step.dynamicOption === 'source-item-options') {
-      const currentOptions: LauncherItem[] = Array.isArray(vals?.__options) ? vals.__options : [];
-      const opts: WizardOption[] = [
-        {
-          text:
-            currentOptions.length > 0
-              ? `Uložit záznam (ponechat podpoložky: ${currentOptions.length})`
-              : 'Uložit záznam (hotovo)',
-          value: 'save',
-          icon: 'check',
-          color: '#10b981',
-          description:
-            currentOptions.length > 0
-              ? `Uloží záznam se stávajícími podpoložkami (${currentOptions.length}) a vrátí se do zdroje`
-              : 'Uloží záznam a vrátí se do výpisu zdroje',
-        },
-        {
-          text: 'Uložit a přidat podpoložku (option)...',
-          value: 'save-and-add-option',
-          icon: 'add',
-          color: '#a855f7',
-          description: 'Uloží záznam a otevře průvodce pro vytvoření nové podpoložky v options: []',
-        },
-      ];
-      if (currentOptions.length > 0) {
-        opts.push({
-          text: `Uložit a procházet podpoložky (${currentOptions.length})`,
-          value: 'save-and-browse-options',
-          icon: 'account_tree',
-          color: '#38bdf8',
-          description: 'Uloží záznam a zobrazí seznam jeho podpoložek ve Spotlightu',
-        });
-        currentOptions.forEach((opt, optIdx) => {
-          const locPreview = (opt.location || '').trim().replace(/\s+/g, ' ').slice(0, 55);
-          opts.push({
-            text: `Upravit podpoložku: „${opt.name}“`,
-            value: `edit-option:${optIdx}`,
-            icon: 'edit',
-            color: '#f59e0b',
-            description: `${opt.action ? `[${opt.action}] ` : ''}${locPreview || '—'}`,
-          });
-          opts.push({
-            text: `Smazat podpoložku: „${opt.name}“`,
-            value: `delete-option:${optIdx}`,
-            icon: 'delete',
-            color: '#f43f5e',
-            description: 'Odstraní tuto podpoložku ze seznamu options: []',
-          });
-        });
-      }
-      setWizardDynamicOptions(opts);
-      return;
-    }
 
     if (step.dynamicOption === 'clipboard') {
       setIsWizardLoadingDynamic(true);
@@ -929,6 +959,59 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
   };
 
+  const buildWizardOptionsForStep = (
+    step: WizardStep | null,
+    values: Record<string, any>,
+    dynamicOpts: WizardOption[]
+  ): WizardOption[] => {
+    if (!step || (!step.options && !step.dynamicOption)) return [];
+    let baseOptions: WizardOption[] = [];
+    if (step.dynamicOption) {
+      baseOptions = dynamicOpts;
+    } else {
+      baseOptions = step.options ? [...step.options] : [];
+      const curVal = values[step.id];
+      if (
+        typeof curVal === 'string' &&
+        curVal.trim() &&
+        !baseOptions.some(
+          (o) =>
+            o.value === curVal ||
+            (o.value !== null && String(o.value).toLowerCase() === curVal.trim().toLowerCase())
+        )
+      ) {
+        baseOptions.unshift({
+          text: `Původní hodnota (${curVal})`,
+          value: curVal,
+          icon: step.id === 'icon' ? curVal : 'check_circle',
+          color: '#a855f7',
+          description: 'Stávající nastavená hodnota',
+        });
+      }
+    }
+
+    if (!step.required && baseOptions.length > 0 && step.type !== 'text') {
+      const hasUnselected = baseOptions.some(
+        (o) => o.value === null || o.value === '' || o.value === undefined
+      );
+      if (!hasUnselected) {
+        const unselectedOpt: WizardOption = {
+          text: 'Nevybráno',
+          value: null,
+          icon: 'block',
+          color: '#9ca3af',
+          description:
+            step.dynamicOption === 'clipboard'
+              ? 'Pokračovat bez snímku obrazovky'
+              : 'Pokračovat bez výběru',
+        };
+        return [unselectedOpt, ...baseOptions];
+      }
+    }
+
+    return baseOptions;
+  };
+
   const applyStepInputAndSelection = (step: WizardStep, values: Record<string, any>) => {
     const existingVal = values[step.id];
     if (step.type === 'text' && step.dynamicOption === 'clipboard') {
@@ -938,13 +1021,24 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         setQuery('');
       }
       setWizardSelectedOptionIndex(0);
-    } else if (typeof existingVal === 'string' && !step.options && !step.dynamicOption) {
-      setQuery(existingVal);
+    } else if (!step.options && !step.dynamicOption) {
+      if (typeof existingVal === 'string' && existingVal.length > 0) {
+        setQuery(existingVal.replace(/\r?\n/g, ' ↵ '));
+      } else {
+        setQuery('');
+      }
       setWizardSelectedOptionIndex(0);
     } else {
       setQuery('');
-      if (step.options && existingVal !== undefined) {
-        const matchIdx = step.options.findIndex((o) => o.value === existingVal);
+      const builtOpts = buildWizardOptionsForStep(step, values, []);
+      if (builtOpts.length > 0 && existingVal !== undefined) {
+        const matchIdx = builtOpts.findIndex(
+          (o) =>
+            o.value === existingVal ||
+            (o.value !== null &&
+              existingVal !== null &&
+              String(o.value).toLowerCase() === String(existingVal).trim().toLowerCase())
+        );
         setWizardSelectedOptionIndex(matchIdx >= 0 ? matchIdx : 0);
       } else {
         setWizardSelectedOptionIndex(0);
@@ -986,6 +1080,45 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }, 50);
   };
 
+  const openSourceDeleteWizard = (params: {
+    deleteType: 'source' | 'item' | 'subitem' | 'action';
+    title: string;
+    stepTitle?: string;
+    sourceId: string;
+    itemName?: string;
+    itemIndex?: number;
+    parentItem?: LauncherItem;
+    parentIndex?: number;
+    optionIndex?: number;
+    actionIndex?: number;
+  }) => {
+    const delWizard: LauncherWizard = {
+      ...SOURCE_DELETE_WIZARD_DEFINITION,
+      steps: [
+        {
+          ...SOURCE_DELETE_WIZARD_DEFINITION.steps[0],
+          title: params.stepTitle || `Opravdu chcete smazat: ${params.title}?`,
+        },
+      ],
+    };
+    const delItem: LauncherItem = {
+      name: params.title,
+      icon: 'delete_forever',
+      wizard: delWizard,
+    };
+    (delItem as any).__wizardInitialValues = {
+      __deleteType: params.deleteType,
+      __sourceId: params.sourceId,
+      __itemName: params.itemName,
+      __itemIndex: params.itemIndex,
+      __parentItem: params.parentItem,
+      __parentIndex: params.parentIndex,
+      __optionIndex: params.optionIndex,
+      __actionIndex: params.actionIndex,
+    };
+    startWizard(delItem);
+  };
+
   const goToWizardStep = (targetIndex: number) => {
     if (!wizardItem || !wizardItem.wizard) return;
     if (targetIndex < 0) {
@@ -1005,43 +1138,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   const currentWizardStep = wizardItem?.wizard?.steps?.[wizardStepIndex] || null;
 
   const currentWizardOptions = useMemo<WizardOption[]>(() => {
-    if (!currentWizardStep) return [];
-    let baseOptions: WizardOption[] = [];
-    if (currentWizardStep.dynamicOption) {
-      baseOptions = wizardDynamicOptions;
-    } else {
-      baseOptions = currentWizardStep.options ? [...currentWizardStep.options] : [];
-      const curVal = wizardValues[currentWizardStep.id];
-      if (typeof curVal === 'string' && curVal.trim() && !baseOptions.some((o) => o.value === curVal)) {
-        baseOptions.unshift({
-          text: `Původní hodnota (${curVal})`,
-          value: curVal,
-          icon: currentWizardStep.id === 'icon' ? curVal : 'check_circle',
-          color: '#a855f7',
-          description: 'Stávající nastavená hodnota',
-        });
-      }
-    }
-
-    if (!currentWizardStep.required && baseOptions.length > 0 && currentWizardStep.type !== 'text') {
-      const hasUnselected = baseOptions.some(
-        (o) => o.value === null || o.value === '' || o.value === undefined
-      );
-      if (!hasUnselected) {
-        const unselectedOpt: WizardOption = {
-          text: 'Nevybráno',
-          value: null,
-          icon: 'block',
-          color: '#9ca3af',
-          description: currentWizardStep.dynamicOption === 'clipboard'
-            ? 'Pokračovat bez snímku obrazovky'
-            : 'Pokračovat bez výběru',
-        };
-        return [unselectedOpt, ...baseOptions];
-      }
-    }
-
-    return baseOptions;
+    return buildWizardOptionsForStep(currentWizardStep, wizardValues, wizardDynamicOptions);
   }, [currentWizardStep, wizardDynamicOptions, wizardValues]);
 
   const isWizardSelectStep = Boolean(
@@ -1191,17 +1288,12 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       } else if (wizard.action === 'savesourceitem') {
         const sourceId = values.__sourceId;
         const originalIndex = typeof values.__originalIndex === 'number' ? values.__originalIndex : undefined;
-        const optionsAction = String(values.optionsAction || 'save');
-        let itemOptions: LauncherItem[] | undefined = Array.isArray(values.__options)
+        const itemOptions: LauncherItem[] = Array.isArray(values.__options)
           ? [...values.__options]
+          : [];
+        const itemActions: LauncherAction[] | undefined = Array.isArray(values.__actions)
+          ? [...values.__actions]
           : undefined;
-
-        if (optionsAction.startsWith('delete-option:') && itemOptions) {
-          const delIdx = Number(optionsAction.split(':')[1]);
-          if (!isNaN(delIdx) && delIdx >= 0 && delIdx < itemOptions.length) {
-            itemOptions.splice(delIdx, 1);
-          }
-        }
 
         const itemToSave: LauncherItem = {
           name: String(values.name || '').trim(),
@@ -1209,7 +1301,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           location: values.location ? String(values.location).trim() : null,
           icon: values.icon || 'code',
           priority: values.priority !== undefined ? Number(values.priority) : 0,
-          ...(itemOptions !== undefined ? { options: itemOptions } : {}),
+          options: itemOptions,
+          ...(itemActions !== undefined ? { actions: itemActions } : {}),
         };
         if (!sourceId) {
           setWizardError('Chybí identifikátor cílového zdroje.');
@@ -1232,55 +1325,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         }
 
         const src = sources.find((s) => s.id === sourceId);
-        const allSourceItems = items.filter((it) => it.sourceId === sourceId);
-        const effectiveParentIndex = typeof originalIndex === 'number' ? originalIndex : allSourceItems.length;
-
-        if (optionsAction === 'save-and-add-option') {
-          const subWizardItem: LauncherItem = {
-            name: `Přidat podpoložku do „${itemToSave.name}“`,
-            wizard: SOURCE_SUBITEM_WIZARD_DEFINITION,
-          };
-          (subWizardItem as any).__wizardInitialValues = {
-            __sourceId: sourceId,
-            __parentIndex: effectiveParentIndex,
-            __parentItem: { ...itemToSave, options: itemOptions || [] },
-            action: itemToSave.action || 'open',
-            icon: itemToSave.icon || 'code',
-            afterSubitemAction: 'browse-options',
-          };
-          startWizard(subWizardItem);
-          return;
-        }
-
-        if (optionsAction.startsWith('edit-option:')) {
-          const editOptIdx = Number(optionsAction.split(':')[1]);
-          const targetOpt = itemOptions?.[editOptIdx];
-          if (targetOpt) {
-            const subWizardItem: LauncherItem = {
-              name: `Upravit podpoložku „${targetOpt.name}“ (${itemToSave.name})`,
-              wizard: SOURCE_SUBITEM_WIZARD_DEFINITION,
-            };
-            (subWizardItem as any).__wizardInitialValues = {
-              __sourceId: sourceId,
-              __parentIndex: effectiveParentIndex,
-              __parentItem: { ...itemToSave, options: itemOptions || [] },
-              __optionIndex: editOptIdx,
-              name: targetOpt.name || '',
-              action: targetOpt.action || itemToSave.action || 'open',
-              location: targetOpt.location || '',
-              icon: targetOpt.icon || itemToSave.icon || 'code',
-              afterSubitemAction: 'browse-options',
-            };
-            startWizard(subWizardItem);
-            return;
-          }
-        }
-
-        if (optionsAction === 'save-and-browse-options' || optionsAction.startsWith('delete-option:')) {
-          exitWizard(src ? `/source "${src.name}" "${itemToSave.name}" options` : '/source ');
-          return;
-        }
-
         exitWizard(src ? `/source "${src.name}" ` : '/source ');
         return;
       } else if (wizard.action === 'savesourcesubitem') {
@@ -1288,7 +1332,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         const parentIndex = typeof values.__parentIndex === 'number' ? values.__parentIndex : undefined;
         const parentItem: LauncherItem | undefined = values.__parentItem;
         const optionIndex = typeof values.__optionIndex === 'number' ? values.__optionIndex : undefined;
-        const afterAction = String(values.afterSubitemAction || 'browse-options');
 
         if (!sourceId || !parentItem) {
           setWizardError('Chybí identifikátor nadřazeného záznamu nebo zdroje.');
@@ -1307,7 +1350,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           name: subName,
           action: values.action || 'open',
           location: values.location ? String(values.location).trim() : null,
-          icon: values.icon || null,
+          icon: values.icon || 'code',
         };
 
         if (typeof optionIndex === 'number' && optionIndex >= 0 && optionIndex < curOptions.length) {
@@ -1315,6 +1358,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         } else {
           curOptions.push(subitemToSave);
         }
+
+        const origActions: LauncherAction[] | undefined = Array.isArray((parentItem as any).__originalActions)
+          ? [...(parentItem as any).__originalActions]
+          : undefined;
 
         const updatedParent: LauncherItem = {
           name: parentItem.name,
@@ -1326,6 +1373,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           icon: parentItem.icon || 'code',
           priority: parentItem.priority !== undefined ? Number(parentItem.priority) : 0,
           options: curOptions,
+          ...(origActions !== undefined ? { actions: origActions } : {}),
         };
 
         if (window.electronAPI?.saveSourceItem) {
@@ -1341,29 +1389,283 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         }
 
         const src = sources.find((s) => s.id === sourceId);
-        if (afterAction === 'add-another') {
-          const nextSubWizard: LauncherItem = {
-            name: `Přidat podpoložku do „${updatedParent.name}“`,
-            wizard: SOURCE_SUBITEM_WIZARD_DEFINITION,
-          };
-          (nextSubWizard as any).__wizardInitialValues = {
-            __sourceId: sourceId,
-            __parentIndex: parentIndex,
-            __parentItem: updatedParent,
-            action: updatedParent.action || 'open',
-            icon: updatedParent.icon || 'code',
-            afterSubitemAction: 'browse-options',
-          };
-          startWizard(nextSubWizard);
+        exitWizard(src ? `/source "${src.name}" "${updatedParent.name}" options` : '/source ');
+        return;
+      } else if (wizard.action === 'savesourceaction') {
+        const sourceId = values.__sourceId;
+        const parentIndex = typeof values.__parentIndex === 'number' ? values.__parentIndex : undefined;
+        const parentItem: LauncherItem | undefined = values.__parentItem;
+        const actionIndex = typeof values.__actionIndex === 'number' ? values.__actionIndex : undefined;
+
+        if (!sourceId || !parentItem) {
+          setWizardError('Chybí identifikátor nadřazeného záznamu nebo zdroje.');
+          return;
+        }
+        const actName = String(values.name || '').trim();
+        if (!actName) {
+          setWizardError('Název akce je povinný.');
           return;
         }
 
-        if (afterAction === 'back-to-source') {
+        const curActions: LauncherAction[] = Array.isArray((parentItem as any).__originalActions)
+          ? [...(parentItem as any).__originalActions]
+          : [];
+        const actionToSave: LauncherAction = {
+          name: actName,
+          action: values.action || 'open',
+          location: values.location ? String(values.location).trim() : null,
+          icon: values.icon || 'code',
+        };
+
+        if (typeof actionIndex === 'number' && actionIndex >= 0 && actionIndex < curActions.length) {
+          curActions[actionIndex] = actionToSave;
+        } else {
+          curActions.push(actionToSave);
+        }
+
+        const origOptions: LauncherItem[] | undefined = Array.isArray((parentItem as any).__originalOptions)
+          ? [...(parentItem as any).__originalOptions]
+          : Array.isArray(parentItem.options)
+          ? [...parentItem.options]
+          : undefined;
+
+        const updatedParent: LauncherItem = {
+          name: parentItem.name,
+          action: (parentItem as any).__originalAction || parentItem.action || 'open',
+          location:
+            (parentItem as any).__originalLocation !== undefined
+              ? (parentItem as any).__originalLocation
+              : (parentItem.location || null),
+          icon: parentItem.icon || 'code',
+          priority: parentItem.priority !== undefined ? Number(parentItem.priority) : 0,
+          ...(origOptions !== undefined ? { options: origOptions } : {}),
+          actions: curActions,
+        };
+
+        if (window.electronAPI?.saveSourceItem) {
+          const res = await window.electronAPI.saveSourceItem({
+            sourceId,
+            item: updatedParent,
+            originalIndex: parentIndex,
+          });
+          if (!res?.ok) {
+            setWizardError(res?.error || 'Uložení akce selhalo.');
+            return;
+          }
+        }
+
+        const src = sources.find((s) => s.id === sourceId);
+        exitWizard(src ? `/source "${src.name}" ` : '/source ');
+
+        // Rebuild actions menu card for Shift+Enter view so the updated actions list is immediately visible
+        const rebuiltActions: LauncherAction[] = [
+          {
+            name: `Přidat akci do „${updatedParent.name}“...`,
+            action: 'add-source-item-action',
+            location: `Spustit průvodce pro vytvoření nové akce u položky ${updatedParent.name}`,
+            icon: 'add',
+          },
+          ...curActions.map((act, actIdx) => {
+            const cleanActLoc = (act.location || '—').replace(/\r?\n/g, ' ↵ ');
+            const actEntry: LauncherAction = {
+              name: act.name,
+              action: 'edit-source-item-action',
+              location: `${act.action ? `[${act.action}] ` : ''}${cleanActLoc} • Enter: Upravit akci, Shift+Delete: Smazat akci`,
+              icon: act.icon || 'edit',
+            };
+            (actEntry as any).__actionIndex = actIdx;
+            (actEntry as any).__originalActionObj = act;
+            return actEntry;
+          }),
+          {
+            name: `Smazat položku „${updatedParent.name}“`,
+            action: 'delete-source-item',
+            location: `Trvale odstranit položku „${updatedParent.name}“ ze zdroje ${src?.name || ''}`,
+            icon: 'delete',
+          },
+        ];
+        const rebuiltParentCard: LauncherItem = {
+          ...parentItem,
+          ...updatedParent,
+          action: 'edit-source-item',
+          sourceId,
+          actions: rebuiltActions,
+        };
+        (rebuiltParentCard as any).__originalAction = updatedParent.action;
+        (rebuiltParentCard as any).__originalLocation = updatedParent.location || '';
+        (rebuiltParentCard as any).__originalOptions = origOptions || [];
+        (rebuiltParentCard as any).__originalActions = curActions;
+        (rebuiltParentCard as any).__parentIndex = parentIndex;
+        setActionsParentItem(rebuiltParentCard);
+        setSelectedActionIndex(typeof actionIndex === 'number' ? actionIndex + 1 : curActions.length);
+        return;
+      } else if (wizard.action === 'deletesourceentity') {
+        if (values.confirm !== 'yes') {
+          exitWizard();
+          return;
+        }
+        const deleteType = values.__deleteType as 'source' | 'item' | 'subitem' | 'action' | undefined;
+        const sourceId = values.__sourceId;
+        const src = sources.find((s) => s.id === sourceId);
+
+        if (deleteType === 'source') {
+          if (sourceId && window.electronAPI?.deleteSource) {
+            const res = await window.electronAPI.deleteSource(sourceId);
+            if (!res?.ok) {
+              setWizardError(res?.error || 'Smazání zdroje selhalo.');
+              return;
+            }
+          }
+          exitWizard('/source ');
+          return;
+        }
+
+        if (deleteType === 'item') {
+          if (sourceId && window.electronAPI?.deleteSourceItem) {
+            const res = await window.electronAPI.deleteSourceItem({
+              sourceId,
+              itemIndex: values.__itemIndex,
+              itemName: values.__itemName,
+            });
+            if (!res?.ok) {
+              setWizardError(res?.error || 'Smazání položky selhalo.');
+              return;
+            }
+          }
           exitWizard(src ? `/source "${src.name}" ` : '/source ');
           return;
         }
 
-        exitWizard(src ? `/source "${src.name}" "${updatedParent.name}" options` : '/source ');
+        if (deleteType === 'subitem') {
+          const parentItem: LauncherItem | undefined = values.__parentItem;
+          const parentIndex: number | undefined = values.__parentIndex;
+          const optIdx: number | undefined = values.__optionIndex;
+          if (!sourceId || !parentItem || typeof optIdx !== 'number') {
+            setWizardError('Chybí identifikátor podpoložky ke smazání.');
+            return;
+          }
+          const curOptions = Array.isArray(parentItem.options) ? [...parentItem.options] : [];
+          if (optIdx >= 0 && optIdx < curOptions.length) {
+            curOptions.splice(optIdx, 1);
+            const origActions: LauncherAction[] | undefined = Array.isArray((parentItem as any).__originalActions)
+              ? [...(parentItem as any).__originalActions]
+              : undefined;
+            const updatedParent: LauncherItem = {
+              name: parentItem.name,
+              action: (parentItem as any).__originalAction || parentItem.action || 'open',
+              location:
+                (parentItem as any).__originalLocation !== undefined
+                  ? (parentItem as any).__originalLocation
+                  : (parentItem.location || null),
+              icon: parentItem.icon || 'code',
+              priority: parentItem.priority !== undefined ? Number(parentItem.priority) : 0,
+              options: curOptions,
+              ...(origActions !== undefined ? { actions: origActions } : {}),
+            };
+            if (window.electronAPI?.saveSourceItem) {
+              const res = await window.electronAPI.saveSourceItem({
+                sourceId,
+                item: updatedParent,
+                originalIndex: parentIndex,
+              });
+              if (!res?.ok) {
+                setWizardError(res?.error || 'Smazání podpoložky selhalo.');
+                return;
+              }
+            }
+          }
+          exitWizard(src ? `/source "${src.name}" "${parentItem.name}" options` : '/source ');
+          return;
+        }
+
+        if (deleteType === 'action') {
+          const parentItem: LauncherItem | undefined = values.__parentItem;
+          const parentIndex: number | undefined = values.__parentIndex;
+          const actIdx: number | undefined = values.__actionIndex;
+          if (!sourceId || !parentItem || typeof actIdx !== 'number') {
+            setWizardError('Chybí identifikátor akce ke smazání.');
+            return;
+          }
+          const curActions: LauncherAction[] = Array.isArray((parentItem as any).__originalActions)
+            ? [...(parentItem as any).__originalActions]
+            : [];
+          if (actIdx >= 0 && actIdx < curActions.length) {
+            curActions.splice(actIdx, 1);
+            const origOptions: LauncherItem[] = Array.isArray((parentItem as any).__originalOptions)
+              ? [...(parentItem as any).__originalOptions]
+              : Array.isArray(parentItem.options)
+              ? [...parentItem.options]
+              : [];
+            const updatedParent: LauncherItem = {
+              name: parentItem.name,
+              action: (parentItem as any).__originalAction || parentItem.action || 'open',
+              location:
+                (parentItem as any).__originalLocation !== undefined
+                  ? (parentItem as any).__originalLocation
+                  : (parentItem.location || null),
+              icon: parentItem.icon || 'code',
+              priority: parentItem.priority !== undefined ? Number(parentItem.priority) : 0,
+              options: origOptions,
+              actions: curActions,
+            };
+            if (window.electronAPI?.saveSourceItem) {
+              const res = await window.electronAPI.saveSourceItem({
+                sourceId,
+                item: updatedParent,
+                originalIndex: parentIndex,
+              });
+              if (!res?.ok) {
+                setWizardError(res?.error || 'Smazání akce selhalo.');
+                return;
+              }
+            }
+            exitWizard(src ? `/source "${src.name}" ` : '/source ');
+            const rebuiltActions: LauncherAction[] = [
+              {
+                name: `Přidat akci do „${updatedParent.name}“...`,
+                action: 'add-source-item-action',
+                location: `Spustit průvodce pro vytvoření nové akce u položky ${updatedParent.name}`,
+                icon: 'add',
+              },
+              ...curActions.map((act, idx) => {
+                const cleanActLoc = (act.location || '—').replace(/\r?\n/g, ' ↵ ');
+                const actEntry: LauncherAction = {
+                  name: act.name,
+                  action: 'edit-source-item-action',
+                  location: `${act.action ? `[${act.action}] ` : ''}${cleanActLoc} • Enter: Upravit akci, Shift+Delete: Smazat akci`,
+                  icon: act.icon || 'edit',
+                };
+                (actEntry as any).__actionIndex = idx;
+                (actEntry as any).__originalActionObj = act;
+                return actEntry;
+              }),
+              {
+                name: `Smazat položku „${updatedParent.name}“`,
+                action: 'delete-source-item',
+                location: `Trvale odstranit položku „${updatedParent.name}“ ze zdroje ${src?.name || ''}`,
+                icon: 'delete',
+              },
+            ];
+            const rebuiltParentCard: LauncherItem = {
+              ...parentItem,
+              ...updatedParent,
+              action: 'edit-source-item',
+              sourceId,
+              actions: rebuiltActions,
+            };
+            (rebuiltParentCard as any).__originalAction = updatedParent.action;
+            (rebuiltParentCard as any).__originalLocation = updatedParent.location || '';
+            (rebuiltParentCard as any).__originalOptions = origOptions;
+            (rebuiltParentCard as any).__originalActions = curActions;
+            (rebuiltParentCard as any).__parentIndex = parentIndex;
+            setActionsParentItem(rebuiltParentCard);
+            setSelectedActionIndex(Math.min(actIdx + 1, rebuiltActions.length - 1));
+            return;
+          }
+          exitWizard();
+          return;
+        }
+        exitWizard();
         return;
       } else if (wizard.action === 'createsource') {
         const type = values.type || 'file';
@@ -1468,6 +1770,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   };
 
   const enterEasyClip = async () => {
+    if (hideResetTimerRef.current) {
+      clearTimeout(hideResetTimerRef.current);
+      hideResetTimerRef.current = null;
+    }
     setIsDonkeyToolsOpen(false);
     setActionsParentItem(null);
     setParentItem(null);
@@ -1523,6 +1829,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   };
 
   const enterPaletteMode = async () => {
+    if (hideResetTimerRef.current) {
+      clearTimeout(hideResetTimerRef.current);
+      hideResetTimerRef.current = null;
+    }
     setIsDonkeyToolsOpen(false);
     setActionsParentItem(null);
     setParentItem(null);
@@ -1609,7 +1919,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     }
   };
 
-  const handleCopyMultipleEasyClipItems = async (shouldPaste: boolean = true) => {
+  const handleCopyMultipleEasyClipItems = async (shouldPaste: boolean = true, separator: string = '\n') => {
     const idsInOrder = filteredEasyClipItems
       .filter((it) => selectedEasyClipIds.has(it.id))
       .map((it) => it.id);
@@ -1619,14 +1929,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     resetSpotlightState();
 
     if (window.electronAPI?.copyMultipleEasyClipItems) {
-      await window.electronAPI.copyMultipleEasyClipItems(idsInOrder, shouldPaste);
+      await window.electronAPI.copyMultipleEasyClipItems(idsInOrder, shouldPaste, separator);
     } else {
       const selected = filteredEasyClipItems.filter((it) => selectedEasyClipIds.has(it.id));
       const reversed = [...selected].reverse();
       const combined = reversed
-        .map((it) => (it.type === 'text' ? it.text?.trimEnd() || '' : ''))
+        .map((it) => (it.type === 'text' ? (separator === ' ' ? it.text?.trim() : it.text?.trimEnd()) || '' : ''))
         .filter((t) => t.length > 0)
-        .join('\n');
+        .join(separator);
       if (combined) {
         await navigator.clipboard.writeText(combined);
       }
@@ -1649,6 +1959,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   };
 
   const handleEasyClipItemClick = (item: EasyClipItem, idx: number, e: React.MouseEvent) => {
+    if (selectedEasyClipIds.size > 1 && selectedEasyClipIds.has(item.id)) {
+      e.preventDefault();
+      const shouldPaste = !e.ctrlKey && !isCtrlDown;
+      const separator = e.shiftKey || isShiftDown ? ' ' : '\n';
+      handleCopyMultipleEasyClipItems(shouldPaste, separator);
+      return;
+    }
+
     if (e.shiftKey) {
       e.preventDefault();
       setEasyClipSelectedIndex(idx);
@@ -2002,9 +2320,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   // Sync icon rotation & smooth check status animation
   const [syncStatus, setSyncStatus] = useState<'idle' | 'spinning' | 'success'>('idle');
   const shouldStopSpinRef = useRef(false);
+  const isActuallySyncing = Boolean(isSyncing || (syncProgress && !syncProgress.isComplete));
 
   useEffect(() => {
-    if (isSyncing) {
+    if (isActuallySyncing) {
       shouldStopSpinRef.current = false;
       setSyncStatus('spinning');
     } else {
@@ -2012,7 +2331,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         shouldStopSpinRef.current = true;
       }
     }
-  }, [isSyncing, syncStatus]);
+  }, [isActuallySyncing, syncStatus]);
 
   const handleSyncAnimationIteration = () => {
     if (shouldStopSpinRef.current) {
@@ -2022,13 +2341,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   };
 
   useEffect(() => {
-    if (syncStatus === 'spinning' && !isSyncing) {
+    if (syncStatus === 'spinning' && !isActuallySyncing) {
       const fallback = setTimeout(() => {
         setSyncStatus('success');
       }, 2500);
       return () => clearTimeout(fallback);
     }
-  }, [syncStatus, isSyncing]);
+  }, [syncStatus, isActuallySyncing]);
 
   useEffect(() => {
     if (syncStatus === 'success') {
@@ -2065,47 +2384,104 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     };
   }, []);
 
+  const shouldResetOnHideRef = useRef<boolean>(false);
   useEffect(() => {
-    requestAnimationFrame(() => {
-      setIsRevealed(true);
-      inputRef.current?.focus();
-    });
+    shouldResetOnHideRef.current =
+      isEasyClipMode ||
+      isEyedropperRef.current ||
+      Boolean(actionsParentItem?.id?.startsWith('quickcap-')) ||
+      actionsParentItem?.id === 'colormaster-detected-color';
+  }, [isEasyClipMode, actionsParentItem]);
+
+  useEffect(() => {
+    const scheduleReveal = (selectInput = false) => {
+      isHidingRef.current = false;
+      if (hideResetTimerRef.current) {
+        clearTimeout(hideResetTimerRef.current);
+        hideResetTimerRef.current = null;
+        clearSpotlightFields();
+      }
+      if (revealRafRef.current !== null) {
+        cancelAnimationFrame(revealRafRef.current);
+      }
+      revealRafRef.current = requestAnimationFrame(() => {
+        revealRafRef.current = requestAnimationFrame(() => {
+          revealRafRef.current = null;
+          if (!isHidingRef.current) {
+            setIsRevealed(true);
+            inputRef.current?.focus();
+            if (selectInput) {
+              inputRef.current?.select();
+            }
+          }
+        });
+      });
+    };
+
+    scheduleReveal(false);
+
     const handleFocus = () => {
-      setIsRevealed(true);
-      inputRef.current?.focus();
+      if (!isHidingRef.current) {
+        inputRef.current?.focus();
+      }
     };
     window.addEventListener('focus', handleFocus);
 
     const cleanupShown = window.electronAPI?.onWindowShown?.(() => {
       refreshExistingClonedRepos();
-      setIsRevealed(true);
-      inputRef.current?.focus();
+      scheduleReveal(false);
     });
 
     const cleanupFocusInput = window.electronAPI?.onFocusInput?.(() => {
-      setIsRevealed(true);
-      inputRef.current?.focus();
-      inputRef.current?.select();
+      scheduleReveal(true);
     });
 
     const cleanupHide = window.electronAPI?.onWindowHideRequest?.(() => {
+      isHidingRef.current = true;
+      if (revealRafRef.current !== null) {
+        cancelAnimationFrame(revealRafRef.current);
+        revealRafRef.current = null;
+      }
       setIsRevealed(false);
+      if (shouldResetOnHideRef.current) {
+        if (hideResetTimerRef.current) {
+          clearTimeout(hideResetTimerRef.current);
+        }
+        hideResetTimerRef.current = setTimeout(() => {
+          hideResetTimerRef.current = null;
+          clearSpotlightFields();
+          inputRef.current?.blur();
+        }, 150);
+      }
     });
 
     const cleanupReset = window.electronAPI?.onResetSpotlight?.(() => {
-      resetSpotlightState(false);
-      inputRef.current?.blur();
+      if (isHidingRef.current) {
+        if (hideResetTimerRef.current) {
+          clearTimeout(hideResetTimerRef.current);
+        }
+        hideResetTimerRef.current = setTimeout(() => {
+          hideResetTimerRef.current = null;
+          clearSpotlightFields();
+          inputRef.current?.blur();
+        }, 150);
+      } else {
+        clearSpotlightFields();
+        inputRef.current?.blur();
+      }
     });
 
     const cleanupResetAndFocus = window.electronAPI?.onResetAndFocusSpotlight?.(() => {
-      resetSpotlightState(false);
-      setIsRevealed(true);
-      inputRef.current?.focus();
-      inputRef.current?.select();
+      clearSpotlightFields();
+      scheduleReveal(true);
     });
 
     return () => {
       window.removeEventListener('focus', handleFocus);
+      if (revealRafRef.current !== null) {
+        cancelAnimationFrame(revealRafRef.current);
+        revealRafRef.current = null;
+      }
       cleanupShown?.();
       cleanupFocusInput?.();
       cleanupHide?.();
@@ -2215,6 +2591,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     // Explicit empty actions array means no actions desired for this item
     if (Array.isArray(item.actions) && item.actions.length === 0) {
       return [];
+    }
+    if (
+      item.action === 'edit-source-item' ||
+      item.action === 'edit-source-subitem' ||
+      item.sourceId === 'source-manager'
+    ) {
+      return item.actions ? [...item.actions] : [];
     }
     let baseActions = item.actions ? [...item.actions] : [];
 
@@ -3058,7 +3441,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
 
       // 3a. /source "<source>" delete
-      if (queryRemainder.toLowerCase() === 'delete') {
+      if (queryRemainder.toLowerCase() === 'delete' || queryRemainder.toLowerCase() === 'smazat' || queryRemainder.toLowerCase() === 'remove') {
         return [
           {
             id: `delete-source-confirm-${matchedSource.id}`,
@@ -3066,7 +3449,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             location: `Stiskněte Enter pro potvrzení odstranění zdroje (${matchedSource.type})`,
             action: 'delete-source-confirmed',
             icon: 'delete_forever',
-            priority: -2,
+            priority: -3,
             sourceId: matchedSource.id,
           },
         ];
@@ -3132,25 +3515,21 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 {
                   name: `Upravit podpoložku „${opt.name}“`,
                   action: 'edit-source-subitem',
+                  location: `${opt.action ? `[${opt.action}] ` : ''}${cleanOptLoc}`,
                   icon: 'edit',
                 },
                 {
                   name: `Smazat podpoložku „${opt.name}“`,
                   action: 'delete-source-subitem',
+                  location: `Trvale odstranit podpoložku „${opt.name}“ ze záznamu ${targetItem.name}`,
                   icon: 'delete',
-                },
-                {
-                  name: opt.action === 'copy' ? 'Zkopírovat obsah do schránky' : 'Otevřít podpoložku',
-                  action: opt.action || 'open',
-                  location: opt.location || opt.name,
-                  icon: opt.action === 'copy' ? 'content_copy' : 'open_in_new',
                 },
               ];
 
               const subEditCard: LauncherItem = {
                 ...opt,
                 icon: opt.icon?.trim() ? opt.icon : (targetItem.icon || 'subdirectory_arrow_right'),
-                location: `${opt.action ? `[${opt.action}] ` : ''}${cleanOptLoc} • Enter: Upravit, Ctrl+Enter: Spustit, Shift+Enter: Akce`,
+                location: `${opt.action ? `[${opt.action}] ` : ''}${cleanOptLoc} • Enter: Upravit, Shift+Enter: Akce`,
                 action: 'edit-source-subitem',
                 sourceId: matchedSource.id,
                 wizard: SOURCE_SUBITEM_WIZARD_DEFINITION,
@@ -3170,7 +3549,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 action: opt.action || targetItem.action || 'open',
                 location: opt.location || '',
                 icon: opt.icon || targetItem.icon || 'code',
-                afterSubitemAction: 'browse-options',
               };
               return subEditCard;
             });
@@ -3181,7 +3559,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               location: `Spustit průvodce vytvořením nové podpoložky (options) v záznamu ${targetItem.name}`,
               action: 'add-source-subitem-wizard',
               icon: 'add',
-              priority: 9999,
+              priority: -9999,
               sourceId: 'source-manager',
               wizard: SOURCE_SUBITEM_WIZARD_DEFINITION,
             };
@@ -3191,10 +3569,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               __parentItem: targetItem,
               action: targetItem.action || sharedParams?.action || 'open',
               icon: targetItem.icon || sharedParams?.icon || 'code',
-              afterSubitemAction: 'browse-options',
             };
 
-            return [...enhancedSubitems, addSubitemCard];
+            return [addSubitemCard, ...enhancedSubitems];
           }
         }
 
@@ -3207,21 +3584,17 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               removeDiacritics(it.name || '').toLowerCase().includes(removeDiacritics(itemTarget).toLowerCase())
           );
           if (targetItem) {
-            return [
-              {
-                id: `delete-source-item-confirm-${targetItem.id || targetItem.name}`,
-                name: `Smazat záznam „${targetItem.name}“ ze zdroje „${matchedSource.name}“?`,
-                location: 'Stiskněte Enter pro potvrzení trvalého odstranění záznamu ze zdroje',
-                action: 'delete-source-item-confirmed',
-                icon: 'delete_forever',
-                priority: -2,
-                sourceId: matchedSource.id,
-                info: {
-                  'Položka': targetItem.name,
-                  'Zdroj': matchedSource.name,
-                },
-              },
-            ];
+            const delCard: LauncherItem = {
+              id: `delete-source-item-confirm-${targetItem.id || targetItem.name}`,
+              name: `Smazat záznam „${targetItem.name}“ ze zdroje „${matchedSource.name}“?`,
+              location: 'Stiskněte Enter pro potvrzení trvalého odstranění záznamu ze zdroje',
+              action: 'delete-source-item-confirmed',
+              icon: 'delete_forever',
+              priority: -3,
+              sourceId: matchedSource.id,
+            };
+            (delCard as any).__itemName = targetItem.name;
+            return [delCard];
           }
         }
 
@@ -3241,7 +3614,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               location: 'Stiskněte Enter pro spuštění průvodce úpravou záznamu',
               action: 'edit-source-item',
               icon: 'edit',
-              priority: -2,
+              priority: -3,
               sourceId: matchedSource.id,
               wizard: SOURCE_ITEM_WIZARD_DEFINITION,
             };
@@ -3253,8 +3626,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               location: (targetItem as any).__originalLocation !== undefined ? (targetItem as any).__originalLocation : (targetItem.location || ''),
               icon: targetItem.icon || 'code',
               priority: targetItem.priority !== undefined ? targetItem.priority : 0,
-              __options: targetItem.options || [],
-              optionsAction: 'save',
+              __options: targetItem.options,
+              __actions: targetItem.actions,
             };
             return [editItemCard];
           }
@@ -3277,57 +3650,49 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         }
         const origIdx = allSourceItems.findIndex((orig) => orig.name === it.name);
         const optCount = Array.isArray(it.options) ? it.options.length : 0;
+        const rawActions: LauncherAction[] = Array.isArray(it.actions) ? it.actions : [];
+        const actCount = rawActions.length;
+
         const itemActions: LauncherAction[] = [
           {
-            name: `Upravit záznam „${it.name}“`,
-            action: 'edit-source-item',
-            icon: 'edit',
-          },
-          {
-            name: `Podpoložky (options: ${optCount}) – procházet a upravovat`,
-            action: 'browse-source-item-options',
-            icon: 'account_tree',
-          },
-          {
-            name: `Přidat podpoložku (option) do „${it.name}“`,
-            action: 'add-source-item-option',
+            name: `Přidat akci do „${it.name}“...`,
+            action: 'add-source-item-action',
+            location: `Spustit průvodce pro vytvoření nové akce u položky ${it.name}`,
             icon: 'add',
           },
+          ...rawActions.map((act, actIdx) => {
+            const cleanActLoc = (act.location || '—').replace(/\r?\n/g, ' ↵ ');
+            const actEntry: LauncherAction = {
+              name: act.name,
+              action: 'edit-source-item-action',
+              location: `${act.action ? `[${act.action}] ` : ''}${cleanActLoc} • Enter: Upravit akci, Shift+Delete: Smazat akci`,
+              icon: act.icon || 'edit',
+            };
+            (actEntry as any).__actionIndex = actIdx;
+            (actEntry as any).__originalActionObj = act;
+            return actEntry;
+          }),
           {
-            name: `Smazat záznam „${it.name}“`,
+            name: `Smazat položku „${it.name}“`,
             action: 'delete-source-item',
+            location: `Trvale odstranit položku „${it.name}“ ze zdroje ${matchedSource.name}`,
             icon: 'delete',
           },
-          ...(it.actions ? it.actions : []),
         ];
-
-        if (it.action === 'copy' && !itemActions.some((a) => a.action === 'copy')) {
-          itemActions.push({
-            name: `Zkopírovat obsah do schránky`,
-            action: 'copy',
-            location: it.location || it.name,
-            icon: 'content_copy',
-          });
-        } else if ((it.action === 'open' || !it.action) && !itemActions.some((a) => a.action === 'open')) {
-          itemActions.push({
-            name: `Otevřít položku`,
-            action: 'open',
-            location: it.location || it.name,
-            icon: 'open_in_new',
-          });
-        }
 
         const cleanLoc = (it.location || '—').replace(/\r?\n/g, ' ↵ ');
         const editCard: LauncherItem = {
           ...it,
-          location: `${it.action ? `[${it.action}] ` : ''}${cleanLoc}${optCount > 0 ? ` • Podpoložky: ${optCount}` : ''} • Enter: Upravit, Alt+Enter: Podpoložky, Shift+Enter: Akce`,
+          location: `${it.action ? `[${it.action}] ` : ''}${cleanLoc}${optCount > 0 ? ` • Podpoložky: ${optCount}` : ''}${actCount > 0 ? ` • Akce: ${actCount}` : ''} • Enter: Upravit, Alt+Enter: Podpoložky, Shift+Enter: Akce`,
           action: 'edit-source-item',
           wizard: SOURCE_ITEM_WIZARD_DEFINITION,
           actions: itemActions,
         };
         (editCard as any).__originalAction = it.action || 'open';
         (editCard as any).__originalLocation = it.location || '';
-        (editCard as any).__originalOptions = it.options || [];
+        (editCard as any).__originalOptions = it.options;
+        (editCard as any).__originalActions = rawActions;
+        (editCard as any).__parentIndex = origIdx >= 0 ? origIdx : idx;
         (editCard as any).__wizardInitialValues = {
           __sourceId: matchedSource!.id,
           __originalIndex: origIdx >= 0 ? origIdx : idx,
@@ -3336,8 +3701,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           location: it.location || '',
           icon: it.icon || 'code',
           priority: it.priority !== undefined ? it.priority : 0,
-          __options: it.options || [],
-          optionsAction: 'save',
+          __options: it.options,
+          __actions: it.actions,
         };
         return editCard;
       });
@@ -4097,11 +4462,25 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   ]);
 
   const [renderLimit, setRenderLimit] = useState<number>(45);
+  const prevQueryAndParentRef = useRef<{ query: string; parentItem: LauncherItem | null }>({
+    query,
+    parentItem,
+  });
+  const selectedItemRef = useRef<LauncherItem | null>(null);
+
+  useEffect(() => {
+    selectedItemRef.current = results[selectedIndex] ?? null;
+  }, [results, selectedIndex]);
 
   // Keep selected index within bounds or restore saved index when returning from subitems
   useEffect(() => {
-    setRenderLimit(45);
+    const queryOrParentChanged =
+      prevQueryAndParentRef.current.query !== query ||
+      prevQueryAndParentRef.current.parentItem !== parentItem;
+    prevQueryAndParentRef.current = { query, parentItem };
+
     if (restoringIndexRef.current !== null) {
+      setRenderLimit(45);
       const savedIdx = restoringIndexRef.current;
       restoringIndexRef.current = null;
       if (results.length > 0) {
@@ -4125,9 +4504,41 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         }
         return;
       }
+      setSelectedIndex(0);
+      return;
     }
-    setSelectedIndex(0);
-  }, [results]);
+
+    if (queryOrParentChanged) {
+      setRenderLimit(45);
+      setSelectedIndex(0);
+      return;
+    }
+
+    // Background data refresh (sync, MagicPlan poll, favicons, DB list, etc.) while query & parentItem are unchanged:
+    // keep the currently highlighted item or clamp index within bounds
+    if (results.length === 0) {
+      setSelectedIndex(0);
+      return;
+    }
+
+    const prevSelected = selectedItemRef.current;
+    if (prevSelected) {
+      const foundIdx = results.findIndex(
+        (r) =>
+          (r.id && prevSelected.id && r.id === prevSelected.id) ||
+          (r.name === prevSelected.name && r.location === prevSelected.location && r.action === prevSelected.action)
+      );
+      if (foundIdx !== -1) {
+        setSelectedIndex(foundIdx);
+        if (foundIdx >= 35) {
+          setRenderLimit((prevLimit) => Math.max(prevLimit, foundIdx + 20));
+        }
+        return;
+      }
+    }
+
+    setSelectedIndex((prev) => Math.max(0, Math.min(prev, results.length - 1)));
+  }, [results, query, parentItem]);
 
   // Expand renderLimit automatically when navigating down with keyboard
   useEffect(() => {
@@ -4262,9 +4673,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
 
     if (item.action === 'delete-source-confirmed') {
       const sId = item.sourceId || item.location;
-      if (sId && window.electronAPI?.deleteSource) {
-        await window.electronAPI.deleteSource(sId);
-        setQuery('/source');
+      const src = sources.find((s) => s.id === sId);
+      if (sId) {
+        openSourceDeleteWizard({
+          deleteType: 'source',
+          title: `Smazat zdroj dat „${src?.name || item.name}“`,
+          stepTitle: `Opravdu chcete trvale smazat zdroj dat „${src?.name || item.name}“?`,
+          sourceId: sId,
+        });
       }
       return;
     }
@@ -4272,14 +4688,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     if (item.action === 'delete-source-item-confirmed') {
       const sId = item.sourceId;
       const itemName = item.info?.['Položka'] || (item as any).__itemName;
-      if (sId && itemName && window.electronAPI?.deleteSourceItem) {
-        await window.electronAPI.deleteSourceItem({ sourceId: sId, itemName });
-        const srcName = item.info?.['Zdroj'];
-        if (srcName) {
-          setQuery(`/source "${srcName}" `);
-        } else {
-          setQuery('/source');
-        }
+      if (sId && itemName) {
+        openSourceDeleteWizard({
+          deleteType: 'item',
+          title: `Smazat položku „${itemName}“`,
+          stepTitle: `Opravdu chcete trvale smazat položku „${itemName}“ ze zdroje?`,
+          sourceId: sId,
+          itemName,
+        });
       }
       return;
     }
@@ -4305,17 +4721,22 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         icon: item.icon || 'code',
         priority: item.priority !== undefined ? item.priority : 0,
         __options: (item as any).__originalOptions || item.options || [],
-        optionsAction: 'save',
+        __actions: (item as any).__originalActions || item.actions || [],
       };
       startWizard(wizardItem);
       return;
     }
 
     if (item.action === 'delete-source-item') {
-      if (item.sourceId && window.electronAPI?.deleteSourceItem) {
-        if (window.confirm(`Opravdu chcete smazat záznam „${item.name}“ ze zdroje?`)) {
-          await window.electronAPI.deleteSourceItem({ sourceId: item.sourceId, itemName: item.name });
-        }
+      if (item.sourceId) {
+        openSourceDeleteWizard({
+          deleteType: 'item',
+          title: `Smazat položku „${item.name}“`,
+          stepTitle: `Opravdu chcete trvale smazat položku „${item.name}“ ze zdroje?`,
+          sourceId: item.sourceId,
+          itemName: item.name,
+          itemIndex: (item as any).__parentIndex,
+        });
       }
       return;
     }
@@ -4746,11 +5167,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     if (actionType === 'delete-source') {
       exitActions();
       const sId = actionItem.location || parent.id?.replace('source-card-', '');
-      if (sId && window.confirm(`Opravdu chcete smazat zdroj dat „${parent.name}“ ze seznamu?`)) {
-        if (window.electronAPI?.deleteSource) {
-          await window.electronAPI.deleteSource(sId);
-          setQuery('/source');
-        }
+      if (sId) {
+        openSourceDeleteWizard({
+          deleteType: 'source',
+          title: `Smazat zdroj dat „${parent.name}“`,
+          stepTitle: `Opravdu chcete trvale smazat zdroj dat „${parent.name}“ ze seznamu?`,
+          sourceId: sId,
+        });
       }
       return;
     }
@@ -4776,10 +5199,61 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         location: (parent as any).__originalLocation !== undefined ? (parent as any).__originalLocation : (parent.location || ''),
         icon: parent.icon || 'code',
         priority: parent.priority !== undefined ? parent.priority : 0,
-        __options: (parent as any).__originalOptions || parent.options || [],
-        optionsAction: 'save',
+        __options: (parent as any).__originalOptions || parent.options,
+        __actions: (parent as any).__originalActions,
       };
       startWizard(wizardItem);
+      return;
+    }
+
+    if (actionType === 'add-source-item-action') {
+      exitActions();
+      const origIdx =
+        typeof (parent as any).__parentIndex === 'number'
+          ? (parent as any).__parentIndex
+          : items
+              .filter((orig) => orig.sourceId === parent.sourceId)
+              .findIndex((orig) => orig.name === parent.name);
+      const actWizardItem: LauncherItem = {
+        name: `Přidat akci do „${parent.name}“`,
+        wizard: SOURCE_ACTION_WIZARD_DEFINITION,
+      };
+      (actWizardItem as any).__wizardInitialValues = {
+        __sourceId: parent.sourceId,
+        __parentIndex: origIdx >= 0 ? origIdx : undefined,
+        __parentItem: parent,
+        action: (parent as any).__originalAction || parent.action || 'open',
+        icon: parent.icon || 'code',
+      };
+      startWizard(actWizardItem);
+      return;
+    }
+
+    if (actionType === 'edit-source-item-action') {
+      exitActions();
+      const origIdx =
+        typeof (parent as any).__parentIndex === 'number'
+          ? (parent as any).__parentIndex
+          : items
+              .filter((orig) => orig.sourceId === parent.sourceId)
+              .findIndex((orig) => orig.name === parent.name);
+      const actIdx: number = typeof (actionItem as any).__actionIndex === 'number' ? (actionItem as any).__actionIndex : 0;
+      const origAct: LauncherAction = (actionItem as any).__originalActionObj || actionItem;
+      const actWizardItem: LauncherItem = {
+        name: `Upravit akci „${origAct.name}“ (${parent.name})`,
+        wizard: SOURCE_ACTION_WIZARD_DEFINITION,
+      };
+      (actWizardItem as any).__wizardInitialValues = {
+        __sourceId: parent.sourceId,
+        __parentIndex: origIdx >= 0 ? origIdx : undefined,
+        __parentItem: parent,
+        __actionIndex: actIdx,
+        name: origAct.name || '',
+        action: origAct.action || (parent as any).__originalAction || 'open',
+        location: origAct.location || '',
+        icon: origAct.icon || parent.icon || 'code',
+      };
+      startWizard(actWizardItem);
       return;
     }
 
@@ -4811,7 +5285,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         __parentItem: parent,
         action: (parent as any).__originalAction || parent.action || 'open',
         icon: parent.icon || 'code',
-        afterSubitemAction: 'browse-options',
       };
       startWizard(subWizardItem);
       return;
@@ -4823,27 +5296,16 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       const parentItemObj: LauncherItem | undefined = (parent as any).__parentItem;
       const parentIdx: number | undefined = (parent as any).__parentIndex;
       const optIdx: number | undefined = (parent as any).__optionIndex;
-      if (sId && parentItemObj && typeof optIdx === 'number' && window.confirm(`Opravdu chcete smazat podpoložku „${parent.name}“ ze záznamu „${parentItemObj.name}“?`)) {
-        const curOptions = Array.isArray(parentItemObj.options) ? [...parentItemObj.options] : [];
-        if (optIdx >= 0 && optIdx < curOptions.length) {
-          curOptions.splice(optIdx, 1);
-          const updatedParent: LauncherItem = {
-            name: parentItemObj.name,
-            action: (parentItemObj as any).__originalAction || parentItemObj.action || 'open',
-            location:
-              (parentItemObj as any).__originalLocation !== undefined
-                ? (parentItemObj as any).__originalLocation
-                : (parentItemObj.location || null),
-            icon: parentItemObj.icon || 'code',
-            priority: parentItemObj.priority !== undefined ? Number(parentItemObj.priority) : 0,
-            options: curOptions,
-          };
-          await window.electronAPI?.saveSourceItem?.({
-            sourceId: sId,
-            item: updatedParent,
-            originalIndex: parentIdx,
-          });
-        }
+      if (sId && parentItemObj && typeof optIdx === 'number') {
+        openSourceDeleteWizard({
+          deleteType: 'subitem',
+          title: `Smazat podpoložku „${parent.name}“ (${parentItemObj.name})`,
+          stepTitle: `Opravdu chcete trvale smazat podpoložku „${parent.name}“ z položky „${parentItemObj.name}“?`,
+          sourceId: sId,
+          parentItem: parentItemObj,
+          parentIndex: parentIdx,
+          optionIndex: optIdx,
+        });
       }
       return;
     }
@@ -4851,10 +5313,15 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     if (actionType === 'delete-source-item') {
       exitActions();
       const sId = parent.sourceId;
-      if (sId && window.confirm(`Opravdu chcete smazat záznam „${parent.name}“ ze zdroje?`)) {
-        if (window.electronAPI?.deleteSourceItem) {
-          await window.electronAPI.deleteSourceItem({ sourceId: sId, itemName: parent.name });
-        }
+      if (sId) {
+        openSourceDeleteWizard({
+          deleteType: 'item',
+          title: `Smazat položku „${parent.name}“`,
+          stepTitle: `Opravdu chcete trvale smazat položku „${parent.name}“ ze zdroje?`,
+          sourceId: sId,
+          itemName: parent.name,
+          itemIndex: (parent as any).__parentIndex,
+        });
       }
       return;
     }
@@ -4891,6 +5358,38 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       const actionsList = getItemActions(actionsParentItem);
       const allInfoEntries = Object.entries(actionsParentItem.info || {});
       const totalInfoPages = Math.ceil(allInfoEntries.length / INFO_ITEMS_PER_PAGE);
+
+      if (e.key === 'Delete') {
+        const chosen = actionsList[selectedActionIndex];
+        if (chosen?.action === 'edit-source-item-action' && actionsParentItem.sourceId) {
+          e.preventDefault();
+          const actIdx: number = typeof (chosen as any).__actionIndex === 'number' ? (chosen as any).__actionIndex : -1;
+          const origAct: LauncherAction = (chosen as any).__originalActionObj || chosen;
+          const curActions: LauncherAction[] = Array.isArray((actionsParentItem as any).__originalActions)
+            ? [...(actionsParentItem as any).__originalActions]
+            : [];
+          if (actIdx >= 0 && actIdx < curActions.length) {
+            const parentIdx =
+              typeof (actionsParentItem as any).__parentIndex === 'number'
+                ? (actionsParentItem as any).__parentIndex
+                : items
+                    .filter((orig) => orig.sourceId === actionsParentItem.sourceId)
+                    .findIndex((orig) => orig.name === actionsParentItem.name);
+            const parentRef = actionsParentItem;
+            exitActions();
+            openSourceDeleteWizard({
+              deleteType: 'action',
+              title: `Smazat akci „${origAct.name}“ (${parentRef.name})`,
+              stepTitle: `Opravdu chcete trvale smazat akci „${origAct.name}“ z položky „${parentRef.name}“?`,
+              sourceId: parentRef.sourceId!,
+              parentItem: parentRef,
+              parentIndex: parentIdx >= 0 ? parentIdx : undefined,
+              actionIndex: actIdx,
+            });
+          }
+          return;
+        }
+      }
 
       if (e.key === 'ArrowRight') {
         if (totalInfoPages > 1) {
@@ -5079,10 +5578,21 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             setSelectedActionIndex(0);
             return;
           }
+          if (chosen && chosen.type === 'text' && chosen.text) {
+            const parsedColor = parseColorQuery(chosen.text.trim());
+            if (parsedColor) {
+              const format = colorMasterConfig?.defaultFormat || 'hex';
+              const colorItem = createColorLauncherItem(parsedColor, format);
+              setActionsParentItem(colorItem);
+              setSelectedActionIndex(0);
+              return;
+            }
+          }
         }
         const shouldPaste = !e.ctrlKey && !isCtrlDown;
         if (selectedEasyClipIds.size > 1) {
-          handleCopyMultipleEasyClipItems(shouldPaste);
+          const separator = e.shiftKey || isShiftDown ? ' ' : '\n';
+          handleCopyMultipleEasyClipItems(shouldPaste, separator);
         } else {
           const chosen = filteredEasyClipItems[easyClipSelectedIndex];
           if (chosen) {
@@ -5227,6 +5737,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
       if (currentItem?.actions?.some((a) => a.action === 'edit-source-item' || a.action === 'edit-source-subitem') || currentItem?.action === 'edit-source-item' || currentItem?.action === 'edit-source-subitem') {
         e.preventDefault();
+        if (currentItem.wizard && (currentItem as any).__wizardInitialValues) {
+          startWizard(currentItem);
+          return;
+        }
         const origIdx = items.findIndex((orig) => orig.sourceId === currentItem.sourceId && orig.name === currentItem.name);
         const wizardItem: LauncherItem = {
           name: `Upravit: ${currentItem.name}`,
@@ -5240,6 +5754,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             : Array.isArray(currentItem.options)
             ? currentItem.options
             : [],
+          __actions: Array.isArray((currentItem as any).__originalActions)
+            ? (currentItem as any).__originalActions
+            : [],
           name: currentItem.name,
           action: (currentItem as any).__originalAction || currentItem.action || 'open',
           location: (currentItem as any).__originalLocation !== undefined ? (currentItem as any).__originalLocation : (currentItem.location || ''),
@@ -5251,20 +5768,23 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
     }
 
-    // Shift+Delete -> Delete source item or subitem
+    // Shift+Delete -> Delete source, source item, or subitem
     if (e.key === 'Delete' && e.shiftKey) {
       const currentItem = results[selectedIndex];
-      if (currentItem?.actions?.some((a) => a.action === 'delete-source-item')) {
+      const delSrcAct = currentItem?.actions?.find((a) => a.action === 'delete-source');
+      if (delSrcAct && currentItem) {
         e.preventDefault();
-        if (window.confirm(`Opravdu chcete smazat záznam „${currentItem.name}“ ze zdroje?`)) {
-          if (currentItem.sourceId && window.electronAPI?.deleteSourceItem) {
-            window.electronAPI.deleteSourceItem({ sourceId: currentItem.sourceId, itemName: currentItem.name });
-          }
-        }
+        handleExecuteAction(currentItem, delSrcAct);
+        return;
+      }
+      const delItemAct = currentItem?.actions?.find((a) => a.action === 'delete-source-item');
+      if (delItemAct && currentItem) {
+        e.preventDefault();
+        handleExecuteAction(currentItem, delItemAct);
         return;
       }
       const delSubAct = currentItem?.actions?.find((a) => a.action === 'delete-source-subitem');
-      if (delSubAct) {
+      if (delSubAct && currentItem) {
         e.preventDefault();
         handleExecuteAction(currentItem, delSubAct);
         return;
@@ -5364,7 +5884,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       }
 
       // 3. Alt + Enter -> Enter SUBITEMS navigation (or /source item options manager)
-      if (e.altKey) {
+      if (e.altKey || isAltDown) {
         if (currentItem.action === 'edit-source-item' && currentItem.sourceId) {
           const src = sources.find((s) => s.id === currentItem.sourceId);
           if (src) {
@@ -5617,8 +6137,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     if (settingsHoldRafRef.current) {
       cancelAnimationFrame(settingsHoldRafRef.current);
     }
-    const HOLD_START_DELAY = 120; // Ignore clicks under 120ms to prevent visual flicker
-    const HOLD_TOTAL_DURATION = 3000;
+    const HOLD_START_DELAY = 150; // Ignore clicks under 150ms to prevent visual flicker
+    const HOLD_TOTAL_DURATION = 1150;
     const tick = () => {
       const elapsed = performance.now() - settingsHoldStartRef.current;
       if (elapsed < HOLD_START_DELAY) {
@@ -5646,7 +6166,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
       settingsHoldRafRef.current = null;
     }
     const elapsed = performance.now() - settingsHoldStartRef.current;
-    if (elapsed > 400) {
+    if (elapsed > 250) {
       // User was intentionally holding and released before finish
       isLongPressRef.current = true;
     }
@@ -5985,6 +6505,35 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
               : `Znovu načíst data (${lastSyncTime ? `Naposledy: ${formatLastSyncDate(lastSyncTime)}` : 'Zatím neproběhla'})`
           }
         >
+          {(syncStatus === 'spinning' || (syncProgress && !syncProgress.isComplete)) && (() => {
+            const pct = syncProgress
+              ? Math.max(0, Math.min(100, syncProgress.percentage ?? 0))
+              : !isSyncing && syncStatus === 'spinning'
+              ? 100
+              : 10;
+            const circumference = 84.82;
+            return (
+              <svg
+                className="absolute inset-0 w-8 h-8 pointer-events-none"
+                viewBox="0 0 32 32"
+              >
+                <circle
+                  cx="16"
+                  cy="16"
+                  r="13.5"
+                  fill="none"
+                  stroke="var(--color-primary-hex, #818cf8)"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={circumference * (1 - pct / 100)}
+                  transform="rotate(-90 16 16)"
+                  className="transition-[stroke-dashoffset] duration-150 ease-out"
+                />
+              </svg>
+            );
+          })()}
+
           {/* Sync icon wrapper */}
           <div
             onAnimationIteration={handleSyncAnimationIteration}
@@ -6027,7 +6576,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 : 'm3-primary-badge'
               : 'bg-white/[0.04] hover:bg-white/[0.09] text-gray-300 hover:text-white'
           }`}
-          title="Otevřít nastavení (podržením 3s otevřete správce ukončení a restartu)"
+          title="Otevřít nastavení (podržením 1s otevřete správce ukončení a restartu)"
         >
           {settingsHoldProgress > 0 && (
             <svg
@@ -6086,16 +6635,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
         )}
       </div>
 
-      {/* Sync Progress Bar */}
-      {syncProgress && !syncProgress.isComplete && (
-        <div className="w-full h-1 bg-white/5 overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-200"
-            style={{ width: `${syncProgress.percentage}%` }}
-          />
-        </div>
-      )}
-
       {/* Wizard (Stepper) Mode View */}
       {wizardItem && !actionsParentItem ? (
         <>
@@ -6118,7 +6657,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 {wizardItem.wizard?.steps.map((st, sIdx) => {
                   const isEditingExisting =
                     wizardValues.__originalIndex !== undefined ||
-                    wizardValues.__optionIndex !== undefined;
+                    wizardValues.__optionIndex !== undefined ||
+                    wizardValues.__actionIndex !== undefined;
                   const isPassed = sIdx < wizardStepIndex;
                   const isCurrent = sIdx === wizardStepIndex;
                   const canJump = isPassed || isEditingExisting;
@@ -6189,13 +6729,14 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           {/* Main Step Interaction View */}
           <div ref={listRef} className="max-h-[360px] overflow-y-auto px-2 py-1 space-y-2 focus:outline-none relative">
             {/* Information Preview Section ("Dosud zadané údaje") - shown at the top like MagicGate actions */}
-            {(wizardStepIndex > 0 || wizardValues.__originalIndex !== undefined || wizardValues.__optionIndex !== undefined) && (
+            {wizardItem.wizard?.action !== 'deletesourceentity' &&
+              (wizardStepIndex > 0 || wizardValues.__originalIndex !== undefined || wizardValues.__optionIndex !== undefined || wizardValues.__actionIndex !== undefined) && (
               <div className="p-3 rounded-2xl bg-white/[0.03] shadow-sm space-y-2">
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-300">
                     <span className="material-symbols-outlined text-sm text-purple-400">task_alt</span>
                     <span>
-                      {wizardValues.__originalIndex !== undefined || wizardValues.__optionIndex !== undefined
+                      {wizardValues.__originalIndex !== undefined || wizardValues.__optionIndex !== undefined || wizardValues.__actionIndex !== undefined
                         ? 'Nastavené údaje záznamu'
                         : 'Dosud zadané údaje'}
                     </span>
@@ -6209,7 +6750,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                  {(wizardValues.__originalIndex !== undefined || wizardValues.__optionIndex !== undefined
+                  {(wizardValues.__originalIndex !== undefined || wizardValues.__optionIndex !== undefined || wizardValues.__actionIndex !== undefined
                     ? wizardItem.wizard?.steps || []
                     : wizardItem.wizard?.steps.slice(0, wizardStepIndex) || []
                   ).map((st, stIdx) => {
@@ -6613,7 +7154,10 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                   const isPreparation = action.action === 'edit-quickcap';
                   const isPaint = action.action === 'open-paint';
                   const isFolder = action.action === 'show-in-folder';
-                  const isClose = action.action === 'close';
+                  const isClose =
+                    action.action === 'close' ||
+                    action.action === 'delete-source-item' ||
+                    action.action === 'delete-source-subitem';
 
                   const itemSelectedClass = isSelected
                     ? isVscode
@@ -6708,7 +7252,15 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                               : isFolder
                               ? 'Složka'
                               : isClose
-                              ? 'Zavřít'
+                              ? action.action === 'close'
+                                ? 'Zavřít'
+                                : 'Smazat'
+                              : action.action === 'add-source-item-action'
+                              ? 'Nová akce'
+                              : action.action === 'edit-source-item-action'
+                              ? (action as any).__originalActionObj?.action || 'Upravit'
+                              : action.action === 'edit-source-subitem'
+                              ? 'Upravit'
                               : action.action === 'mgdownloadcontent'
                               ? 'CMSinFS'
                               : action.action}
@@ -6835,8 +7387,11 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 const isSelected = selectedEasyClipIds.size > 1 ? isItemMultiSelected : idx === easyClipSelectedIndex;
                 const isCursor = idx === easyClipSelectedIndex;
                 const isImage = item.type === 'image';
+                const parsedClipColor = !isImage && item.text ? parseColorQuery(item.text.trim()) : null;
                 const canOpenImageActions = isImage && Boolean(item.filePath);
-                const isShiftActionsActive = isSelected && selectedEasyClipIds.size <= 1 && isShiftDown && canOpenImageActions;
+                const canOpenColorActions = Boolean(parsedClipColor);
+                const isShiftActionsActive =
+                  isSelected && selectedEasyClipIds.size <= 1 && isShiftDown && (canOpenImageActions || canOpenColorActions);
                 const charCount = item.charCount ?? (item.text ? item.text.length : 0);
                 const lineCount = item.lineCount ?? (item.text ? item.text.split('\n').length : 1);
                 const sizeKb = item.sizeBytes ? Math.round(item.sizeBytes / 1024) : 0;
@@ -6875,6 +7430,11 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                             </span>
                           )}
                         </div>
+                      ) : parsedClipColor ? (
+                        <div
+                          className="w-9 h-9 rounded-full border border-white/15 shadow-inner flex items-center justify-center"
+                          style={{ backgroundColor: parsedClipColor.hex }}
+                        />
                       ) : (
                         <div
                           className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
@@ -6979,15 +7539,45 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             <div className="flex items-center gap-4 flex-wrap">
               {selectedEasyClipIds.size > 1 ? (
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold flex items-center gap-1.5">
+                  <span
+                    onClick={(e) => {
+                      const shouldPaste = !e.ctrlKey && !isCtrlDown;
+                      const separator = e.shiftKey || isShiftDown ? ' ' : '\n';
+                      handleCopyMultipleEasyClipItems(shouldPaste, separator);
+                    }}
+                    className="text-xs font-semibold flex items-center gap-1.5 cursor-pointer hover:opacity-85 transition"
+                  >
                     <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-rose-400 rounded-full font-mono text-[9px] leading-none select-none">
-                      {isCtrlDown ? 'Ctrl+Enter' : 'Enter'}
+                      {isCtrlDown
+                        ? isShiftDown
+                          ? 'Ctrl+Shift+Enter'
+                          : 'Ctrl+Enter'
+                        : isShiftDown
+                        ? 'Shift+Enter'
+                        : 'Enter'}
                     </kbd>
                     <span className="text-white">
-                      {isCtrlDown ? 'Kopírovat' : 'Vložit'} vybrané ({selectedEasyClipIds.size})
+                      {isCtrlDown ? 'Kopírovat' : 'Vložit'} {isShiftDown ? 's mezerou' : 'vybrané'} ({selectedEasyClipIds.size})
                     </span>
                   </span>
-                  <span className="text-xs font-semibold flex items-center gap-1.5">
+                  {!isShiftDown && (
+                    <span
+                      onClick={(e) => {
+                        const shouldPaste = !e.ctrlKey && !isCtrlDown;
+                        handleCopyMultipleEasyClipItems(shouldPaste, ' ');
+                      }}
+                      className="text-xs font-semibold flex items-center gap-1.5 cursor-pointer hover:opacity-85 transition"
+                    >
+                      <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-rose-400 rounded-full font-mono text-[9px] leading-none select-none">
+                        Shift+Enter
+                      </kbd>
+                      <span className="text-white">S mezerou</span>
+                    </span>
+                  )}
+                  <span
+                    onClick={handleDeleteSelectedEasyClipItems}
+                    className="text-xs font-semibold flex items-center gap-1.5 cursor-pointer hover:opacity-85 transition"
+                  >
                     <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-rose-400 rounded-full font-mono text-[9px] leading-none select-none">Del</kbd>
                     <span className="text-white">Smazat</span>
                   </span>
@@ -7002,12 +7592,74 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                       {isCtrlDown ? 'Kopírovat' : 'Vložit'}
                     </span>
                   </span>
-                  {filteredEasyClipItems[easyClipSelectedIndex]?.type === 'image' && (
-                    <span className="text-xs font-semibold flex items-center gap-1.5">
-                      <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] m3-actions-text rounded-full font-mono text-[9px] leading-none select-none">Shift+Enter</kbd>
-                      <span className="text-white">Akce</span>
-                    </span>
-                  )}
+                  {(() => {
+                    const selClip = filteredEasyClipItems[easyClipSelectedIndex];
+                    const selColor =
+                      selClip && selClip.type === 'text' && selClip.text
+                        ? parseColorQuery(selClip.text.trim())
+                        : null;
+                    if (selClip?.type === 'image' || selColor) {
+                      return (
+                        <span
+                          onClick={() => {
+                            if (selClip?.type === 'image' && selClip.filePath) {
+                              const imgItem: LauncherItem = {
+                                id: `easyclip-img-${selClip.id}`,
+                                name: `Obrázek (${selClip.width ?? '?'} × ${selClip.height ?? '?'} px)`,
+                                location: selClip.filePath,
+                                icon: 'image',
+                                imagePreview: selClip.dataUrl,
+                                info: {
+                                  'Rozměry': `${selClip.width ?? '?'} × ${selClip.height ?? '?'} px`,
+                                  'Cesta': selClip.filePath,
+                                },
+                                actions: [
+                                  {
+                                    name: 'Upravit',
+                                    action: 'edit-quickcap',
+                                    location: selClip.filePath,
+                                    icon: 'edit',
+                                  },
+                                  {
+                                    name: 'Otevřít',
+                                    action: 'open',
+                                    location: selClip.filePath,
+                                    icon: 'open_in_new',
+                                  },
+                                  {
+                                    name: 'Otevřít v malování',
+                                    action: 'open-paint',
+                                    location: selClip.filePath,
+                                    icon: 'draw',
+                                  },
+                                  {
+                                    name: 'Otevřít ve složce',
+                                    action: 'show-in-folder',
+                                    location: selClip.filePath,
+                                    icon: 'folder_open',
+                                  },
+                                ],
+                              };
+                              setActionsParentItem(imgItem);
+                              setSelectedActionIndex(0);
+                            } else if (selColor) {
+                              const format = colorMasterConfig?.defaultFormat || 'hex';
+                              const colorItem = createColorLauncherItem(selColor, format);
+                              setActionsParentItem(colorItem);
+                              setSelectedActionIndex(0);
+                            }
+                          }}
+                          className="text-xs font-semibold flex items-center gap-1.5 cursor-pointer hover:opacity-85 transition"
+                        >
+                          <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] m3-actions-text rounded-full font-mono text-[9px] leading-none select-none">
+                            Shift+Enter
+                          </kbd>
+                          <span className="text-white">Akce</span>
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                   <span className="text-xs font-semibold flex items-center gap-1.5">
                     <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-rose-400 rounded-full font-mono text-[9px] leading-none select-none">Del</kbd>
                     <span className="text-white">Smazat</span>
@@ -7314,7 +7966,12 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                 const hasActions = hasItemActions(item);
                 const hasInfo = hasItemInfo(item);
                 const hasActionsOrInfo = hasActions || hasInfo;
+                const isDeleteConfirmItem =
+                  item.action === 'delete-source-confirmed' ||
+                  item.action === 'delete-source-item-confirmed' ||
+                  item.action === 'delete-source-item';
                 const hasAnyChip = Boolean(
+                  isDeleteConfirmItem ||
                   item.settings === 'git' ||
                   item.settings === 'magicgate' ||
                   item.sourceId === 'snippet' ||
@@ -7365,7 +8022,9 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                             image={item.image?.trim() ? item.image : parentItem?.image}
                             location={item.location || parentItem?.location}
                             colorClass={
-                              parentItem
+                              isDeleteConfirmItem
+                                ? 'text-rose-400'
+                                : parentItem
                                 ? undefined
                                 : item.settings === 'git' || item.sourceId === 'github'
                                 ? 'text-emerald-400'
@@ -7536,6 +8195,11 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                             Gmail
                           </span>
                         )}
+                        {isDeleteConfirmItem && (
+                          <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold shadow-sm select-none">
+                            Delete
+                          </span>
+                        )}
                         {item.priority === -2 && (
                           <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-300 font-medium shadow-sm">
                             MLog
@@ -7603,9 +8267,13 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                           <span className="text-xs font-semibold m3-actions-text animate-in fade-in duration-100">
                             {hasActions ? 'Akce' : 'Info'}
                           </span>
-                        ) : isAltDown && hasOptions ? (
+                        ) : isAltDown && (hasOptions || item.action === 'edit-source-item') ? (
                           <span className="text-xs font-semibold text-sky-400 animate-in fade-in duration-100">
                             Subpoložky
+                          </span>
+                        ) : isDeleteConfirmItem ? (
+                          <span className="text-xs font-semibold text-rose-400 animate-in fade-in duration-100">
+                            Smazat
                           </span>
                         ) : item.wizard ? (
                           <span className="text-xs font-semibold text-purple-400 animate-in fade-in duration-100">
@@ -7638,7 +8306,16 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
             {/* Material 3 Floating Action Bar */}
             <div className="m-2.5 p-2 px-3.5 flex items-center justify-between text-xs text-gray-400 select-none">
               <div className="flex items-center gap-4 flex-wrap">
-                {results[selectedIndex]?.wizard ? (
+                {results[selectedIndex]?.action === 'delete-source-confirmed' ||
+                results[selectedIndex]?.action === 'delete-source-item-confirmed' ||
+                results[selectedIndex]?.action === 'delete-source-item' ? (
+                  <span className="text-xs font-semibold flex items-center gap-1.5">
+                    <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-rose-400 rounded-full font-mono text-[9px] leading-none select-none">
+                      Enter
+                    </kbd>
+                    <span className="text-white">Smazat</span>
+                  </span>
+                ) : results[selectedIndex]?.wizard ? (
                   <span className="text-xs font-semibold flex items-center gap-1.5">
                     <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-purple-400 rounded-full font-mono text-[9px] leading-none select-none">
                       Enter
@@ -7696,12 +8373,15 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                     </span>
                   </span>
                 )}
-                {results[selectedIndex]?.options && results[selectedIndex].options!.length > 0 && (
+                {((results[selectedIndex]?.options && results[selectedIndex].options!.length > 0) ||
+                  results[selectedIndex]?.action === 'edit-source-item') && (
                   <span className="text-xs font-semibold flex items-center gap-1.5">
                     <kbd className="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/[0.08] text-sky-400 rounded-full font-mono text-[9px] leading-none select-none">
                       Alt+Enter
                     </kbd>
-                    <span className="text-white">Subpoložky ({results[selectedIndex].options!.length})</span>
+                    <span className="text-white">
+                      Subpoložky ({results[selectedIndex]?.options?.length || 0})
+                    </span>
                   </span>
                 )}
               </div>

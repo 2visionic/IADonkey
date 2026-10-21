@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.22';
+export const CURRENT_APP_VERSION = '2.1.23';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,17 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.23',
+    date: '22. 10. 2026',
+    title: 'Správa zdrojů přes příkaz /source ve Spotlightu, akce barev v EasyClipu, kruhový progress synchronizace a plynulost Spotlightu',
+    highlights: [
+      'Spotlight – Příkazový režim /source a průvodce pro správu zdrojů (/source, /sources, /zdroj, /zdroje): Přímo ze Spotlightu lze procházet všechny nakonfigurované zdroje dat s chytrým doplňováním názvů do uvozovek (Tab), přidávat nové zdroje (/source add) a pomocí 4krokového průvodce pohodlně přidávat, upravovat či mazat položky 1. úrovně, jejich podpoložky (Alt+Enter) i akce (Shift+Enter) s automatickou .bak zálohou a okamžitou synchronizací.',
+      'Spotlight – Zachování pozice kurzoru při aktualizacích na pozadí a plynulé skrytí bez probliknutí: Průběžná synchronizace na pozadí, obnova MagicPlanu ani načítání ikon již neresetují vybranou položku v seznamu na první řádek. Při kliknutí mimo okno se Spotlight plynule skryje s dokončením animace a ve speciálních režimech (Schránka EasyClip, QuickCap náhled, Eyedropper akce barvy) se automaticky vyresetuje do výchozího stavu.',
+      'EasyClip & PaletteMaster – Detekce barev ve schránce (Shift+Enter) a okamžité kapátko v paletě: Textové záznamy ve schránce obsahující kód barvy (HEX, RGB, RGBA, HSL, HSLA) zobrazují barevný vzorek a po stisku Shift+Enter otevřou nabídku akcí ColorMasteru stejně jako po nabrání barvy kapátkem. V detailu barevné palety kliknutí na prázdný slot s ikonou kapátka rovnou otevře lištu palety, zafocusuje danou pozici a aktivuje kapátko.',
+      'Spotlight UI – Kruhový progress synchronizace na ikoně a rychlejší podržení tlačítka Nastavení: Ukazatel probíhající synchronizace je nyní vykreslen jako čistý kruhový progress (0–100 %) přímo po obvodu tlačítka synchronizace a doba podržení tlačítka Nastavení pro vyvolání okna Rychlých akcí (Restart / Vypnutí) byla zkrácena pro svižnější odezvu.',
+    ],
+  },
   {
     version: '2.1.22',
     date: '21. 10. 2026',

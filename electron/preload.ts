@@ -438,7 +438,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // EasyClip API
   getEasyClipItems: (): Promise<EasyClipItem[]> => ipcRenderer.invoke('easyclip-get-items'),
   copyEasyClipItem: (id: string, paste: boolean = true): Promise<boolean> => ipcRenderer.invoke('easyclip-copy-item', id, paste),
-  copyMultipleEasyClipItems: (ids: string[], paste: boolean = true): Promise<boolean> => ipcRenderer.invoke('easyclip-copy-multiple', ids, paste),
+  copyMultipleEasyClipItems: (ids: string[], paste: boolean = true, separator: string = '\n'): Promise<boolean> => ipcRenderer.invoke('easyclip-copy-multiple', ids, paste, separator),
   deleteEasyClipItem: (id: string): Promise<boolean> => ipcRenderer.invoke('easyclip-delete-item', id),
   deleteMultipleEasyClipItems: (ids: string[]): Promise<boolean> => ipcRenderer.invoke('easyclip-delete-multiple', ids),
   clearEasyClipHistory: (): Promise<boolean> => ipcRenderer.invoke('easyclip-clear-history'),
@@ -458,7 +458,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPalettes: (): Promise<any[]> => ipcRenderer.invoke('get-palettes'),
   savePalette: (palette: any): Promise<any[]> => ipcRenderer.invoke('save-palette', palette),
   deletePalette: (paletteId: string): Promise<any[]> => ipcRenderer.invoke('delete-palette', paletteId),
-  openPaletteBar: (params: { paletteId: string; paletteName: string }): Promise<void> =>
+  openPaletteBar: (params: { paletteId: string; paletteName: string; slotIndex?: number; autoPick?: boolean }): Promise<void> =>
     ipcRenderer.invoke('open-palette-bar', params),
   closePaletteBar: (): Promise<void> => ipcRenderer.invoke('close-palette-bar'),
   openPaletteDetail: (params: { paletteId: string }): Promise<void> =>
@@ -469,7 +469,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('palettes-updated', handler);
     return () => ipcRenderer.removeListener('palettes-updated', handler);
   },
-  onPaletteBarInit: (callback: (data: { paletteId: string; paletteName: string }) => void) => {
+  onPaletteBarInit: (callback: (data: { paletteId: string; paletteName: string; slotIndex?: number; autoPick?: boolean }) => void) => {
     const handler = (_event: any, data: any) => callback(data);
     ipcRenderer.on('palette-bar-init', handler);
     return () => ipcRenderer.removeListener('palette-bar-init', handler);

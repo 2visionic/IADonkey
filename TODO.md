@@ -38,14 +38,8 @@ Aktuální seznam úkolů projektu rozdělený na otevřené k realizaci s podro
 
 ## ✅ Dokončené úkoly (čekající na kontrolu / revizi)
 
-- [x] **Spotlight: Příkazový režim `/source`, průvodce (wizard) pro přidání/úpravu položek a správa zdrojů**:
-  - Implementován příkaz `/source` (a aliasy `/sources`, `/zdroj`, `/zdroje`) pro okamžitý přehled všech nakonfigurovaných zdrojů dat s možností interaktivního výběru nebo přímého zadání (`/source "<název zdroje>"`, `/source add`).
-  - Inteligentní doplňování (ghost text a Tab klávesa) s automatickým uzavíráním do uvozovek.
-  - V režimu zdroje se filtrují pouze položky daného zdroje a na konci seznamu se nabízí karta `➕ Přidat záznam do zdroje...` spouštějící multi-step wizarda.
-  - Položky mají v tomto režimu dedikované akce pro **Úpravu** (spustí wizarda s předvyplněnými hodnotami a správou podpoložek `options`, klávesa `F2`) a **Smazání** (klávesová zkratka `Shift+Delete`).
-  - Podpora přímých příkazů `/source <název> add` i `/source <název> delete`.
-  - API endpointy jsou striktně chráněny jako read-only (pouze filtrace, bez akcí pro přidání/úpravu/smazání položek).
-  - Backendová služba `SourceManagerService` s atomickým zápisem souborů, automatickými `.bak` zálohami, detekcí obalovacích struktur (`data`, `items`, atd.) a automatickým spuštěním synchronizace.
+*(Žádné dokončené úkoly nečekají na revizi)*
+
 
 
 

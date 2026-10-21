@@ -332,7 +332,7 @@ declare global {
       // EasyClip API
       getEasyClipItems?: () => Promise<import('./index').EasyClipItem[]>;
       copyEasyClipItem?: (id: string, paste?: boolean) => Promise<boolean>;
-      copyMultipleEasyClipItems?: (ids: string[], paste?: boolean) => Promise<boolean>;
+      copyMultipleEasyClipItems?: (ids: string[], paste?: boolean, separator?: string) => Promise<boolean>;
       deleteEasyClipItem?: (id: string) => Promise<boolean>;
       deleteMultipleEasyClipItems?: (ids: string[]) => Promise<boolean>;
       clearEasyClipHistory?: () => Promise<boolean>;
@@ -344,12 +344,12 @@ declare global {
       getPalettes?: () => Promise<import('./index').ColorPalette[]>;
       savePalette?: (palette: import('./index').ColorPalette) => Promise<import('./index').ColorPalette[]>;
       deletePalette?: (paletteId: string) => Promise<import('./index').ColorPalette[]>;
-      openPaletteBar?: (params: { paletteId: string; paletteName: string }) => Promise<void>;
+      openPaletteBar?: (params: { paletteId: string; paletteName: string; slotIndex?: number; autoPick?: boolean }) => Promise<void>;
       closePaletteBar?: () => Promise<void>;
       openPaletteDetail?: (params: { paletteId: string }) => Promise<void>;
       closePaletteDetail?: () => Promise<void>;
       onPalettesUpdated?: (callback: (palettes: import('./index').ColorPalette[]) => void) => () => void;
-      onPaletteBarInit?: (callback: (data: { paletteId: string; paletteName: string }) => void) => () => void;
+      onPaletteBarInit?: (callback: (data: { paletteId: string; paletteName: string; slotIndex?: number; autoPick?: boolean }) => void) => () => void;
       onPaletteDetailInit?: (callback: (data: { paletteId: string }) => void) => () => void;
 
       // Zpětná kompatibilita pro FastSnap

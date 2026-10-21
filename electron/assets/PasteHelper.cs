@@ -98,6 +98,10 @@ namespace IADonkey {
         const int VK_CONTROL = 0x11;
         const int VK_MENU = 0x12;
         const int VK_V = 0x56;
+        const int VK_LSHIFT = 0xA0;
+        const int VK_RSHIFT = 0xA1;
+        const int VK_LMENU = 0xA4;
+        const int VK_RMENU = 0xA5;
 
         static string LogFile;
 
@@ -180,32 +184,69 @@ namespace IADonkey {
         static void SendCtrlV() {
             ushort scanCtrl = (ushort)MapVirtualKey((uint)VK_CONTROL, 0);
             ushort scanV = (ushort)MapVirtualKey((uint)VK_V, 0);
+            ushort scanLShift = (ushort)MapVirtualKey((uint)VK_LSHIFT, 0);
+            ushort scanRShift = (ushort)MapVirtualKey((uint)VK_RSHIFT, 0);
+            ushort scanShift = (ushort)MapVirtualKey((uint)VK_SHIFT, 0);
+            ushort scanLMenu = (ushort)MapVirtualKey((uint)VK_LMENU, 0);
+            ushort scanRMenu = (ushort)MapVirtualKey((uint)VK_RMENU, 0);
+            ushort scanMenu = (ushort)MapVirtualKey((uint)VK_MENU, 0);
 
-            INPUT[] inputs = new INPUT[4];
+            INPUT[] inputs = new INPUT[10];
 
-            // 1. Ctrl Down
+            // Release Shift and Alt modifiers first so Shift+Enter / Shift+Click never becomes Ctrl+Shift+V
             inputs[0].type = INPUT_KEYBOARD;
-            inputs[0].ki.wVk = (ushort)VK_CONTROL;
-            inputs[0].ki.wScan = scanCtrl;
-            inputs[0].ki.dwFlags = 0;
+            inputs[0].ki.wVk = (ushort)VK_LSHIFT;
+            inputs[0].ki.wScan = scanLShift;
+            inputs[0].ki.dwFlags = KEYEVENTF_KEYUP;
 
-            // 2. V Down
             inputs[1].type = INPUT_KEYBOARD;
-            inputs[1].ki.wVk = (ushort)VK_V;
-            inputs[1].ki.wScan = scanV;
-            inputs[1].ki.dwFlags = 0;
+            inputs[1].ki.wVk = (ushort)VK_RSHIFT;
+            inputs[1].ki.wScan = scanRShift;
+            inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
 
-            // 3. V Up
             inputs[2].type = INPUT_KEYBOARD;
-            inputs[2].ki.wVk = (ushort)VK_V;
-            inputs[2].ki.wScan = scanV;
+            inputs[2].ki.wVk = (ushort)VK_SHIFT;
+            inputs[2].ki.wScan = scanShift;
             inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
 
-            // 4. Ctrl Up
             inputs[3].type = INPUT_KEYBOARD;
-            inputs[3].ki.wVk = (ushort)VK_CONTROL;
-            inputs[3].ki.wScan = scanCtrl;
+            inputs[3].ki.wVk = (ushort)VK_LMENU;
+            inputs[3].ki.wScan = scanLMenu;
             inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+
+            inputs[4].type = INPUT_KEYBOARD;
+            inputs[4].ki.wVk = (ushort)VK_RMENU;
+            inputs[4].ki.wScan = scanRMenu;
+            inputs[4].ki.dwFlags = KEYEVENTF_KEYUP;
+
+            inputs[5].type = INPUT_KEYBOARD;
+            inputs[5].ki.wVk = (ushort)VK_MENU;
+            inputs[5].ki.wScan = scanMenu;
+            inputs[5].ki.dwFlags = KEYEVENTF_KEYUP;
+
+            // 1. Ctrl Down
+            inputs[6].type = INPUT_KEYBOARD;
+            inputs[6].ki.wVk = (ushort)VK_CONTROL;
+            inputs[6].ki.wScan = scanCtrl;
+            inputs[6].ki.dwFlags = 0;
+
+            // 2. V Down
+            inputs[7].type = INPUT_KEYBOARD;
+            inputs[7].ki.wVk = (ushort)VK_V;
+            inputs[7].ki.wScan = scanV;
+            inputs[7].ki.dwFlags = 0;
+
+            // 3. V Up
+            inputs[8].type = INPUT_KEYBOARD;
+            inputs[8].ki.wVk = (ushort)VK_V;
+            inputs[8].ki.wScan = scanV;
+            inputs[8].ki.dwFlags = KEYEVENTF_KEYUP;
+
+            // 4. Ctrl Up
+            inputs[9].type = INPUT_KEYBOARD;
+            inputs[9].ki.wVk = (ushort)VK_CONTROL;
+            inputs[9].ki.wScan = scanCtrl;
+            inputs[9].ki.dwFlags = KEYEVENTF_KEYUP;
 
             uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
             Log("SendInput sent: " + sent);
@@ -214,6 +255,13 @@ namespace IADonkey {
                 int err = Marshal.GetLastWin32Error();
                 Log("SendInput failed with error " + err + ", falling back to keybd_event");
 
+                keybd_event((byte)VK_LSHIFT, (byte)scanLShift, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                keybd_event((byte)VK_RSHIFT, (byte)scanRShift, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                keybd_event((byte)VK_SHIFT, (byte)scanShift, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                keybd_event((byte)VK_LMENU, (byte)scanLMenu, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                keybd_event((byte)VK_RMENU, (byte)scanRMenu, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                keybd_event((byte)VK_MENU, (byte)scanMenu, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                Thread.Sleep(10);
                 keybd_event((byte)VK_CONTROL, (byte)scanCtrl, 0, UIntPtr.Zero);
                 Thread.Sleep(20);
                 keybd_event((byte)VK_V, (byte)scanV, 0, UIntPtr.Zero);
@@ -280,8 +328,8 @@ namespace IADonkey {
                 }
             }
 
-            // Wait up to 150ms for physical keys to release
-            for (int i = 0; i < 15; i++) {
+            // Wait up to 350ms for physical keys to release
+            for (int i = 0; i < 35; i++) {
                 bool enterHeld = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
                 bool shiftHeld = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
                 bool altHeld = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;

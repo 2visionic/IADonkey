@@ -103,12 +103,14 @@ export const PaletteDetailModal: React.FC = () => {
     setTimeout(() => setCopiedKey(null), 1800);
   };
 
-  const handleOpenBar = async () => {
+  const handleOpenBar = async (slotIndex?: number, autoPick?: boolean) => {
     if (!palette) return;
     if (window.electronAPI?.openPaletteBar) {
       await window.electronAPI.openPaletteBar({
         paletteId: palette.id,
         paletteName: palette.name,
+        slotIndex,
+        autoPick,
       });
     }
     // Automatically close detail window when opening bar
@@ -198,7 +200,7 @@ export const PaletteDetailModal: React.FC = () => {
             {/* Action: Upravit v liště */}
             <button
               type="button"
-              onClick={handleOpenBar}
+              onClick={() => handleOpenBar()}
               className="px-4 py-2 rounded-full text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white shadow-sm"
               title="Otevřít plovoucí lištu pro výběr a úpravu barev (Ctrl+Enter)"
             >
@@ -218,7 +220,7 @@ export const PaletteDetailModal: React.FC = () => {
               return (
                 <div
                   key={idx}
-                  onClick={handleOpenBar}
+                  onClick={() => handleOpenBar(idx, true)}
                   className="p-3.5 bg-white/[0.03] hover:bg-white/[0.06] rounded-2xl flex items-center justify-between transition cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">

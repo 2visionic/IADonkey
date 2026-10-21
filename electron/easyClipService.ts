@@ -540,7 +540,7 @@ export class EasyClipService {
     }
   }
 
-  public async copyMultipleItems(ids: string[]): Promise<boolean> {
+  public async copyMultipleItems(ids: string[], separator: string = '\n'): Promise<boolean> {
     if (!ids || ids.length === 0) return false;
 
     // Filter items matching ids in their current order (newest to oldest, 0 to N)
@@ -551,9 +551,9 @@ export class EasyClipService {
     // Reverse: bottom item is first, top item is last ("od spodu jako prvni a vrchni jako posledni")
     const reversed = [...selected].reverse();
     const combinedText = reversed
-      .map((it) => (it.type === 'text' ? it.text?.trimEnd() || '' : ''))
+      .map((it) => (it.type === 'text' ? (separator === ' ' ? it.text?.trim() : it.text?.trimEnd()) || '' : ''))
       .filter((t) => t.length > 0)
-      .join('\n');
+      .join(separator);
 
     if (!combinedText) return false;
 

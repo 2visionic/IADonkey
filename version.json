@@ -1,6 +1,6 @@
 {
-  "version": "2.1.22",
-  "releaseNotes": "• Okno aktualizace (IADonkey - Aktualizace) – Samostatné okno bez černého backdropu s možností přesouvání, minimalizace a zavření.\n• Okno Release notes (IADonkey - Release notes) – Samostatné okno s přehledem novinek, horní lištou s ikonou, přesouváním a minimalizací.",
-  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.22/IADonkey-Setup-2.1.22.exe",
-  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.22/IADonkey-2.1.22.zip"
+  "version": "2.1.23",
+  "releaseNotes": "• Spotlight (/source) – Správa zdrojů dat a 4krokový průvodce pro přidávání, úpravu a mazání položek, podpoložek (Alt+Enter) i akcí (Shift+Enter).\n• Spotlight – Zachování pozice kurzoru při aktualizacích na pozadí, plynulá animace skrytí a automatický reset při kliknutí vedle.\n• EasyClip & PaletteMaster – Detekce barev ve schránce s přechodem do akcí (Shift+Enter) a přímá aktivace kapátka po kliknutí na slot v paletě.\n• Spotlight UI – Kruhový progress synchronizace po obvodu ikony a zkrácené podržení tlačítka Nastavení.",
+  "downloadUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.23/IADonkey-Setup-2.1.23.exe",
+  "zipUrl": "https://github.com/magicware/IADonkey/releases/download/v2.1.23/IADonkey-2.1.23.zip"
 }

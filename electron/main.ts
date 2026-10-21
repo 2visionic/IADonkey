@@ -1114,10 +1114,14 @@ function setupIpcHandlers() {
     return updated;
   });
 
-  ipcMain.handle('open-palette-bar', (_event, params: { paletteId: string; paletteName: string }) => {
-    windowManager.hideSpotlight();
-    windowManager.openPaletteBarWindow(params.paletteId, params.paletteName);
-  });
+  ipcMain.handle(
+    'open-palette-bar',
+    (_event, params: { paletteId: string; paletteName: string; slotIndex?: number; autoPick?: boolean }) => {
+      windowManager.hideSpotlight();
+      windowManager.closePaletteDetailWindow();
+      windowManager.openPaletteBarWindow(params.paletteId, params.paletteName, params.slotIndex, params.autoPick);
+    }
+  );
 
   ipcMain.handle('close-palette-bar', () => {
     windowManager.closePaletteBarWindow();
@@ -1562,8 +1566,8 @@ function setupIpcHandlers() {
     return success;
   });
 
-  ipcMain.handle('easyclip-copy-multiple', async (_event, ids: string[], paste: boolean = true) => {
-    const success = await easyClipService.copyMultipleItems(ids);
+  ipcMain.handle('easyclip-copy-multiple', async (_event, ids: string[], paste: boolean = true, separator: string = '\n') => {
+    const success = await easyClipService.copyMultipleItems(ids, separator);
     if (success) {
       diagnosticsService.logAction({
         type: 'action',

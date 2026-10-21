@@ -99,11 +99,26 @@ export const PaletteBar: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     const idFromUrl = params.get('paletteId') || '';
     const nameFromUrl = params.get('paletteName') || '';
+    const slotFromUrl = params.get('slotIndex');
+    const autoPickFromUrl = params.get('autoPick') === '1' || params.get('autoPick') === 'true';
 
     const initId = idFromUrl || `palette-${Date.now()}`;
     const initName = nameFromUrl || 'Nová paleta';
 
     loadPaletteData(initId, initName);
+
+    if (slotFromUrl !== null) {
+      const parsedSlot = parseInt(slotFromUrl, 10);
+      if (!isNaN(parsedSlot) && parsedSlot >= 0 && parsedSlot < 5) {
+        setActiveSlot(parsedSlot);
+        activeSlotRef.current = parsedSlot;
+        if (autoPickFromUrl) {
+          setTimeout(() => {
+            triggerPick(parsedSlot);
+          }, 150);
+        }
+      }
+    }
 
     // Listen for IPC re-init
     if (window.electronAPI?.onPaletteBarInit) {
@@ -112,9 +127,19 @@ export const PaletteBar: React.FC = () => {
           clearTimeout(saveNameTimeoutRef.current);
           saveNameTimeoutRef.current = null;
         }
-        setActiveSlot(null);
-        activeSlotRef.current = null;
         loadPaletteData(data.paletteId, data.paletteName);
+        if (typeof data.slotIndex === 'number' && data.slotIndex >= 0 && data.slotIndex < 5) {
+          setActiveSlot(data.slotIndex);
+          activeSlotRef.current = data.slotIndex;
+          if (data.autoPick) {
+            setTimeout(() => {
+              triggerPick(data.slotIndex!);
+            }, 150);
+          }
+        } else {
+          setActiveSlot(null);
+          activeSlotRef.current = null;
+        }
       });
     }
   }, []);
