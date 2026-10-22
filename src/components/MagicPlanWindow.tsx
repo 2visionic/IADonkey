@@ -870,9 +870,9 @@ export const MagicPlanWindow: React.FC<MagicPlanWindowProps> = ({ config, onSave
     return list.sort((a, b) => a.displayName.localeCompare(b.displayName, 'cs'));
   }, [data, availablePersons, selectedAuthorFilter]);
 
-  // Filtering by search query & author filter
+  // Filtering by search query & author filter (excluding unavailability blocks from list/board counts)
   const filteredMyTasks = useMemo(() => {
-    let list = userFilteredMyTasks;
+    let list = userFilteredMyTasks.filter((t) => !t.isNotAvailable);
     if (selectedAuthorFilter) {
       list = list.filter((t) => isTaskMatchingAuthor(t.author, selectedAuthorFilter));
     }
@@ -5729,7 +5729,7 @@ const ListView: React.FC<ListViewProps> = ({
   copiedId,
 }) => {
   const sortedTasks = useMemo(() => {
-    return [...tasks].sort(comparePlanOrder);
+    return tasks.filter((t) => !t.isNotAvailable).sort(comparePlanOrder);
   }, [tasks]);
 
   if (sortedTasks.length === 0) {

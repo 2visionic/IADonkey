@@ -2317,24 +2317,99 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
     refreshExistingClonedRepos();
   }, [defaultCloneDir]);
 
-  // Sync icon rotation & smooth check status animation
+  // Sync icon rotation & smooth progressive circle animation (0 -> 100%)
   const [syncStatus, setSyncStatus] = useState<'idle' | 'spinning' | 'success'>('idle');
+  const [smoothSyncPct, setSmoothSyncPct] = useState(0);
+  const displaySyncPctRef = useRef(0);
+  const targetSyncPctRef = useRef(0);
+  const isActuallySyncingRef = useRef(false);
   const shouldStopSpinRef = useRef(false);
   const isActuallySyncing = Boolean(isSyncing || (syncProgress && !syncProgress.isComplete));
+  isActuallySyncingRef.current = isActuallySyncing;
+
+  useEffect(() => {
+    if (syncProgress && !syncProgress.isComplete) {
+      const incoming = Math.max(0, Math.min(100, syncProgress.percentage ?? 0));
+      if (incoming > targetSyncPctRef.current) {
+        targetSyncPctRef.current = incoming;
+      }
+    }
+  }, [syncProgress]);
 
   useEffect(() => {
     if (isActuallySyncing) {
       shouldStopSpinRef.current = false;
-      setSyncStatus('spinning');
+      if (syncStatus !== 'spinning') {
+        displaySyncPctRef.current = 0;
+        targetSyncPctRef.current = Math.max(5, Math.min(100, syncProgress?.percentage ?? 5));
+        setSmoothSyncPct(0);
+        setSyncStatus('spinning');
+      }
     } else {
       if (syncStatus === 'spinning') {
+        targetSyncPctRef.current = 100;
         shouldStopSpinRef.current = true;
       }
     }
-  }, [isActuallySyncing, syncStatus]);
+  }, [isActuallySyncing, syncStatus, syncProgress]);
+
+  useEffect(() => {
+    if (syncStatus !== 'spinning') {
+      if (syncStatus === 'idle') {
+        displaySyncPctRef.current = 0;
+        targetSyncPctRef.current = 0;
+        setSmoothSyncPct(0);
+      }
+      return;
+    }
+
+    let rafId: number;
+    let lastTime = performance.now();
+
+    const step = (now: number) => {
+      const dt = Math.min(0.1, Math.max(0.001, (now - lastTime) / 1000));
+      lastTime = now;
+
+      const cur = displaySyncPctRef.current;
+      let next = cur;
+
+      if (isActuallySyncingRef.current) {
+        const target = Math.max(8, targetSyncPctRef.current);
+        if (cur < target) {
+          // Smoothly catch up to reported backend progress
+          const diff = target - cur;
+          next = cur + Math.max(22 * dt, diff * 6.5 * dt);
+        } else if (cur < 92) {
+          // Gentle continuous forward trickle while waiting for the next source
+          next = cur + Math.max(3.5 * dt, (92 - cur) * 0.35 * dt);
+        }
+        next = Math.min(95, next);
+      } else {
+        // Sync finished: smoothly complete the circle all the way to 100%
+        const remaining = 100 - cur;
+        next = Math.min(100, cur + Math.max(160 * dt, remaining * 12 * dt));
+      }
+
+      displaySyncPctRef.current = next;
+      setSmoothSyncPct(next);
+
+      if (!isActuallySyncingRef.current && next >= 99.8) {
+        displaySyncPctRef.current = 100;
+        setSmoothSyncPct(100);
+        shouldStopSpinRef.current = false;
+        setSyncStatus('success');
+        return;
+      }
+
+      rafId = requestAnimationFrame(step);
+    };
+
+    rafId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(rafId);
+  }, [syncStatus]);
 
   const handleSyncAnimationIteration = () => {
-    if (shouldStopSpinRef.current) {
+    if (shouldStopSpinRef.current && displaySyncPctRef.current >= 99.5) {
       shouldStopSpinRef.current = false;
       setSyncStatus('success');
     }
@@ -2343,6 +2418,8 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
   useEffect(() => {
     if (syncStatus === 'spinning' && !isActuallySyncing) {
       const fallback = setTimeout(() => {
+        displaySyncPctRef.current = 100;
+        setSmoothSyncPct(100);
         setSyncStatus('success');
       }, 2500);
       return () => clearTimeout(fallback);
@@ -6506,11 +6583,7 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
           }
         >
           {(syncStatus === 'spinning' || (syncProgress && !syncProgress.isComplete)) && (() => {
-            const pct = syncProgress
-              ? Math.max(0, Math.min(100, syncProgress.percentage ?? 0))
-              : !isSyncing && syncStatus === 'spinning'
-              ? 100
-              : 10;
+            const pct = Math.max(0, Math.min(100, smoothSyncPct));
             const circumference = 84.82;
             return (
               <svg
@@ -6528,7 +6601,6 @@ export const SearchSpotlight: React.FC<SearchSpotlightProps> = ({
                   strokeDasharray={circumference}
                   strokeDashoffset={circumference * (1 - pct / 100)}
                   transform="rotate(-90 16 16)"
-                  className="transition-[stroke-dashoffset] duration-150 ease-out"
                 />
               </svg>
             );

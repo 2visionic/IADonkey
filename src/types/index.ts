@@ -413,10 +413,17 @@ export interface AppConfig {
   searchInstalledApps?: boolean;
   searchGoogle?: boolean;
   defaultSearchEngine?: string;
+  defaultBrowserPath?: string;
   snippets?: SnippetsConfig;
   colorPalettes?: ColorPalette[];
   iconsLastDownloadedAt?: string | null;
   iconsCount?: number;
+}
+
+export interface DetectedBrowser {
+  id: string;
+  name: string;
+  path: string;
 }
 
 export interface MaterialIconDef {

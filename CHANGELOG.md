@@ -4,6 +4,13 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.24] - 22. 10. 2026
+### Volba vlastního webového prohlížeče, dynamická výška okna aktualizace, plynulý kruhový progress synchronizace a vyčištění Seznamu v MagicPlanu
+- **Nastavení -> Obecné – Výběr vlastního webového prohlížeče a automatická detekce**: V sekci Obecné si lze nově zvolit konkrétní webový prohlížeč (`*.exe`) pro otevírání odkazů ze Spotlightu a aplikace. Tlačítko s hvězdičkami vyhledá všechny nainstalované prohlížeče v systému a umožní vybrat prohlížeč jedním kliknutím; při prázdném poli se odkazy nadále otevírají ve výchozím prohlížeči Windows.
+- **Okno aktualizace – Automatické přizpůsobení výšky obsahu bez scrollbarů**: Samostatné okno aktualizace nyní dynamicky upravuje svou výšku přesně podle délky přehledu novinek i aktuálního kroku stahování či dokončení, takže se v něm již nezobrazují posuvníky.
+- **Spotlight UI – Plynulý progresivní náběh kruhového ukazatele synchronizace (`0–100 %`)**: Kruhový progress kolem tlačítka synchronizace se pomocí plynulé 60fps interpolace spojitě navyšuje od `0 %` až do `100 %` bez zastavování mezi kroky a před přepnutím na zelenou fajfku vždy doběhne do plných `100 %`.
+- **MagicPlan – Skrytí položek „Nedostupný / Volno“ na záložce Seznam**: Bloky volna a nedostupnosti jsou odfiltrovány ze záložky Seznam i z počtu zobrazených úkolů ve spodní liště, zatímco v zobrazení Timeline zůstávají zachovány.
+
 ## [2.1.23] - 22. 10. 2026
 ### Správa zdrojů přes příkaz /source ve Spotlightu, akce barev v EasyClipu, kruhový progress synchronizace a plynulost Spotlightu
 - **Spotlight – Příkazový režim `/source` a průvodce pro správu zdrojů (`/source`, `/sources`, `/zdroj`, `/zdroje`)**: Přímo ze Spotlightu lze procházet všechny nakonfigurované zdroje dat s chytrým doplňováním názvů do uvozovek (`Tab`), přidávat nové zdroje (`/source add`) a pomocí 4krokového průvodce pohodlně přidávat, upravovat či mazat položky 1. úrovně, jejich podpoložky (`Alt+Enter`) i akce (`Shift+Enter`) s automatickou `.bak` zálohou a okamžitou synchronizací.

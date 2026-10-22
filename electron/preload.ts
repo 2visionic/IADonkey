@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closePowerWindow: (): Promise<void> => ipcRenderer.invoke('close-power-window'),
   openUpdateWindow: (updateInfo?: UpdateInfo): Promise<void> => ipcRenderer.invoke('open-update-window', updateInfo),
   closeUpdateWindow: (): Promise<void> => ipcRenderer.invoke('close-update-window'),
+  resizeUpdateWindow: (height: number): Promise<void> => ipcRenderer.invoke('resize-update-window', height),
   getUpdateWindowData: (): Promise<UpdateInfo | null> => ipcRenderer.invoke('get-update-window-data'),
   onUpdateWindowData: (callback: (info: UpdateInfo) => void) => {
     const handler = (_event: any, info: UpdateInfo) => callback(info);
@@ -53,6 +54,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('open-in-vscode', folderPath),
   selectVscodePath: (defaultPath?: string): Promise<string | null> => ipcRenderer.invoke('select-vscode-path', defaultPath),
   detectVscodePath: (): Promise<string | null> => ipcRenderer.invoke('detect-vscode-path'),
+  selectBrowserPath: (defaultPath?: string): Promise<string | null> => ipcRenderer.invoke('select-browser-path', defaultPath),
+  detectBrowsers: (): Promise<Array<{ id: string; name: string; path: string }>> => ipcRenderer.invoke('detect-browsers'),
   openInAndroidStudio: (folderPath: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('open-in-android-studio', folderPath),
   selectAndroidStudioPath: (defaultPath?: string): Promise<string | null> => ipcRenderer.invoke('select-android-studio-path', defaultPath),

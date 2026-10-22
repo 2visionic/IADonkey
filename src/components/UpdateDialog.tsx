@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { UpdateInfo, DownloadProgress } from '../types';
 
 interface UpdateDialogProps {
@@ -17,6 +17,25 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
   const [progress, setProgress] = useState<DownloadProgress>({ percent: 0, transferred: 0, total: 0 });
   const [downloadedPath, setDownloadedPath] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+
+    const updateSize = () => {
+      if (!contentRef.current) return;
+      // 40px WindowTitleBar + 48px vertical padding (p-6) + 2px WindowFrame border = 90px
+      const neededHeight = contentRef.current.offsetHeight + 90;
+      window.electronAPI?.resizeUpdateWindow?.(neededHeight);
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, [updateInfo, downloadState, errorMessage]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -118,123 +137,124 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
   };
 
   return (
-    <main className="w-full h-full bg-[#14151b] p-6 flex flex-col justify-between gap-4 text-gray-200 select-none overflow-y-auto">
-      <div className="flex flex-col gap-4">
-        {/* Header section based on state */}
-        {downloadState === 'completed' ? (
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-sm">
-              <span className="material-symbols-outlined text-3xl">task_alt</span>
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white">Aktualizace připravena!</h3>
-              <p className="text-xs text-emerald-300">
-                Verze <span className="font-mono font-bold text-white">{updateInfo.latestVersion}</span> je připravena k instalaci
-              </p>
-            </div>
-          </div>
-        ) : downloadState === 'downloading' ? (
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-full m3-primary-badge flex items-center justify-center animate-pulse shadow-sm">
-              <span className="material-symbols-outlined text-3xl">
-                {progress.percent >= 90 ? 'inventory_2' : 'cloud_download'}
-              </span>
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white">
-                {progress.percent >= 90 ? 'Příprava aktualizace...' : 'Stahování aktualizace...'}
-              </h3>
-              <p className="text-xs m3-primary-text">
-                Verze <span className="font-mono font-bold text-white">{updateInfo.latestVersion}</span>
-              </p>
-            </div>
-          </div>
-        ) : downloadState === 'error' ? (
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-400 shadow-sm">
-              <span className="material-symbols-outlined text-3xl">error</span>
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white">Chyba při stahování</h3>
-              <p className="text-xs text-rose-300">Nepodařilo se stáhnout novou verzi</p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-full m3-primary-badge flex items-center justify-center shadow-sm">
-              <span className="material-symbols-outlined text-3xl">upgrade</span>
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white">K dispozici je nová verze!</h3>
-              <p className="text-xs m3-primary-text">
-                Verze <span className="font-mono font-bold text-white">{updateInfo.latestVersion}</span> (aktuální: {updateInfo.currentVersion})
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Content body based on state */}
-        {downloadState === 'idle' && (
-          <>
-            {updateInfo.releaseNotes && (
-              <div className="p-4 bg-white/[0.03] rounded-2xl max-h-40 overflow-y-auto text-xs text-gray-300 space-y-1 shadow-inner">
-                <p className="font-semibold text-gray-400">Co je nového:</p>
-                <p className="whitespace-pre-line leading-relaxed">{updateInfo.releaseNotes}</p>
+    <main className="w-full flex-1 bg-[#14151b] p-6 flex flex-col text-gray-200 select-none overflow-hidden">
+      <div ref={contentRef} className="flex flex-col justify-between gap-4">
+        <div className="flex flex-col gap-4">
+          {/* Header section based on state */}
+          {downloadState === 'completed' ? (
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-sm">
+                <span className="material-symbols-outlined text-3xl">task_alt</span>
               </div>
-            )}
-            <p className="text-xs text-gray-400 leading-relaxed">
-              Chcete nyní stáhnout a nainstalovat aktualizaci přímo v aplikaci? V případě odložení vám aktualizaci znovu nabídneme za 24 hodin.
-            </p>
-          </>
-        )}
-
-        {downloadState === 'downloading' && (
-          <div className="space-y-3 py-2">
-            <div className="w-full bg-black/40 h-3 rounded-full overflow-hidden p-0.5 shadow-inner">
-              <div
-                className="h-full m3-primary-pill rounded-full transition-all duration-300 ease-out flex items-center justify-end"
-                style={{ width: `${Math.max(5, progress.percent)}%` }}
-              />
+              <div>
+                <h3 className="text-base font-bold text-white">Aktualizace připravena!</h3>
+                <p className="text-xs text-emerald-300">
+                  Verze <span className="font-mono font-bold text-white">{updateInfo.latestVersion}</span> je připravena k instalaci
+                </p>
+              </div>
             </div>
-            <div className="flex items-center justify-between text-xs text-gray-400">
-              <span className="font-mono font-bold text-white">{progress.percent} %</span>
-              <span className="text-gray-400 font-mono">
+          ) : downloadState === 'downloading' ? (
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-full m3-primary-badge flex items-center justify-center animate-pulse shadow-sm">
+                <span className="material-symbols-outlined text-3xl">
+                  {progress.percent >= 90 ? 'inventory_2' : 'cloud_download'}
+                </span>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  {progress.percent >= 90 ? 'Příprava aktualizace...' : 'Stahování aktualizace...'}
+                </h3>
+                <p className="text-xs m3-primary-text">
+                  Verze <span className="font-mono font-bold text-white">{updateInfo.latestVersion}</span>
+                </p>
+              </div>
+            </div>
+          ) : downloadState === 'error' ? (
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-400 shadow-sm">
+                <span className="material-symbols-outlined text-3xl">error</span>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Chyba při stahování</h3>
+                <p className="text-xs text-rose-300">Nepodařilo se stáhnout novou verzi</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-full m3-primary-badge flex items-center justify-center shadow-sm">
+                <span className="material-symbols-outlined text-3xl">upgrade</span>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">K dispozici je nová verze!</h3>
+                <p className="text-xs m3-primary-text">
+                  Verze <span className="font-mono font-bold text-white">{updateInfo.latestVersion}</span> (aktuální: {updateInfo.currentVersion})
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Content body based on state */}
+          {downloadState === 'idle' && (
+            <>
+              {updateInfo.releaseNotes && (
+                <div className="p-4 bg-white/[0.03] rounded-2xl text-xs text-gray-300 space-y-1 shadow-inner">
+                  <p className="font-semibold text-gray-400">Co je nového:</p>
+                  <p className="whitespace-pre-line leading-relaxed">{updateInfo.releaseNotes}</p>
+                </div>
+              )}
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Chcete nyní stáhnout a nainstalovat aktualizaci přímo v aplikaci? V případě odložení vám aktualizaci znovu nabídneme za 24 hodin.
+              </p>
+            </>
+          )}
+
+          {downloadState === 'downloading' && (
+            <div className="space-y-3 py-2">
+              <div className="w-full bg-black/40 h-3 rounded-full overflow-hidden p-0.5 shadow-inner">
+                <div
+                  className="h-full m3-primary-pill rounded-full transition-all duration-300 ease-out flex items-center justify-end"
+                  style={{ width: `${Math.max(5, progress.percent)}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span className="font-mono font-bold text-white">{progress.percent} %</span>
+                <span className="text-gray-400 font-mono">
+                  {progress.percent >= 90
+                    ? 'Rozbalování souborů...'
+                    : progress.total > 0
+                    ? `${(progress.transferred / (1024 * 1024)).toFixed(1)} MB / ${(progress.total / (1024 * 1024)).toFixed(1)} MB`
+                    : `${(progress.transferred / (1024 * 1024)).toFixed(1)} MB`}
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 text-center">
                 {progress.percent >= 90
-                  ? 'Rozbalování souborů...'
-                  : progress.total > 0
-                  ? `${(progress.transferred / (1024 * 1024)).toFixed(1)} MB / ${(progress.total / (1024 * 1024)).toFixed(1)} MB`
-                  : `${(progress.transferred / (1024 * 1024)).toFixed(1)} MB`}
-              </span>
+                  ? 'Připravuji a rozbaluji aktualizaci na pozadí...'
+                  : 'Stahování probíhá přímo v aplikaci, prosím chvíli vyčkejte...'}
+              </p>
             </div>
-            <p className="text-xs text-gray-400 text-center">
-              {progress.percent >= 90
-                ? 'Připravuji a rozbaluji aktualizaci na pozadí...'
-                : 'Stahování probíhá přímo v aplikaci, prosím chvíli vyčkejte...'}
-            </p>
-          </div>
-        )}
+          )}
 
-        {downloadState === 'completed' && (
-          <div className="space-y-2 py-2">
-            <p className="text-xs text-gray-300 leading-relaxed">
-              Balíček byl úspěšně připraven. Kliknutím na tlačítko níže dojde k okamžitému bleskovému restartu do nové verze.
-            </p>
-          </div>
-        )}
+          {downloadState === 'completed' && (
+            <div className="space-y-2 py-2">
+              <p className="text-xs text-gray-300 leading-relaxed">
+                Balíček byl úspěšně připraven. Kliknutím na tlačítko níže dojde k okamžitému bleskovému restartu do nové verze.
+              </p>
+            </div>
+          )}
 
-        {downloadState === 'error' && (
-          <div className="space-y-2 py-1">
-            <p className="text-xs text-rose-300 bg-rose-500/15 p-3 rounded-2xl shadow-sm">
-              {errorMessage}
-            </p>
-            <p className="text-xs text-gray-400 leading-relaxed">
-              Můžete stahování zkusit znovu, nebo soubor stáhnout přímo přes váš webový prohlížeč.
-            </p>
-          </div>
-        )}
-      </div>
+          {downloadState === 'error' && (
+            <div className="space-y-2 py-1">
+              <p className="text-xs text-rose-300 bg-rose-500/15 p-3 rounded-2xl shadow-sm">
+                {errorMessage}
+              </p>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Můžete stahování zkusit znovu, nebo soubor stáhnout přímo přes váš webový prohlížeč.
+              </p>
+            </div>
+          )}
+        </div>
 
-      {/* Footer actions based on state */}
+        {/* Footer actions based on state */}
         <div className="flex items-center justify-end gap-2.5 pt-2">
           {downloadState === 'idle' && (
             <>
@@ -305,6 +325,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
             </>
           )}
         </div>
+      </div>
     </main>
   );
 };

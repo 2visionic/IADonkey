@@ -2911,7 +2911,7 @@ function setupIpcHandlers() {
             }
           }
 
-          await shell.openExternal(fullUrl);
+          await openUrlInConfiguredBrowser(fullUrl);
           const redactedUrl = fullUrl.replace(/AuthenticationKey=[^&]+/gi, 'AuthenticationKey=[REDACTED]');
           diagnosticsService.logAction({
             type: 'action',
@@ -2927,7 +2927,7 @@ function setupIpcHandlers() {
             // Fallback try as external url only for safe URI protocols
             if (/^(https?:|mailto:|shell:)/i.test(trimmed)) {
               try {
-                await shell.openExternal(trimmed);
+                await openUrlInConfiguredBrowser(trimmed);
                 diagnosticsService.logAction({
                   type: 'action',
                   title: 'Otevření cíle přes výchozí protokol',
@@ -3033,7 +3033,7 @@ function setupIpcHandlers() {
   ipcMain.handle('open-external', async (_event, url: string) => {
     if (url) {
       const fullUrl = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-      await shell.openExternal(fullUrl);
+      await openUrlInConfiguredBrowser(fullUrl);
     }
   });
 
@@ -3061,6 +3061,10 @@ function setupIpcHandlers() {
 
   ipcMain.handle('close-update-window', () => {
     windowManager.closeUpdateWindow();
+  });
+
+  ipcMain.handle('resize-update-window', (_event, height: number) => {
+    windowManager.resizeUpdateWindow(height);
   });
 
   ipcMain.handle('get-update-window-data', () => {
@@ -3234,6 +3238,28 @@ function setupIpcHandlers() {
 
   ipcMain.handle('detect-vscode-path', () => {
     return detectDefaultVscodePath();
+  });
+
+  ipcMain.handle('select-browser-path', async (_event, defaultPath?: string) => {
+    const win = windowManager.getSettingsWindow() || windowManager.getMainWindow();
+    const resolvedPath = resolveDefaultPath(defaultPath, false);
+    const result = await dialog.showOpenDialog(win || (undefined as any), {
+      title: 'Vyberte spustitelný soubor webového prohlížeče (*.exe)',
+      defaultPath: resolvedPath,
+      properties: ['openFile'],
+      filters: [
+        { name: 'Spustitelný soubor prohlížeče (*.exe)', extensions: ['exe'] },
+        { name: 'Všechny soubory', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+    return result.filePaths[0];
+  });
+
+  ipcMain.handle('detect-browsers', () => {
+    return detectInstalledBrowsers();
   });
 
   ipcMain.handle('open-in-android-studio', async (_event, folderPath: string) => {
@@ -3510,6 +3536,226 @@ function detectDefaultVscodePath(): string | null {
   } catch {}
 
   return null;
+}
+
+async function openUrlInConfiguredBrowser(url: string): Promise<void> {
+  const customBrowserPath = store?.getConfig()?.defaultBrowserPath?.trim();
+  if (customBrowserPath && /^https?:\/\//i.test(url) && fs.existsSync(customBrowserPath)) {
+    try {
+      const child = spawn(customBrowserPath, [url], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: false,
+      });
+      child.unref();
+      return;
+    } catch (err) {
+      console.warn('[Main] Failed to launch custom browser, falling back to default:', err);
+    }
+  }
+  await shell.openExternal(url);
+}
+
+function detectInstalledBrowsers(): Array<{ id: string; name: string; path: string }> {
+  const localAppData = process.env.LOCALAPPDATA || '';
+  const progFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
+  const progFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+
+  const knownBrowsers: Array<{ id: string; name: string; paths: string[] }> = [
+    {
+      id: 'chrome',
+      name: 'Google Chrome',
+      paths: [
+        path.join(progFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+        path.join(progFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+        path.join(localAppData, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      ],
+    },
+    {
+      id: 'edge',
+      name: 'Microsoft Edge',
+      paths: [
+        path.join(progFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+        path.join(progFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+        path.join(localAppData, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      ],
+    },
+    {
+      id: 'brave',
+      name: 'Brave Browser',
+      paths: [
+        path.join(progFiles, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
+        path.join(progFilesX86, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
+        path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
+      ],
+    },
+    {
+      id: 'firefox',
+      name: 'Mozilla Firefox',
+      paths: [
+        path.join(progFiles, 'Mozilla Firefox', 'firefox.exe'),
+        path.join(progFilesX86, 'Mozilla Firefox', 'firefox.exe'),
+        path.join(localAppData, 'Mozilla Firefox', 'firefox.exe'),
+      ],
+    },
+    {
+      id: 'firefox-dev',
+      name: 'Firefox Developer Edition',
+      paths: [
+        path.join(progFiles, 'Firefox Developer Edition', 'firefox.exe'),
+        path.join(progFilesX86, 'Firefox Developer Edition', 'firefox.exe'),
+        path.join(localAppData, 'Firefox Developer Edition', 'firefox.exe'),
+      ],
+    },
+    {
+      id: 'vivaldi',
+      name: 'Vivaldi',
+      paths: [
+        path.join(localAppData, 'Vivaldi', 'Application', 'vivaldi.exe'),
+        path.join(progFiles, 'Vivaldi', 'Application', 'vivaldi.exe'),
+        path.join(progFilesX86, 'Vivaldi', 'Application', 'vivaldi.exe'),
+      ],
+    },
+    {
+      id: 'opera',
+      name: 'Opera',
+      paths: [
+        path.join(localAppData, 'Programs', 'Opera', 'opera.exe'),
+        path.join(localAppData, 'Programs', 'Opera', 'launcher.exe'),
+        path.join(progFiles, 'Opera', 'opera.exe'),
+        path.join(progFiles, 'Opera', 'launcher.exe'),
+      ],
+    },
+    {
+      id: 'opera-gx',
+      name: 'Opera GX',
+      paths: [
+        path.join(localAppData, 'Programs', 'Opera GX', 'opera.exe'),
+        path.join(localAppData, 'Programs', 'Opera GX', 'launcher.exe'),
+        path.join(progFiles, 'Opera GX', 'opera.exe'),
+        path.join(progFiles, 'Opera GX', 'launcher.exe'),
+      ],
+    },
+    {
+      id: 'zen',
+      name: 'Zen Browser',
+      paths: [
+        path.join(progFiles, 'Zen Browser', 'zen.exe'),
+        path.join(localAppData, 'Zen Browser', 'zen.exe'),
+        path.join(localAppData, 'Programs', 'Zen Browser', 'zen.exe'),
+      ],
+    },
+    {
+      id: 'arc',
+      name: 'Arc',
+      paths: [
+        path.join(localAppData, 'Arc', 'Application', 'Arc.exe'),
+        path.join(progFiles, 'Arc', 'Application', 'Arc.exe'),
+      ],
+    },
+    {
+      id: 'thorium',
+      name: 'Thorium',
+      paths: [
+        path.join(localAppData, 'Thorium', 'Application', 'thorium.exe'),
+        path.join(progFiles, 'Thorium', 'Application', 'thorium.exe'),
+      ],
+    },
+    {
+      id: 'chromium',
+      name: 'Chromium',
+      paths: [
+        path.join(localAppData, 'Chromium', 'Application', 'chrome.exe'),
+        path.join(progFiles, 'Chromium', 'Application', 'chrome.exe'),
+      ],
+    },
+    {
+      id: 'librewolf',
+      name: 'LibreWolf',
+      paths: [
+        path.join(progFiles, 'LibreWolf', 'librewolf.exe'),
+        path.join(localAppData, 'Programs', 'LibreWolf', 'librewolf.exe'),
+      ],
+    },
+    {
+      id: 'waterfox',
+      name: 'Waterfox',
+      paths: [
+        path.join(progFiles, 'Waterfox', 'waterfox.exe'),
+      ],
+    },
+  ];
+
+  const results: Array<{ id: string; name: string; path: string }> = [];
+  const seenPaths = new Set<string>();
+
+  const addBrowser = (id: string, name: string, rawPath: string) => {
+    const cleaned = rawPath.trim().replace(/^"+|"+$/g, '');
+    if (!cleaned || !fs.existsSync(cleaned)) return;
+    const norm = path.normalize(cleaned).toLowerCase();
+    if (seenPaths.has(norm)) return;
+    seenPaths.add(norm);
+    results.push({ id, name, path: path.normalize(cleaned) });
+  };
+
+  for (const b of knownBrowsers) {
+    for (const candidate of b.paths) {
+      if (candidate && fs.existsSync(candidate)) {
+        addBrowser(b.id, b.name, candidate);
+        break;
+      }
+    }
+  }
+
+  // Also inspect Windows StartMenuInternet registry keys for any other registered browsers
+  const regRoots = [
+    'HKCU\\SOFTWARE\\Clients\\StartMenuInternet',
+    'HKLM\\SOFTWARE\\Clients\\StartMenuInternet',
+    'HKLM\\SOFTWARE\\WOW6432Node\\Clients\\StartMenuInternet',
+  ];
+
+  for (const rootKey of regRoots) {
+    try {
+      const regCheck = spawnSync('reg', ['query', rootKey, '/s'], {
+        windowsHide: true,
+        encoding: 'utf-8',
+        timeout: 2000,
+      });
+      if (regCheck.status === 0 && regCheck.stdout) {
+        const blocks = regCheck.stdout.split(/\r?\n\r?\n/);
+        for (const block of blocks) {
+          if (!/\\shell\\open\\command/i.test(block)) continue;
+          const exeMatch = block.match(/REG_SZ\s+(?:"([^"]+\.exe)"|([^\r\n]+\.exe))/i);
+          const exePath = (exeMatch?.[1] || exeMatch?.[2] || '').trim();
+          if (!exePath || /iexplore\.exe/i.test(exePath)) continue;
+          const baseName = path.basename(exePath, '.exe');
+          const friendlyName =
+            /chrome/i.test(baseName)
+              ? 'Google Chrome'
+              : /msedge/i.test(baseName)
+              ? 'Microsoft Edge'
+              : /brave/i.test(baseName)
+              ? 'Brave Browser'
+              : /firefox/i.test(baseName)
+              ? 'Mozilla Firefox'
+              : /vivaldi/i.test(baseName)
+              ? 'Vivaldi'
+              : /opera/i.test(baseName)
+              ? 'Opera'
+              : /zen/i.test(baseName)
+              ? 'Zen Browser'
+              : /arc/i.test(baseName)
+              ? 'Arc'
+              : baseName.charAt(0).toUpperCase() + baseName.slice(1);
+          addBrowser(baseName.toLowerCase(), friendlyName, exePath);
+        }
+      }
+    } catch {
+      // ignore registry query errors
+    }
+  }
+
+  return results;
 }
 
 async function openPathInVscode(folderPath: string): Promise<{ success: boolean; error?: string }> {

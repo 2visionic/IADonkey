@@ -127,6 +127,7 @@ const DEFAULT_CONFIG: AppConfig = {
   searchInstalledApps: true,
   searchGoogle: true,
   defaultSearchEngine: 'google',
+  defaultBrowserPath: '',
 };
 
 import { tryImportWoxCredentials } from './magicGate';

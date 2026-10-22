@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.23';
+export const CURRENT_APP_VERSION = '2.1.24';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,17 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.24',
+    date: '22. 10. 2026',
+    title: 'Volba vlastního webového prohlížeče, dynamická výška okna aktualizace, plynulý kruhový progress synchronizace a vyčištění Seznamu v MagicPlanu',
+    highlights: [
+      'Nastavení -> Obecné – Výběr vlastního webového prohlížeče a automatická detekce: V sekci Obecné si lze nově zvolit konkrétní webový prohlížeč (*.exe) pro otevírání odkazů ze Spotlightu a aplikace. Tlačítko s hvězdičkami vyhledá všechny nainstalované prohlížeče v systému a umožní vybrat prohlížeč jedním kliknutím; při prázdném poli se odkazy nadále otevírají ve výchozím prohlížeči Windows.',
+      'Okno aktualizace – Automatické přizpůsobení výšky obsahu bez scrollbarů: Samostatné okno aktualizace nyní dynamicky upravuje svou výšku přesně podle délky přehledu novinek i aktuálního kroku stahování či dokončení, takže se v něm již nezobrazují posuvníky.',
+      'Spotlight UI – Plynulý progresivní náběh kruhového ukazatele synchronizace (0–100 %): Kruhový progress kolem tlačítka synchronizace se pomocí plynulé 60fps interpolace spojitě navyšuje od 0 % až do 100 % bez zastavování mezi kroky a před přepnutím na zelenou fajfku vždy doběhne do plných 100 %.',
+      'MagicPlan – Skrytí položek „Nedostupný / Volno“ na záložce Seznam: Bloky volna a nedostupnosti jsou odfiltrovány ze záložky Seznam i z počtu zobrazených úkolů ve spodní liště, zatímco v zobrazení Timeline zůstávají zachovány.',
+    ],
+  },
   {
     version: '2.1.23',
     date: '22. 10. 2026',

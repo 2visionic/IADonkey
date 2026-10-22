@@ -562,6 +562,28 @@ export class WindowManager {
     }
   }
 
+  public resizeUpdateWindow(height: number): void {
+    if (!this.updateWindow || this.updateWindow.isDestroyed()) return;
+    const bounds = this.updateWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y });
+    const maxAllowedHeight = Math.round(display.workArea.height * 0.88);
+    const targetHeight = Math.max(200, Math.min(maxAllowedHeight, Math.ceil(height)));
+    if (Math.abs(bounds.height - targetHeight) <= 1) return;
+
+    const nextY = !this.updateWindow.isVisible()
+      ? Math.round(display.workArea.y + (display.workArea.height - targetHeight) / 2)
+      : bounds.y;
+
+    this.updateWindow.setResizable(true);
+    this.updateWindow.setBounds({
+      x: bounds.x,
+      y: nextY,
+      width: bounds.width,
+      height: targetHeight,
+    });
+    this.updateWindow.setResizable(false);
+  }
+
   public openUpdateWindow(updateInfo?: any): BrowserWindow {
     if (updateInfo !== undefined) {
       this.lastUpdateInfo = updateInfo;
@@ -585,11 +607,7 @@ export class WindowManager {
 
     this.updateWindow = new BrowserWindow({
       width: 520,
-      height: 390,
-      minWidth: 480,
-      minHeight: 350,
-      maxWidth: 560,
-      maxHeight: 460,
+      height: 360,
       resizable: false,
       title: isDevMode ? 'IADonkey [DEV] - Aktualizace' : 'IADonkey - Aktualizace',
       icon: getAppIcon(),

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { AppConfig, DataSource, FileSource, ApiSource, StaticSource, LauncherItem, SyncProgress, UpdateInfo, SourceFieldMapping, MappingTargetKey, BannedItem, CustomSnippet, ActionLogEntry, CrashLogEntry, MagicGateDeploySchemaField } from '../types';
+import { AppConfig, DataSource, FileSource, ApiSource, StaticSource, LauncherItem, SyncProgress, UpdateInfo, SourceFieldMapping, MappingTargetKey, BannedItem, CustomSnippet, ActionLogEntry, CrashLogEntry, MagicGateDeploySchemaField, DetectedBrowser } from '../types';
 import { applyPrimaryColor, applyActionsColor, APP_COLOR_PRESETS } from '../utils/theme';
 import { formatLastSyncDate } from '../utils/dateHelper';
 import { CURRENT_APP_VERSION, DISPLAY_APP_VERSION, IS_DEV, getLatestRelease } from '../changelog';
@@ -262,6 +262,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   }, []);
   const [ssmsLocalTest, setSsmsLocalTest] = useState<{ loading: boolean; dbs: string[]; error?: string } | null>(null);
   const [showSsmsPassword, setShowSsmsPassword] = useState(false);
+  const [detectedBrowsers, setDetectedBrowsers] = useState<DetectedBrowser[]>([]);
+  const [showDetectedBrowsers, setShowDetectedBrowsers] = useState(false);
   const [activeDonkeyTool, setActiveDonkeyTool] = useState<'colorMaster' | 'quickCap' | 'screenRuler' | 'easyClip'>('colorMaster');
   const [formData, setFormData] = useState<AppConfig>(config);
   const [editingSource, setEditingSource] = useState<DataSource | null>(null);
@@ -11500,6 +11502,163 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </select>
                   </div>
                 </div>
+              </div>
+
+              {/* Default Browser Section */}
+              <div className="space-y-4 p-5 rounded-2xl bg-white/[0.03] shadow-sm">
+                <div>
+                  <h4 className="font-semibold text-sm text-white flex items-center gap-2">
+                    <span className="material-symbols-outlined text-lg text-indigo-400">public</span>
+                    Výchozí webový prohlížeč
+                  </h4>
+                  <p className="text-[13px] text-gray-400 mt-1 leading-relaxed">
+                    Volba vlastního prohlížeče pro otevírání webových odkazů ze Spotlightu a ostatních oken aplikace. Pokud necháte pole prázdné, odkazy se budou otevírat ve výchozím prohlížeči systému Windows.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-medium text-gray-300 mb-1.5">
+                    Cesta ke spustitelnému souboru prohlížeče (*.exe)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={formData.defaultBrowserPath || ''}
+                      onChange={(e) => {
+                        const updated = {
+                          ...formData,
+                          defaultBrowserPath: e.target.value,
+                        };
+                        setFormData(updated);
+                        handleSave(updated);
+                      }}
+                      className="h-[38px] flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none font-mono"
+                      placeholder="Výchozí systémový prohlížeč (např. C:\Program Files\Google\Chrome\Application\chrome.exe)"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (window.electronAPI?.selectBrowserPath) {
+                          const selected = await window.electronAPI.selectBrowserPath(formData.defaultBrowserPath);
+                          if (selected) {
+                            const updated = {
+                              ...formData,
+                              defaultBrowserPath: selected,
+                            };
+                            setFormData(updated);
+                            handleSave(updated);
+                          }
+                        }
+                      }}
+                      className="h-[38px] px-4 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-full text-[13px] font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                    >
+                      <span className="material-symbols-outlined text-base text-indigo-400">folder_open</span>
+                      <span>Procházet...</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (window.electronAPI?.detectBrowsers) {
+                          const list = await window.electronAPI.detectBrowsers();
+                          setDetectedBrowsers(list || []);
+                          setShowDetectedBrowsers((prev) => !prev || (list && list.length > 0));
+                        }
+                      }}
+                      className="w-[38px] h-[38px] flex items-center justify-center bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 hover:text-white rounded-full transition cursor-pointer shrink-0"
+                      title="Najít nainstalované prohlížeče a vybrat cestu"
+                    >
+                      <span className="material-symbols-outlined text-[18px] leading-none">auto_awesome</span>
+                    </button>
+                    {formData.defaultBrowserPath && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = {
+                            ...formData,
+                            defaultBrowserPath: '',
+                          };
+                          setFormData(updated);
+                          handleSave(updated);
+                        }}
+                        className="w-[38px] h-[38px] flex items-center justify-center text-rose-400 hover:text-rose-300 bg-rose-500/15 hover:bg-rose-500/25 rounded-full transition cursor-pointer shrink-0"
+                        title="Vymazat cestu (použije se výchozí systémový prohlížeč)"
+                      >
+                        <span className="material-symbols-outlined text-[18px] leading-none">delete</span>
+                      </button>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-400 mt-2 block leading-relaxed">
+                    Kliknutím na tlačítko s hvězdičkami <span className="material-symbols-outlined text-[13px] text-emerald-300 align-middle">auto_awesome</span> vyhledáte nainstalované prohlížeče v systému a kliknutím na vybraný prohlížeč nastavíte jeho cestu.
+                  </span>
+                </div>
+
+                {showDetectedBrowsers && (
+                  <div className="p-3 bg-black/25 rounded-2xl space-y-2 animate-fade-in">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-sm text-emerald-400">auto_awesome</span>
+                        Detekované prohlížeče ({detectedBrowsers.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowDetectedBrowsers(false)}
+                        className="text-xs text-gray-400 hover:text-white transition cursor-pointer px-2 py-0.5 rounded-full hover:bg-white/5"
+                      >
+                        Skrýt
+                      </button>
+                    </div>
+                    {detectedBrowsers.length === 0 ? (
+                      <div className="text-xs text-gray-400 px-2 py-2">
+                        Nebyly automaticky nalezeny žádné prohlížeče ve standardních složkách. Vyberte soubor ručně přes tlačítko Procházet.
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {detectedBrowsers.map((b) => {
+                          const isSelected =
+                            (formData.defaultBrowserPath || '').trim().toLowerCase() === b.path.trim().toLowerCase();
+                          return (
+                            <button
+                              key={b.path}
+                              type="button"
+                              onClick={() => {
+                                const updated = {
+                                  ...formData,
+                                  defaultBrowserPath: b.path,
+                                };
+                                setFormData(updated);
+                                handleSave(updated);
+                                setShowDetectedBrowsers(false);
+                              }}
+                              className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-left transition cursor-pointer ${
+                                isSelected
+                                  ? 'bg-emerald-500/15 text-white ring-1 ring-emerald-500/40'
+                                  : 'bg-white/[0.03] hover:bg-white/[0.08] text-gray-200'
+                              }`}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-semibold text-white flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-sm text-indigo-400">language</span>
+                                  <span>{b.name}</span>
+                                  {isSelected && (
+                                    <span className="text-[10px] uppercase bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-semibold">
+                                      Aktivní
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-gray-400 font-mono truncate mt-0.5">
+                                  {b.path}
+                                </div>
+                              </div>
+                              <span className="material-symbols-outlined text-base text-gray-400 shrink-0">
+                                {isSelected ? 'check_circle' : 'arrow_forward'}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
             </div>

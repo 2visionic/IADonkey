@@ -1,4 +1,4 @@
-import { AppConfig, LauncherItem, UpdateInfo, SyncProgress, DataSource, GithubSettings, MaterialIconDef, ActionLogEntry, CrashLogEntry } from './index';
+import { AppConfig, LauncherItem, UpdateInfo, SyncProgress, DataSource, GithubSettings, MaterialIconDef, ActionLogEntry, CrashLogEntry, DetectedBrowser } from './index';
 
 declare global {
   interface Window {
@@ -22,6 +22,7 @@ declare global {
       closePowerWindow: () => Promise<void>;
       openUpdateWindow: (updateInfo?: UpdateInfo) => Promise<void>;
       closeUpdateWindow: () => Promise<void>;
+      resizeUpdateWindow: (height: number) => Promise<void>;
       getUpdateWindowData: () => Promise<UpdateInfo | null>;
       onUpdateWindowData: (callback: (info: UpdateInfo) => void) => () => void;
       openReleaseNotesWindow: () => Promise<void>;
@@ -103,6 +104,8 @@ declare global {
       openInVscode: (folderPath: string) => Promise<{ success: boolean; error?: string }>;
       selectVscodePath: (defaultPath?: string) => Promise<string | null>;
       detectVscodePath: () => Promise<string | null>;
+      selectBrowserPath: (defaultPath?: string) => Promise<string | null>;
+      detectBrowsers: () => Promise<DetectedBrowser[]>;
       openInAndroidStudio: (folderPath: string) => Promise<{ success: boolean; error?: string }>;
       selectAndroidStudioPath: (defaultPath?: string) => Promise<string | null>;
       detectAndroidStudioPath: () => Promise<string | null>;
