@@ -212,7 +212,11 @@ export class AppStore {
       }
 
       // Auto-migrate legacy / dummy placeholder repository URL
-      if (!cfg.updateUrl || cfg.updateUrl.includes('iadonkey/launcher')) {
+      if (
+        !cfg.updateUrl ||
+        cfg.updateUrl.includes('iadonkey/launcher') ||
+        cfg.updateUrl.includes('magicware/IADonkey')
+      ) {
         cfg.updateUrl = DEFAULT_CONFIG.updateUrl;
       }
 
