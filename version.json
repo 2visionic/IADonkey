@@ -1,6 +1,6 @@
 {
-  "version": "2.1.25",
-  "releaseNotes": "• Automatické aktualizace – Přechod na nový repozitář 2visionic/IADonkey s automatickou migrací stávající konfigurace při startu aplikace.",
-  "downloadUrl": "https://github.com/2visionic/IADonkey/releases/download/v2.1.25/IADonkey-Setup-2.1.25.exe",
-  "zipUrl": "https://github.com/2visionic/IADonkey/releases/download/v2.1.25/IADonkey-2.1.25.zip"
+  "version": "2.1.26",
+  "releaseNotes": "• Automatické aktualizace – Ověřovací vydání z nového repozitáře 2visionic/IADonkey.",
+  "downloadUrl": "https://github.com/2visionic/IADonkey/releases/download/v2.1.26/IADonkey-Setup-2.1.26.exe",
+  "zipUrl": "https://github.com/2visionic/IADonkey/releases/download/v2.1.26/IADonkey-2.1.26.zip"
 }

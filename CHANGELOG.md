@@ -4,6 +4,10 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.26] - 27. 10. 2026
+### Ověření automatických aktualizací z nového repozitáře 2visionic/IADonkey
+- **Automatické aktualizace – Ověřovací vydání z repozitáře `2visionic/IADonkey`**: Potvrzení přímého stahování a instalace aktualizací z nového distribučního repozitáře.
+
 ## [2.1.25] - 27. 10. 2026
 ### Přechod na nový distribuční repozitář 2visionic/IADonkey a automatická migrace aktualizací
 - **Automatické aktualizace – Přechod na nový repozitář `2visionic/IADonkey`**: Výchozí zdroj pro kontrolu a stahování nových verzí aplikace byl přesunut na repozitář `2visionic/IADonkey` s automatickou migrací stávající konfigurace při startu aplikace bez nutnosti ruční přeinstalace.
