@@ -4,6 +4,10 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.25] - 27. 10. 2026
+### Přechod na nový distribuční repozitář 2visionic/IADonkey a automatická migrace aktualizací
+- **Automatické aktualizace – Přechod na nový repozitář `2visionic/IADonkey`**: Výchozí zdroj pro kontrolu a stahování nových verzí aplikace byl přesunut na repozitář `2visionic/IADonkey` s automatickou migrací stávající konfigurace při startu aplikace bez nutnosti ruční přeinstalace.
+
 ## [2.1.24] - 22. 10. 2026
 ### Volba vlastního webového prohlížeče, dynamická výška okna aktualizace, plynulý kruhový progress synchronizace a vyčištění Seznamu v MagicPlanu
 - **Nastavení -> Obecné – Výběr vlastního webového prohlížeče a automatická detekce**: V sekci Obecné si lze nově zvolit konkrétní webový prohlížeč (`*.exe`) pro otevírání odkazů ze Spotlightu a aplikace. Tlačítko s hvězdičkami vyhledá všechny nainstalované prohlížeče v systému a umožní vybrat prohlížeč jedním kliknutím; při prázdném poli se odkazy nadále otevírají ve výchozím prohlížeči Windows.

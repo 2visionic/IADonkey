@@ -137,8 +137,22 @@ export class AppStore {
   private items: LauncherItem[];
 
   constructor() {
+    const hadLegacyUpdateUrl = this.checkHasLegacyUpdateUrlOnDisk();
     this.config = this.loadConfig();
+    if (hadLegacyUpdateUrl) {
+      this.saveConfig(this.config);
+    }
     this.items = this.loadItems();
+  }
+
+  private checkHasLegacyUpdateUrlOnDisk(): boolean {
+    try {
+      if (fs.existsSync(CONFIG_FILE)) {
+        const raw = fs.readFileSync(CONFIG_FILE, 'utf-8');
+        return raw.includes('magicware/IADonkey') || raw.includes('iadonkey/launcher');
+      }
+    } catch {}
+    return false;
   }
 
   private loadConfig(): AppConfig {

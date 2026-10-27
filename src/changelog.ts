@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.24';
+export const CURRENT_APP_VERSION = '2.1.25';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,14 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.25',
+    date: '27. 10. 2026',
+    title: 'Přechod na nový distribuční repozitář 2visionic/IADonkey a automatická migrace aktualizací',
+    highlights: [
+      'Automatické aktualizace – Přechod na nový repozitář 2visionic/IADonkey: Výchozí zdroj pro kontrolu a stahování nových verzí aplikace byl přesunut na repozitář 2visionic/IADonkey s automatickou migrací stávající konfigurace při startu aplikace bez nutnosti ruční přeinstalace.',
+    ],
+  },
   {
     version: '2.1.24',
     date: '22. 10. 2026',

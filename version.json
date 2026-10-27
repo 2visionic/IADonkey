@@ -1,6 +1,6 @@
 {
-  "version": "2.1.24",
-  "releaseNotes": "• Nastavení -> Obecné – Volba vlastního webového prohlížeče s automatickou detekcí nainstalovaných prohlížečů v systému.\n• Okno aktualizace – Dynamické přizpůsobení výšky okna obsahu bez scrollbarů.\n• Spotlight UI – Plynulý progresivní náběh kruhového ukazatele synchronizace (0–100 %).\n• MagicPlan – Skrytí položek „Nedostupný / Volno“ na záložce Seznam.",
-  "downloadUrl": "https://github.com/2visionic/IADonkey/releases/download/v2.1.24/IADonkey-Setup-2.1.24.exe",
-  "zipUrl": "https://github.com/2visionic/IADonkey/releases/download/v2.1.24/IADonkey-2.1.24.zip"
+  "version": "2.1.25",
+  "releaseNotes": "• Automatické aktualizace – Přechod na nový repozitář 2visionic/IADonkey s automatickou migrací stávající konfigurace při startu aplikace.",
+  "downloadUrl": "https://github.com/2visionic/IADonkey/releases/download/v2.1.25/IADonkey-Setup-2.1.25.exe",
+  "zipUrl": "https://github.com/2visionic/IADonkey/releases/download/v2.1.25/IADonkey-2.1.25.zip"
 }
