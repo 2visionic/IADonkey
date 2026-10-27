@@ -79,7 +79,7 @@ const DEFAULT_CONFIG: AppConfig = {
       maxItems: 50,
     },
   },
-  updateUrl: 'https://raw.githubusercontent.com/magicware/IADonkey/main/version.json',
+  updateUrl: 'https://raw.githubusercontent.com/2visionic/IADonkey/main/version.json',
   lastDeclinedVersion: null,
   lastDeclinedTime: null,
   autoSyncIntervalMinutes: 30,

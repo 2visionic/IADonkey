@@ -66,8 +66,8 @@ async function main() {
   const versionData = {
     version: version,
     releaseNotes: `• Vydána nová verze ${version} aplikace IADonkey.\n• Přehled všech změn po aktualizaci naleznete v aplikaci v záložce Nastavení -> Kompletní changelog.`,
-    downloadUrl: `https://github.com/magicware/IADonkey/releases/download/v${version}/IADonkey-Setup-${version}.exe`,
-    zipUrl: `https://github.com/magicware/IADonkey/releases/download/v${version}/IADonkey-${version}.zip`,
+    downloadUrl: `https://github.com/2visionic/IADonkey/releases/download/v${version}/IADonkey-Setup-${version}.exe`,
+    zipUrl: `https://github.com/2visionic/IADonkey/releases/download/v${version}/IADonkey-${version}.zip`,
   };
   fs.writeFileSync(versionJsonPath, JSON.stringify(versionData, null, 2) + '\n', 'utf8');
   console.log(`✓ Aktualizovan version.json pro update system`);
@@ -195,7 +195,7 @@ async function main() {
         console.log(`\x1b[32m✓ Všechny balíčky verze v${version} byly úspěšně nahrány na GitHub!\x1b[0m`);
       } catch (err) {
         console.error(`\x1b[31mChyba pri automatickem nahravani na GitHub: ${err.message}\x1b[0m`);
-        console.log(`Rucni zaloha: https://github.com/magicware/IADonkey/releases`);
+        console.log(`Rucni zaloha: https://github.com/2visionic/IADonkey/releases`);
       }
     }
   } else {

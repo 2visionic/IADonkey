@@ -117,7 +117,7 @@ const DEFAULT_CONFIG: AppConfig = {
     magicplan: true,
     feedback: true,
   },
-  updateUrl: 'https://raw.githubusercontent.com/magicware/IADonkey/main/version.json',
+  updateUrl: 'https://raw.githubusercontent.com/2visionic/IADonkey/main/version.json',
   lastDeclinedVersion: null,
   lastDeclinedTime: null,
   autoSyncIntervalMinutes: 30,

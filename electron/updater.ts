@@ -48,7 +48,7 @@ export class UpdateChecker {
         }
       }
     } catch {}
-    const baseUpdateUrl = config.updateUrl || 'https://raw.githubusercontent.com/magicware/IADonkey/main/version.json';
+    const baseUpdateUrl = config.updateUrl || 'https://raw.githubusercontent.com/2visionic/IADonkey/main/version.json';
     const separator = baseUpdateUrl.includes('?') ? '&' : '?';
     const updateUrl = `${baseUpdateUrl}${separator}t=${Date.now()}`;
 
