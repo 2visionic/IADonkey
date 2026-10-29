@@ -335,7 +335,7 @@ if (!(Test-Path $regPath)) {
 Set-ItemProperty -Path $regPath -Name 'DisplayName' -Value 'IADonkey'
 Set-ItemProperty -Path $regPath -Name 'DisplayIcon' -Value '${escapedExe},0'
 Set-ItemProperty -Path $regPath -Name 'DisplayVersion' -Value '${version}'
-Set-ItemProperty -Path $regPath -Name 'Publisher' -Value 'MagicWare'
+Set-ItemProperty -Path $regPath -Name 'Publisher' -Value 'Petr Coolhanek'
 Set-ItemProperty -Path $regPath -Name 'InstallLocation' -Value '${escapedDir}'
 Set-ItemProperty -Path $regPath -Name 'UninstallString' -Value '"${escapedExe}" --uninstall'
 Set-ItemProperty -Path $regPath -Name 'QuietUninstallString' -Value '"${escapedExe}" --uninstall --silent'

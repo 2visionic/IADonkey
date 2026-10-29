@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { BrowserWindow, Tray, Menu, screen, nativeImage, app } from 'electron';
 import { diagnosticsService } from './diagnosticsService';
@@ -1826,6 +1827,23 @@ export class WindowManager {
 
     this.tray.on('click', () => this.showSpotlight());
     this.tray.on('double-click', () => this.showSpotlight());
+
+    if (process.platform === 'win32') {
+      const exePath = process.execPath.replace(/'/g, "''");
+      execFile(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-WindowStyle',
+          'Hidden',
+          '-Command',
+          `Get-ChildItem 'HKCU:\\Control Panel\\NotifyIconSettings' -ErrorAction SilentlyContinue | ForEach-Object { $p = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue; if ($p.ExecutablePath -eq '${exePath}' -and $p.IsPromoted -ne 1) { Set-ItemProperty -Path $_.PSPath -Name 'IsPromoted' -Value 1 -Type DWord -ErrorAction SilentlyContinue } }`,
+        ],
+        { windowsHide: true },
+        () => {}
+      );
+    }
   }
 
   private currentTrayHotkeyLabel = 'Ctrl+Alt+Space';

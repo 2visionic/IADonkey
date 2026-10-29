@@ -1847,37 +1847,38 @@ function setupIpcHandlers() {
   ipcMain.handle('save-config', (_event, newConfig: AppConfig) => {
     const oldConfig = store.getConfig();
     store.saveConfig(newConfig);
+    const savedConfig = store.getConfig();
 
     // If hotkey was changed, re-register
-    if (newConfig.hotkey && newConfig.hotkey !== oldConfig.hotkey) {
-      registerGlobalHotkey(newConfig.hotkey);
+    if (savedConfig.hotkey && savedConfig.hotkey !== oldConfig.hotkey) {
+      registerGlobalHotkey(savedConfig.hotkey);
     }
 
-    registerColorMasterHotkey(newConfig.donkeyTools?.colorMaster?.hotkey);
-    registerPaletteMasterHotkey(newConfig.donkeyTools?.colorMaster?.paletteHotkey);
-    registerQuickCapHotkey(newConfig.donkeyTools?.quickCap?.hotkey || newConfig.donkeyTools?.fastSnap?.hotkey);
-    registerScreenRulerHotkey(newConfig.donkeyTools?.screenRuler?.hotkey);
-    registerEasyClipHotkey(newConfig.donkeyTools?.easyClip?.hotkey);
-    easyClipService.updateConfig(newConfig);
+    registerColorMasterHotkey(savedConfig.donkeyTools?.colorMaster?.hotkey);
+    registerPaletteMasterHotkey(savedConfig.donkeyTools?.colorMaster?.paletteHotkey);
+    registerQuickCapHotkey(savedConfig.donkeyTools?.quickCap?.hotkey || savedConfig.donkeyTools?.fastSnap?.hotkey);
+    registerScreenRulerHotkey(savedConfig.donkeyTools?.screenRuler?.hotkey);
+    registerEasyClipHotkey(savedConfig.donkeyTools?.easyClip?.hotkey);
+    easyClipService.updateConfig(savedConfig);
 
     const magicPlanConfigChanged =
-      newConfig.magicplan?.userColumn !== oldConfig.magicplan?.userColumn ||
-      JSON.stringify(newConfig.magicplan?.userColumns || []) !== JSON.stringify(oldConfig.magicplan?.userColumns || []) ||
-      JSON.stringify(newConfig.magicplan?.urls || []) !== JSON.stringify(oldConfig.magicplan?.urls || []) ||
-      newConfig.magicplan?.url !== oldConfig.magicplan?.url;
+      savedConfig.magicplan?.userColumn !== oldConfig.magicplan?.userColumn ||
+      JSON.stringify(savedConfig.magicplan?.userColumns || []) !== JSON.stringify(oldConfig.magicplan?.userColumns || []) ||
+      JSON.stringify(savedConfig.magicplan?.urls || []) !== JSON.stringify(oldConfig.magicplan?.urls || []) ||
+      savedConfig.magicplan?.url !== oldConfig.magicplan?.url;
 
     const magicPlanOtherChanged =
-      newConfig.extensions?.magicplan !== oldConfig.extensions?.magicplan ||
-      newConfig.magicplan?.enabled !== oldConfig.magicplan?.enabled ||
-      newConfig.magicplan?.pollIntervalMinutes !== oldConfig.magicplan?.pollIntervalMinutes ||
-      newConfig.magicplan?.worklogUrl !== oldConfig.magicplan?.worklogUrl ||
-      newConfig.magicplan?.unassignedColumn !== oldConfig.magicplan?.unassignedColumn;
+      savedConfig.extensions?.magicplan !== oldConfig.extensions?.magicplan ||
+      savedConfig.magicplan?.enabled !== oldConfig.magicplan?.enabled ||
+      savedConfig.magicplan?.pollIntervalMinutes !== oldConfig.magicplan?.pollIntervalMinutes ||
+      savedConfig.magicplan?.worklogUrl !== oldConfig.magicplan?.worklogUrl ||
+      savedConfig.magicplan?.unassignedColumn !== oldConfig.magicplan?.unassignedColumn;
 
     if (magicPlanConfigChanged) {
       magicPlanService?.onUserColumnChanged(
-        newConfig.magicplan?.userColumn,
-        newConfig.magicplan?.userColumns,
-        newConfig.magicplan?.urls
+        savedConfig.magicplan?.userColumn,
+        savedConfig.magicplan?.userColumns,
+        savedConfig.magicplan?.urls
       );
     } else if (magicPlanOtherChanged) {
       magicPlanService?.restart();
@@ -1887,7 +1888,7 @@ function setupIpcHandlers() {
     windowManager?.updateTrayContextMenu(currentHotkey);
 
     // If searchInstalledApps setting changed, refresh items in UI
-    if (newConfig.searchInstalledApps !== oldConfig.searchInstalledApps) {
+    if (savedConfig.searchInstalledApps !== oldConfig.searchInstalledApps) {
       const allItems = getCombinedItems();
       windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
       windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
@@ -1895,31 +1896,31 @@ function setupIpcHandlers() {
 
     // If MagicGate or GitHub settings/extensions changed, trigger sync to update launcher items
     const magicgateInfoSchemaChanged =
-      JSON.stringify(newConfig.magicgate?.apiInfoFields) !==
+      JSON.stringify(savedConfig.magicgate?.apiInfoFields) !==
         JSON.stringify(oldConfig.magicgate?.apiInfoFields) ||
-      newConfig.extensions?.ssms !== oldConfig.extensions?.ssms ||
-      newConfig.magicgate?.enableFtp !== oldConfig.magicgate?.enableFtp;
+      savedConfig.extensions?.ssms !== oldConfig.extensions?.ssms ||
+      savedConfig.magicgate?.enableFtp !== oldConfig.magicgate?.enableFtp;
     const magicgateChanged =
-      newConfig.magicgate?.sourceMode !== oldConfig.magicgate?.sourceMode ||
-      newConfig.magicgate?.xmlPath !== oldConfig.magicgate?.xmlPath ||
-      newConfig.magicgate?.apiBaseUrl !== oldConfig.magicgate?.apiBaseUrl ||
-      newConfig.magicgate?.apiAuthCookie !== oldConfig.magicgate?.apiAuthCookie ||
-      newConfig.extensions?.magicgate !== oldConfig.extensions?.magicgate;
+      savedConfig.magicgate?.sourceMode !== oldConfig.magicgate?.sourceMode ||
+      savedConfig.magicgate?.xmlPath !== oldConfig.magicgate?.xmlPath ||
+      savedConfig.magicgate?.apiBaseUrl !== oldConfig.magicgate?.apiBaseUrl ||
+      savedConfig.magicgate?.apiAuthCookie !== oldConfig.magicgate?.apiAuthCookie ||
+      savedConfig.extensions?.magicgate !== oldConfig.extensions?.magicgate;
     const oldGhToken = getActiveGitHubToken(oldConfig.github);
-    const newGhToken = getActiveGitHubToken(newConfig.github);
+    const newGhToken = getActiveGitHubToken(savedConfig.github);
     const githubChanged =
-      newConfig.extensions?.github !== oldConfig.extensions?.github ||
-      newConfig.github?.authMode !== oldConfig.github?.authMode ||
+      savedConfig.extensions?.github !== oldConfig.extensions?.github ||
+      savedConfig.github?.authMode !== oldConfig.github?.authMode ||
       newGhToken !== oldGhToken ||
-      newConfig.github?.username !== oldConfig.github?.username ||
-      newConfig.github?.org !== oldConfig.github?.org ||
-      newConfig.github?.apiUrl !== oldConfig.github?.apiUrl;
+      savedConfig.github?.username !== oldConfig.github?.username ||
+      savedConfig.github?.org !== oldConfig.github?.org ||
+      savedConfig.github?.apiUrl !== oldConfig.github?.apiUrl;
 
     if (magicgateInfoSchemaChanged && !magicgateChanged && !githubChanged) {
-      const rebuiltMgItems = reapplyMagicGateDeployInfoSchema(newConfig.magicgate?.apiInfoFields);
+      const rebuiltMgItems = reapplyMagicGateDeployInfoSchema(savedConfig.magicgate?.apiInfoFields);
       if (rebuiltMgItems) {
         const currentStored = store.getItems().filter((it) => it.sourceId !== 'magicgate-xml');
-        if (newConfig.extensions?.magicgate !== false && newConfig.magicgate?.sourceMode === 'api') {
+        if (savedConfig.extensions?.magicgate !== false && savedConfig.magicgate?.sourceMode === 'api') {
           store.saveItems([...currentStored, ...rebuiltMgItems]);
         }
         const allItems = getCombinedItems();
@@ -1938,22 +1939,25 @@ function setupIpcHandlers() {
         const syncedConfig = store.getConfig();
         windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
         windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
-        windowManager.getMainWindow()?.webContents.send('config-updated', syncedConfig);
-        windowManager.getSettingsWindow()?.webContents.send('config-updated', syncedConfig);
+        BrowserWindow.getAllWindows().forEach((win) => {
+          if (!win.isDestroyed() && !win.webContents?.isDestroyed()) {
+            win.webContents.send('config-updated', syncedConfig);
+          }
+        });
       });
     }
 
-    if (newConfig.feedback?.sharedFolder !== oldConfig.feedback?.sharedFolder) {
+    if (savedConfig.feedback?.sharedFolder !== oldConfig.feedback?.sharedFolder) {
       feedbackNotificationService.restart();
     }
 
     // Update notifications service config
-    notificationService.updateConfig(newConfig);
+    notificationService.updateConfig(savedConfig);
 
     try {
       BrowserWindow.getAllWindows().forEach((win) => {
         if (!win.isDestroyed() && !win.webContents?.isDestroyed()) {
-          win.webContents.send('config-updated', newConfig);
+          win.webContents.send('config-updated', savedConfig);
         }
       });
     } catch (err) {
@@ -2247,17 +2251,7 @@ function setupIpcHandlers() {
     const config = store.getConfig();
     const baseUrl = (params?.baseUrl ?? config.magicgate?.apiBaseUrl ?? '').trim();
     await logoutFromMagicGateDeploy(baseUrl);
-    const updatedCfg: AppConfig = {
-      ...config,
-      magicgate: {
-        ...config.magicgate,
-        apiAuthCookie: '',
-        apiUserEmail: '',
-        apiUserRole: '',
-        apiLastError: undefined,
-      },
-    };
-    store.saveConfig(updatedCfg);
+    const updatedCfg = store.clearMagicGateDeployAuth();
     BrowserWindow.getAllWindows().forEach((win) => {
       if (!win.isDestroyed() && !win.webContents?.isDestroyed()) {
         win.webContents.send('config-updated', updatedCfg);
@@ -2599,9 +2593,11 @@ function setupIpcHandlers() {
     });
     const updatedConfig = store.getConfig();
     const allItems = getCombinedItems();
-    windowManager.getMainWindow()?.webContents.send('config-updated', updatedConfig);
-    windowManager.getSettingsWindow()?.webContents.send('config-updated', updatedConfig);
-    windowManager.getMagicPlanWindow()?.webContents.send('config-updated', updatedConfig);
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed() && !win.webContents?.isDestroyed()) {
+        win.webContents.send('config-updated', updatedConfig);
+      }
+    });
     windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
     windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
 
@@ -3968,8 +3964,11 @@ function startBackgroundTasks() {
         });
         const updatedConfig = store.getConfig();
         const allItems = getCombinedItems();
-        windowManager.getMainWindow()?.webContents.send('config-updated', updatedConfig);
-        windowManager.getSettingsWindow()?.webContents.send('config-updated', updatedConfig);
+        BrowserWindow.getAllWindows().forEach((win) => {
+          if (!win.isDestroyed() && !win.webContents?.isDestroyed()) {
+            win.webContents.send('config-updated', updatedConfig);
+          }
+        });
         windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
         windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
       } catch (err) {
@@ -3996,8 +3995,11 @@ function startBackgroundTasks() {
         });
         const updatedConfig = store.getConfig();
         const allItems = getCombinedItems();
-        windowManager.getMainWindow()?.webContents.send('config-updated', updatedConfig);
-        windowManager.getSettingsWindow()?.webContents.send('config-updated', updatedConfig);
+        BrowserWindow.getAllWindows().forEach((win) => {
+          if (!win.isDestroyed() && !win.webContents?.isDestroyed()) {
+            win.webContents.send('config-updated', updatedConfig);
+          }
+        });
         windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
         windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
       } catch (err) {
@@ -4132,8 +4134,11 @@ app.whenReady().then(async () => {
       });
       const updatedConfig = store.getConfig();
       const allItems = getCombinedItems();
-      windowManager.getMainWindow()?.webContents.send('config-updated', updatedConfig);
-      windowManager.getSettingsWindow()?.webContents.send('config-updated', updatedConfig);
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed() && !win.webContents?.isDestroyed()) {
+          win.webContents.send('config-updated', updatedConfig);
+        }
+      });
       windowManager.getMainWindow()?.webContents.send('data-updated', allItems);
       windowManager.getSettingsWindow()?.webContents.send('data-updated', allItems);
 

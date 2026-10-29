@@ -303,18 +303,23 @@ export class AppStore {
             ...prevMg,
             ...nextMg,
             apiAuthCookie:
-              nextMg.apiAuthCookie !== undefined &&
-              (nextMg.apiAuthCookie !== '' || nextMg.apiUserEmail === '')
+              nextMg.apiAuthCookie && nextMg.apiAuthCookie.trim() !== ''
                 ? nextMg.apiAuthCookie
                 : prevMg?.apiAuthCookie,
             apiUserEmail:
-              nextMg.apiUserEmail !== undefined ? nextMg.apiUserEmail : prevMg?.apiUserEmail,
+              nextMg.apiUserEmail && nextMg.apiUserEmail.trim() !== ''
+                ? nextMg.apiUserEmail
+                : prevMg?.apiUserEmail,
             apiUserRole:
-              nextMg.apiUserRole !== undefined ? nextMg.apiUserRole : prevMg?.apiUserRole,
+              nextMg.apiUserRole && nextMg.apiUserRole.trim() !== ''
+                ? nextMg.apiUserRole
+                : prevMg?.apiUserRole,
             lastApiSyncAt:
-              nextMg.lastApiSyncAt !== undefined ? nextMg.lastApiSyncAt : prevMg?.lastApiSyncAt,
+              nextMg.lastApiSyncAt && nextMg.lastApiSyncAt.trim() !== ''
+                ? nextMg.lastApiSyncAt
+                : prevMg?.lastApiSyncAt,
             apiInstanceCount:
-              nextMg.apiInstanceCount !== undefined
+              typeof nextMg.apiInstanceCount === 'number'
                 ? nextMg.apiInstanceCount
                 : prevMg?.apiInstanceCount,
           }
@@ -325,37 +330,60 @@ export class AppStore {
         ...newConfig,
         magicgate: mergedMagicgate as any,
       };
-      const diskConfig: AppConfig = {
-        ...this.config,
-        magicgate: this.config.magicgate ? { ...this.config.magicgate } : this.config.magicgate,
-        ssms: this.config.ssms ? { ...this.config.ssms } : this.config.ssms,
-      };
-      if (
-        diskConfig.magicgate?.apiAuthCookie &&
-        !diskConfig.magicgate.apiAuthCookie.startsWith('enc:') &&
-        safeStorage?.isEncryptionAvailable?.()
-      ) {
-        try {
-          const enc = safeStorage.encryptString(diskConfig.magicgate.apiAuthCookie).toString('base64');
-          diskConfig.magicgate.apiAuthCookie = `enc:${enc}`;
-        } catch {}
-      }
-      if (
-        diskConfig.ssms?.sqlPassword &&
-        !diskConfig.ssms.sqlPassword.startsWith('enc:') &&
-        safeStorage?.isEncryptionAvailable?.()
-      ) {
-        try {
-          const enc = safeStorage.encryptString(diskConfig.ssms.sqlPassword).toString('base64');
-          diskConfig.ssms.sqlPassword = `enc:${enc}`;
-        } catch {}
-      }
-      const tmpFile = `${CONFIG_FILE}.${process.pid}.tmp`;
-      fs.writeFileSync(tmpFile, JSON.stringify(diskConfig, null, 2), 'utf-8');
-      fs.renameSync(tmpFile, CONFIG_FILE);
+      this.writeConfigToDisk();
     } catch (err) {
       console.error('[Store] Failed to save config:', err);
     }
+  }
+
+  public clearMagicGateDeployAuth(): AppConfig {
+    try {
+      this.config = {
+        ...this.config,
+        magicgate: {
+          ...this.config.magicgate,
+          apiAuthCookie: '',
+          apiUserEmail: '',
+          apiUserRole: '',
+          apiLastError: undefined,
+        },
+      };
+      this.writeConfigToDisk();
+    } catch (err) {
+      console.error('[Store] Failed to clear MagicGate deploy auth:', err);
+    }
+    return this.config;
+  }
+
+  private writeConfigToDisk(): void {
+    const diskConfig: AppConfig = {
+      ...this.config,
+      magicgate: this.config.magicgate ? { ...this.config.magicgate } : this.config.magicgate,
+      ssms: this.config.ssms ? { ...this.config.ssms } : this.config.ssms,
+    };
+    if (
+      diskConfig.magicgate?.apiAuthCookie &&
+      !diskConfig.magicgate.apiAuthCookie.startsWith('enc:') &&
+      safeStorage?.isEncryptionAvailable?.()
+    ) {
+      try {
+        const enc = safeStorage.encryptString(diskConfig.magicgate.apiAuthCookie).toString('base64');
+        diskConfig.magicgate.apiAuthCookie = `enc:${enc}`;
+      } catch {}
+    }
+    if (
+      diskConfig.ssms?.sqlPassword &&
+      !diskConfig.ssms.sqlPassword.startsWith('enc:') &&
+      safeStorage?.isEncryptionAvailable?.()
+    ) {
+      try {
+        const enc = safeStorage.encryptString(diskConfig.ssms.sqlPassword).toString('base64');
+        diskConfig.ssms.sqlPassword = `enc:${enc}`;
+      } catch {}
+    }
+    const tmpFile = `${CONFIG_FILE}.${process.pid}.tmp`;
+    fs.writeFileSync(tmpFile, JSON.stringify(diskConfig, null, 2), 'utf-8');
+    fs.renameSync(tmpFile, CONFIG_FILE);
   }
 
   private loadItems(): LauncherItem[] {

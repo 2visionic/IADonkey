@@ -2191,6 +2191,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   useEffect(() => {
     if (!saveTimeoutRef.current && !pendingConfigRef.current) {
       setFormData(config);
+    } else if (config.magicgate) {
+      const mergeMgAuth = (prevMg?: AppConfig['magicgate']): AppConfig['magicgate'] => ({
+        username: prevMg?.username || '',
+        password: prevMg?.password || '',
+        ...prevMg,
+        apiAuthCookie: config.magicgate?.apiAuthCookie ?? prevMg?.apiAuthCookie,
+        apiUserEmail: config.magicgate?.apiUserEmail ?? prevMg?.apiUserEmail,
+        apiUserRole: config.magicgate?.apiUserRole ?? prevMg?.apiUserRole,
+        lastApiSyncAt: config.magicgate?.lastApiSyncAt ?? prevMg?.lastApiSyncAt,
+        apiInstanceCount:
+          typeof config.magicgate?.apiInstanceCount === 'number'
+            ? config.magicgate.apiInstanceCount
+            : prevMg?.apiInstanceCount,
+        apiLastError: config.magicgate?.apiLastError,
+      });
+      setFormData((prev) => ({
+        ...prev,
+        magicgate: mergeMgAuth(prev.magicgate),
+      }));
+      if (pendingConfigRef.current) {
+        pendingConfigRef.current = {
+          ...pendingConfigRef.current,
+          magicgate: mergeMgAuth(pendingConfigRef.current.magicgate),
+        };
+      }
     }
     if (!isRecordingHotkey) {
       originalHotkeyRef.current = config.hotkey || 'Ctrl+Alt+Space';
@@ -7158,7 +7183,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <div className="flex items-center gap-3 min-w-0">
                           <div
                             className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                              formData.magicgate?.apiUserEmail && !formData.magicgate?.apiLastError
+                              (formData.magicgate?.apiUserEmail || formData.magicgate?.apiAuthCookie) && !formData.magicgate?.apiLastError
                                 ? 'bg-emerald-500/15 text-emerald-400'
                                 : formData.magicgate?.apiLastError
                                   ? 'bg-rose-500/15 text-rose-400'
@@ -7166,7 +7191,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             }`}
                           >
                             <span className="material-symbols-outlined text-lg">
-                              {formData.magicgate?.apiUserEmail && !formData.magicgate?.apiLastError
+                              {(formData.magicgate?.apiUserEmail || formData.magicgate?.apiAuthCookie) && !formData.magicgate?.apiLastError
                                 ? 'verified_user'
                                 : formData.magicgate?.apiLastError
                                   ? 'error'
@@ -7174,12 +7199,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </span>
                           </div>
                           <div className="min-w-0">
-                            {formData.magicgate?.apiUserEmail ? (
+                            {formData.magicgate?.apiUserEmail || formData.magicgate?.apiAuthCookie ? (
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm font-semibold text-white truncate">
-                                  {formData.magicgate.apiUserEmail}
+                                  {formData.magicgate?.apiUserEmail || 'Přihlášeno (uložený token)'}
                                 </span>
-                                {formData.magicgate.apiUserRole && (
+                                {formData.magicgate?.apiUserRole && (
                                   <span className="px-2 py-0.5 text-[11px] font-mono rounded-full bg-amber-500/20 text-amber-300 uppercase">
                                     {formData.magicgate.apiUserRole}
                                   </span>
@@ -7201,7 +7226,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   Poslední sync: {new Date(formData.magicgate.lastApiSyncAt).toLocaleString('cs-CZ')}
                                 </span>
                               )}
-                              {!formData.magicgate?.apiUserEmail && !formData.magicgate?.lastApiSyncAt && (
+                              {!formData.magicgate?.apiUserEmail && !formData.magicgate?.apiAuthCookie && !formData.magicgate?.lastApiSyncAt && (
                                 <span>Zadejte URL serveru a přihlaste se účtem Google</span>
                               )}
                             </div>
@@ -7250,7 +7275,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <span>
                               {isLoggingInDeploy
                                 ? 'Probíhá přihlašování...'
-                                : formData.magicgate?.apiUserEmail
+                                : formData.magicgate?.apiUserEmail || formData.magicgate?.apiAuthCookie
                                   ? 'Přihlásit znovu (Google)'
                                   : 'Přihlásit přes Google'}
                             </span>

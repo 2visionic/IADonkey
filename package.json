@@ -2,11 +2,12 @@
   "name": "iadonkey",
   "version": "2.1.26",
   "description": "IADonkey Launcher",
-  "author": "MagicWare",
+  "author": "Petr Coolhanek",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "install:deps": "npm install",
     "compile": "tsc && vite build && node -e \"const fs = require('fs'); fs.cpSync('electron/assets', 'dist-electron/assets', {recursive: true, force: true});\"",
     "build": "npm run compile",
     "build:exe": "npm run compile && electron-builder",

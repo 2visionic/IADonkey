@@ -1248,10 +1248,16 @@ export async function trySilentDeployReauth(
     let resolved = false;
     let verifying = false;
 
+    let googleClickInterval: NodeJS.Timeout | null = null;
+
     const finish = (result: { ok: boolean; email?: string; role?: string; cookie?: string }) => {
       if (resolved) return;
       resolved = true;
       clearTimeout(timer);
+      if (googleClickInterval) {
+        clearInterval(googleClickInterval);
+        googleClickInterval = null;
+      }
       try {
         session.defaultSession.cookies.removeListener('changed', onCookieChanged);
       } catch {}
@@ -1324,6 +1330,30 @@ export async function trySilentDeployReauth(
       }
     });
 
+    const tryAutoClickGoogleAccount = async () => {
+      if (resolved || silentWin.isDestroyed()) return;
+      const currentUrl = silentWin.webContents.getURL();
+      if (!currentUrl.includes('accounts.google.com')) return;
+      try {
+        const targetEmail = (preferredEmail || '').trim().toLowerCase();
+        await silentWin.webContents.executeJavaScript(`
+          (() => {
+            const target = ${JSON.stringify(targetEmail)};
+            const candidates = Array.from(document.querySelectorAll('[data-identifier], [data-email]'));
+            const match = (target && candidates.find(el => {
+              const id = (el.getAttribute('data-identifier') || el.getAttribute('data-email') || '').toLowerCase();
+              return id === target;
+            })) || candidates[0];
+            if (match && typeof match.click === 'function') {
+              match.click();
+              return true;
+            }
+            return false;
+          })();
+        `);
+      } catch {}
+    };
+
     silentWin.webContents.on('did-finish-load', async () => {
       if (resolved || silentWin.isDestroyed()) return;
       const currentUrl = silentWin.webContents.getURL();
@@ -1334,24 +1364,12 @@ export async function trySilentDeployReauth(
 
       // If Google OAuth Account Chooser is shown with an already signed-in account, click it silently
       if (currentUrl.includes('accounts.google.com')) {
-        try {
-          const targetEmail = (preferredEmail || '').trim().toLowerCase();
-          await silentWin.webContents.executeJavaScript(`
-            (() => {
-              const target = ${JSON.stringify(targetEmail)};
-              const candidates = Array.from(document.querySelectorAll('[data-identifier], [data-email]'));
-              const match = (target && candidates.find(el => {
-                const id = (el.getAttribute('data-identifier') || el.getAttribute('data-email') || '').toLowerCase();
-                return id === target;
-              })) || candidates[0];
-              if (match && typeof match.click === 'function') {
-                match.click();
-                return true;
-              }
-              return false;
-            })();
-          `);
-        } catch {}
+        await tryAutoClickGoogleAccount();
+        if (!googleClickInterval) {
+          googleClickInterval = setInterval(() => {
+            tryAutoClickGoogleAccount();
+          }, 450);
+        }
       }
     });
 
@@ -1365,11 +1383,12 @@ export async function trySilentDeployReauth(
 
 /**
  * Fetches /api/ui/agents from Deploy API and converts to LauncherItem[].
- * If the session cookie expired (401/302), automatically attempts silent Google SSO re-authentication in background.
+ * If the session cookie expired (401/302), automatically attempts silent Google SSO re-authentication in background,
+ * and if silent re-auth cannot complete, pops up the interactive login window so the user can re-authenticate immediately.
  */
 export async function fetchMagicGateDeployItems(
   settings?: MagicGateSettings,
-  options?: { allowSilentReauth?: boolean }
+  options?: { allowSilentReauth?: boolean; allowInteractiveReauth?: boolean }
 ): Promise<{
   ok: boolean;
   items: LauncherItem[];
@@ -1388,6 +1407,7 @@ export async function fetchMagicGateDeployItems(
   }
   let cookieOrToken = settings?.apiAuthCookie;
   const allowSilent = options?.allowSilentReauth !== false;
+  const allowInteractive = options?.allowInteractiveReauth !== false;
 
   try {
     let { headers, resolvedCookie } = await buildDeployRequestHeaders(baseUrl, cookieOrToken);
@@ -1439,8 +1459,31 @@ export async function fetchMagicGateDeployItems(
         diagnosticsService.logAction({
           type: 'sync',
           title: 'MagicGate Deploy API: Tichá obnova session cookie selhala',
-          details: `Automatická obnova Google SSO relace pro ${baseUrl} neproběhla (vyžadováno ruční přihlášení v Nastavení).`,
+          details: `Automatická obnova Google SSO relace pro ${baseUrl} neproběhla – otevírám přihlašovací okno.`,
           status: 'warn',
+        });
+      }
+    }
+
+    // If still unauthorized after silent re-auth attempt, pop up interactive login window
+    if (
+      (res.status === 401 || res.status === 403 || (res.status >= 300 && res.status < 400)) &&
+      allowInteractive
+    ) {
+      const interactiveRes = await loginToMagicGateDeployInteractive(baseUrl, null, { skipItemsFetch: true });
+      if (interactiveRes.ok && interactiveRes.cookie) {
+        cookieOrToken = interactiveRes.cookie;
+        refreshedEmail = interactiveRes.email;
+        refreshedRole = interactiveRes.role;
+
+        const rebuilt = await buildDeployRequestHeaders(baseUrl, cookieOrToken);
+        headers = rebuilt.headers;
+        resolvedCookie = rebuilt.resolvedCookie;
+
+        res = await fetch(`${baseUrl}/api/ui/agents`, {
+          method: 'GET',
+          headers,
+          redirect: 'manual',
         });
       }
     }
@@ -1755,13 +1798,24 @@ export function loadMagicGateDeployCache(selectedInfoFields?: string[]): Launche
   return [];
 }
 
+let activeInteractiveLoginPromise: Promise<{
+  ok: boolean;
+  email?: string;
+  role?: string;
+  cookie?: string;
+  instanceCount?: number;
+  error?: string;
+}> | null = null;
+let activeInteractiveAuthWindow: BrowserWindow | null = null;
+
 /**
  * Opens an interactive Electron BrowserWindow for Google SSO login to the configured Deploy server
  * and resolves with the captured session cookie and user identity once signed in.
  */
 export async function loginToMagicGateDeployInteractive(
   rawBaseUrl?: string,
-  parentWindow?: BrowserWindow | null
+  parentWindow?: BrowserWindow | null,
+  options?: { skipItemsFetch?: boolean }
 ): Promise<{
   ok: boolean;
   email?: string;
@@ -1770,6 +1824,19 @@ export async function loginToMagicGateDeployInteractive(
   instanceCount?: number;
   error?: string;
 }> {
+  if (activeInteractiveLoginPromise) {
+    try {
+      if (activeInteractiveAuthWindow && !activeInteractiveAuthWindow.isDestroyed()) {
+        if (activeInteractiveAuthWindow.isMinimized()) {
+          activeInteractiveAuthWindow.restore();
+        }
+        activeInteractiveAuthWindow.show();
+        activeInteractiveAuthWindow.focus();
+      }
+    } catch {}
+    return activeInteractiveLoginPromise;
+  }
+
   const baseUrl = normalizeDeployBaseUrl(rawBaseUrl);
   if (!baseUrl) {
     return {
@@ -1787,7 +1854,7 @@ export async function loginToMagicGateDeployInteractive(
     status: 'info',
   });
 
-  return new Promise((resolve) => {
+  activeInteractiveLoginPromise = new Promise((resolve) => {
     let resolved = false;
     let verifying = false;
 
@@ -1805,7 +1872,7 @@ export async function loginToMagicGateDeployInteractive(
         diagnosticsService.logAction({
           type: 'sync',
           title: 'MagicGate Deploy API: Přihlášení přes Google SSO úspěšné',
-          details: `Uživatel: ${result.email || 'neznámý'}${result.role ? ` (${result.role})` : ''}, načteno instancí: ${result.instanceCount ?? 0}`,
+          details: `Uživatel: ${result.email || 'neznámý'}${result.role ? ` (${result.role})` : ''}${typeof result.instanceCount === 'number' ? `, načteno instancí: ${result.instanceCount}` : ''}`,
           status: 'success',
         });
       } else {
@@ -1824,6 +1891,8 @@ export async function loginToMagicGateDeployInteractive(
           authWin.close();
         }
       } catch {}
+      activeInteractiveAuthWindow = null;
+      activeInteractiveLoginPromise = null;
       resolve(result);
     };
 
@@ -1834,7 +1903,7 @@ export async function loginToMagicGateDeployInteractive(
       modal: false,
       show: true,
       autoHideMenuBar: true,
-      title: 'Přihlášení – Deploy API',
+      title: 'Přihlášení – MagicGate Deploy API',
       backgroundColor: '#0f1117',
       webPreferences: {
         nodeIntegration: false,
@@ -1842,6 +1911,11 @@ export async function loginToMagicGateDeployInteractive(
         sandbox: true,
       },
     });
+    activeInteractiveAuthWindow = authWin;
+
+    try {
+      authWin.focus();
+    } catch {}
 
     const tryVerifyLogin = async () => {
       if (resolved || verifying) return;
@@ -1855,25 +1929,29 @@ export async function loginToMagicGateDeployInteractive(
 
         const meCheck = await checkDeployMe(baseUrl, cookieHeader);
         if (meCheck.ok && meCheck.me?.signedIn) {
-          const fetchRes = await fetchMagicGateDeployItems(
-            {
-              username: '',
-              password: '',
-              sourceMode: 'api',
-              apiBaseUrl: baseUrl,
-              apiAuthCookie: cookieHeader,
-              apiUserEmail: meCheck.me.email,
-              apiUserRole: meCheck.me.role,
-            },
-            { allowSilentReauth: false }
-          );
+          let instanceCount: number | undefined;
+          if (!options?.skipItemsFetch) {
+            const fetchRes = await fetchMagicGateDeployItems(
+              {
+                username: '',
+                password: '',
+                sourceMode: 'api',
+                apiBaseUrl: baseUrl,
+                apiAuthCookie: cookieHeader,
+                apiUserEmail: meCheck.me.email,
+                apiUserRole: meCheck.me.role,
+              },
+              { allowSilentReauth: false, allowInteractiveReauth: false }
+            );
+            instanceCount = fetchRes.ok ? fetchRes.items.length : undefined;
+          }
 
           finish({
             ok: true,
             email: meCheck.me.email,
             role: meCheck.me.role,
             cookie: cookieHeader,
-            instanceCount: fetchRes.ok ? fetchRes.items.length : undefined,
+            instanceCount,
           });
           return;
         }
@@ -1926,6 +2004,8 @@ export async function loginToMagicGateDeployInteractive(
       });
     });
   });
+
+  return activeInteractiveLoginPromise;
 }
 
 /**
