@@ -5,7 +5,7 @@ export interface VersionEntry {
   highlights: string[];
 }
 
-export const CURRENT_APP_VERSION = '2.1.26';
+export const CURRENT_APP_VERSION = '2.1.27';
 export const IS_DEV = import.meta.env.DEV;
 export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRENT_APP_VERSION;
 
@@ -13,6 +13,15 @@ export const DISPLAY_APP_VERSION = IS_DEV ? `${CURRENT_APP_VERSION} dev` : CURRE
  * Uživatelsky přívětivá historie verzí (ne technický žargon, ale přehled reálných funkcí pro uživatele).
  */
 export const CHANGELOG_HISTORY: VersionEntry[] = [
+  {
+    version: '2.1.27',
+    date: '30. 10. 2026',
+    title: 'Spolehlivá autentizace MagicGate Deploy API s automatickým přihlášením při vypršení relace a viditelnost tray ikony ve Windows 11',
+    highlights: [
+      'MagicGate Deploy API – Ochrana uložených přihlašovacích údajů a automatické okno přihlášení: Uložené informace o přihlášeném účtu a čase poslední synchronizace již nemizí při ukládání nastavení. Pokud na serveru vyprší platnost session cookie a tichá obnova přihlášení na pozadí přes Google SSO selže, automaticky vyskočí přihlašovací okno pro okamžité obnovení přístupu a aktualizaci instancí.',
+      'Systémová lišta (Tray) – Automatické zviditelnění ikony aplikace ve Windows 11: Při startu aplikace se v registru Windows 11 automaticky povolí trvalé zobrazení ikony v oznamovací oblasti hlavního panelu (IsPromoted = 1), takže ikona nezapadne do skryté rozbalovací nabídky ani po aktualizaci či přesunu složky.',
+    ],
+  },
   {
     version: '2.1.26',
     date: '27. 10. 2026',

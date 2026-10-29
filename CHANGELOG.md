@@ -4,6 +4,11 @@ Všechny důležité změny v této aplikaci jsou dokumentovány v tomto souboru
 
 ---
 
+## [2.1.27] - 30. 10. 2026
+### Spolehlivá autentizace MagicGate Deploy API s automatickým přihlášením při vypršení relace a viditelnost tray ikony ve Windows 11
+- **MagicGate Deploy API – Ochrana uložených přihlašovacích údajů a automatické okno přihlášení**: Uložené informace o přihlášeném účtu a čase poslední synchronizace již nemizí při ukládání nastavení. Pokud na serveru vyprší platnost session cookie a tichá obnova přihlášení na pozadí přes Google SSO selže, automaticky vyskočí přihlašovací okno pro okamžité obnovení přístupu a aktualizaci instancí.
+- **Systémová lišta (Tray) – Automatické zviditelnění ikony aplikace ve Windows 11**: Při startu aplikace se v registru Windows 11 automaticky povolí trvalé zobrazení ikony v oznamovací oblasti hlavního panelu (`IsPromoted = 1`), takže ikona nezapadne do skryté rozbalovací nabídky ani po aktualizaci či přesunu složky.
+
 ## [2.1.26] - 27. 10. 2026
 ### Ověření automatických aktualizací z nového repozitáře 2visionic/IADonkey
 - **Automatické aktualizace – Ověřovací vydání z repozitáře `2visionic/IADonkey`**: Potvrzení přímého stahování a instalace aktualizací z nového distribučního repozitáře.

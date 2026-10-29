@@ -1,6 +1,6 @@
 {
-  "version": "2.1.26",
-  "releaseNotes": "• Automatické aktualizace – Ověřovací vydání z nového repozitáře 2visionic/IADonkey.",
-  "downloadUrl": "https://github.com/2visionic/IADonkey/releases/download/v2.1.26/IADonkey-Setup-2.1.26.exe",
-  "zipUrl": "https://github.com/2visionic/IADonkey/releases/download/v2.1.26/IADonkey-2.1.26.zip"
+  "version": "2.1.27",
+  "releaseNotes": "• MagicGate Deploy API – Ochrana uložených přihlašovacích údajů a automatické otevření přihlašovacího okna při vypršení relace.\n• Systémová lišta (Tray) – Automatické zviditelnění ikony aplikace na hlavním panelu ve Windows 11.",
+  "downloadUrl": "https://github.com/2visionic/IADonkey/releases/download/v2.1.27/IADonkey-Setup-2.1.27.exe",
+  "zipUrl": "https://github.com/2visionic/IADonkey/releases/download/v2.1.27/IADonkey-2.1.27.zip"
 }
