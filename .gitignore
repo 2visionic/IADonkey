@@ -18,3 +18,12 @@ Thumbs.db
 # Internal technical analyses (contain sensitive company URLs/details)
 docs/*-analyza.md
 
+# AI assistant rules & configs
+.agent/
+.agents/
+.gemini/
+.claude/
+.cursor/
+GEMINI.md
+CLAUDE.md
+AGENTS.md
